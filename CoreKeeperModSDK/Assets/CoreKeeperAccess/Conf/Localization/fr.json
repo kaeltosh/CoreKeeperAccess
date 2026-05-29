@@ -27,5 +27,6 @@
   "craft.craftable": "fabricable",
   "craft.missing": "manque",
   "craft.crafted": "Fabriqué",
-  "craft.inhand": "en main"
+  "craft.inhand": "en main",
+  "equip.preset": "Préréglage d'équipement"
 }

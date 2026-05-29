@@ -14,7 +14,9 @@ namespace CoreKeeperAccess.Navigation
         public string NameKey;   // cle i18n du nom de section
         public string Kind;      // hotbar / bag / equipment / crafting / chest / trash / pouch / other
         public bool IsList;      // navigation lineaire (1 axe) au lieu de la grille 2D
-        public readonly List<SlotUIBase> Slots = new List<SlotUIBase>();
+        // UIelement (pas SlotUIBase) car une section peut contenir des elements
+        // non-slots, ex. les onglets de prereglage d'equipement en bas de l'equipement.
+        public readonly List<UIelement> Slots = new List<UIelement>();
 
         public string SectionName => Strings.L(NameKey);
     }
@@ -66,7 +68,33 @@ namespace CoreKeeperAccess.Navigation
                     .ThenBy(s => s.transform.position.x));
                 sections.Add(section);
             }
+            AppendEquipmentTabs(sections);
             return sections;
+        }
+
+        // Onglets de la fenetre perso ajoutes a la fin de la section equipement : en mode
+        // liste, on les atteint en descendant au D-pad. D'abord les prereglages (I/II/III),
+        // puis les onglets de vue (perso, stats, ames). Ce sont des CharacterWindowTab
+        // (pas des slots), d'ou la liste d'UIelement generiques.
+        private static void AppendEquipmentTabs(List<SlotSection> sections)
+        {
+            var equip = sections.Find(s => s.Kind == "equipment");
+            if (equip == null) return;
+            var cw = Manager.ui != null ? Manager.ui.characterWindow : null;
+            if (cw == null) return;
+            AppendTabs(equip, cw.presetTabs);
+            AppendTabs(equip, cw.windowTabs);
+        }
+
+        private static void AppendTabs(SlotSection section, List<CharacterWindowTab> tabs)
+        {
+            if (tabs == null) return;
+            foreach (var tab in tabs)
+            {
+                if (tab != null && tab.gameObject != null && tab.gameObject.activeInHierarchy
+                    && tab.isShowing && !section.Slots.Contains(tab))
+                    section.Slots.Add(tab);
+            }
         }
 
         private static string KindOf(SlotUIBase s)
@@ -112,10 +140,15 @@ namespace CoreKeeperAccess.Navigation
         // Libelle du role d'un emplacement, prefixe au contenu lors de l'annonce.
         // Equipement -> nom du role ; grilles -> numero 1-based ; artisanat -> rien
         // (le nom de la recette tient lieu de libelle).
-        public static string RoleLabel(SlotSection section, SlotUIBase slot, int indexInSection)
+        public static string RoleLabel(SlotSection section, UIelement element, int indexInSection)
         {
             if (section.Kind == "equipment")
-                return Strings.L(EquipKey(slot.slotType));
+            {
+                // Slot d'equipement -> nom du role ; onglet de preset -> rien (son
+                // titre suffit a l'annonce).
+                var slot = element as SlotUIBase;
+                return slot != null ? Strings.L(EquipKey(slot.slotType)) : null;
+            }
             if (section.Kind == "crafting" || section.Kind == "trash")
                 return null;
             return (indexInSection + 1).ToString();
@@ -144,11 +177,11 @@ namespace CoreKeeperAccess.Navigation
 
         // Emplacement le plus proche dans la direction donnee, ou null si on est au bord
         // (navigation bornee a la section : c'est ce qui "verrouille" la section).
-        public static SlotUIBase BestNeighbour(SlotSection section, SlotUIBase current, NavDir dir)
+        public static UIelement BestNeighbour(SlotSection section, UIelement current, NavDir dir)
         {
             if (current == null) return null;
             var p = current.transform.position;
-            SlotUIBase best = null;
+            UIelement best = null;
             float bestScore = float.MaxValue;
 
             foreach (var s in section.Slots)

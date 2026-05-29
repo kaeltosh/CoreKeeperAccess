@@ -28,10 +28,10 @@ namespace CoreKeeperAccess.Navigation
         private static bool _active;
         private static List<SlotSection> _sections = new List<SlotSection>();
         private static int _sectionIndex;
-        private static SlotUIBase _current;
+        private static UIelement _current;
 
         // Suivi du contenu du slot courant, pour reannoncer apres une prise/pose.
-        private static SlotUIBase _watchedSlot;
+        private static UIelement _watchedSlot;
         private static ObjectID _watchedId;
         private static int _watchedAmount;
 
@@ -168,13 +168,16 @@ namespace CoreKeeperAccess.Navigation
             Announce(section, target, announceSectionName: false);
         }
 
-        // Navigation en liste : haut/gauche = precedent, bas/droite = suivant, bornee.
-        private static SlotUIBase ListNeighbour(SlotSection section, NavDir dir)
+        // Navigation en liste : haut/gauche = precedent, bas/droite = suivant, en boucle
+        // (depuis le 1er, "haut" ramene au dernier, et inversement).
+        private static UIelement ListNeighbour(SlotSection section, NavDir dir)
         {
+            int count = section.Slots.Count;
+            if (count == 0) return null;
             int idx = section.Slots.IndexOf(_current);
-            if (idx < 0) return section.Slots.Count > 0 ? section.Slots[0] : null;
-            int next = (dir == NavDir.Up || dir == NavDir.Left) ? idx - 1 : idx + 1;
-            return (next < 0 || next >= section.Slots.Count) ? null : section.Slots[next];
+            if (idx < 0) return section.Slots[0];
+            int step = (dir == NavDir.Up || dir == NavDir.Left) ? -1 : 1;
+            return section.Slots[(idx + step + count) % count];
         }
 
         private static void SelectSection(int index, bool announceSectionName)
@@ -190,7 +193,7 @@ namespace CoreKeeperAccess.Navigation
         // on se recale dessus avant de naviguer au D-pad.
         private static void ResyncFromGame()
         {
-            var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement as SlotUIBase : null;
+            var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement as UIelement : null;
             if (sel == null || sel == _current) return;
             for (int i = 0; i < _sections.Count; i++)
             {
@@ -201,7 +204,7 @@ namespace CoreKeeperAccess.Navigation
             }
         }
 
-        private static void ForceSelect(SlotUIBase slot)
+        private static void ForceSelect(UIelement slot)
         {
             if (Manager.ui == null) return;
             InventoryNavState.SuppressPassiveAnnounce = true;
@@ -217,7 +220,7 @@ namespace CoreKeeperAccess.Navigation
             finally { InventoryNavState.SuppressPassiveAnnounce = false; }
         }
 
-        private static void Announce(SlotSection section, SlotUIBase slot, bool announceSectionName)
+        private static void Announce(SlotSection section, UIelement slot, bool announceSectionName)
         {
             string body;
             if (slot == null)

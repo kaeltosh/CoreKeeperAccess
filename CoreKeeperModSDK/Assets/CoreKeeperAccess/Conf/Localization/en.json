@@ -27,5 +27,6 @@
   "craft.craftable": "craftable",
   "craft.missing": "missing",
   "craft.crafted": "Crafted",
-  "craft.inhand": "in hand"
+  "craft.inhand": "in hand",
+  "equip.preset": "Equipment preset"
 }

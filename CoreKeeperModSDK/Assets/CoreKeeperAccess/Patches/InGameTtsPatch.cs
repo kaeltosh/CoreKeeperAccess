@@ -196,4 +196,17 @@ namespace CoreKeeperAccess.Patches
             TtsText.Say(Strings.L("craft.crafted") + ", " + qty + name + " " + Strings.L("craft.inhand"), true);
         }
     }
+
+    // Bascule de jeu d'equipement (onglets I/II/III ou boutons EQUIP_PRESET_1/2/3).
+    // On annonce le prereglage actif ; le contenu des slots se relit ensuite via la
+    // navigation / WatchSlotChange.
+    [HarmonyPatch(typeof(PlayerController), nameof(PlayerController.SetActiveEquipmentPreset))]
+    internal static class PlayerControllerSetActiveEquipmentPresetPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(int presetIndex)
+        {
+            TtsText.Say(Strings.L("equip.preset") + " " + (presetIndex + 1), true);
+        }
+    }
 }
