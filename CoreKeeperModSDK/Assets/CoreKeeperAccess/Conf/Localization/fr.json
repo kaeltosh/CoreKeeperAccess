@@ -23,5 +23,9 @@
   "slot.lantern": "Lanterne",
   "slot.helmVanity": "Apparence casque",
   "slot.breastVanity": "Apparence torse",
-  "slot.pantsVanity": "Apparence pantalon"
+  "slot.pantsVanity": "Apparence pantalon",
+  "craft.craftable": "fabricable",
+  "craft.missing": "manque",
+  "craft.crafted": "Fabriqué",
+  "craft.inhand": "en main"
 }

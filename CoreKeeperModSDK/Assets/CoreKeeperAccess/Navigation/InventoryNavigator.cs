@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
-using DavyKager;
 using Rewired;
 using UnityEngine;
 
@@ -31,6 +30,11 @@ namespace CoreKeeperAccess.Navigation
         private static int _sectionIndex;
         private static SlotUIBase _current;
 
+        // Suivi du contenu du slot courant, pour reannoncer apres une prise/pose.
+        private static SlotUIBase _watchedSlot;
+        private static ObjectID _watchedId;
+        private static int _watchedAmount;
+
         public static void Update()
         {
             bool open = Manager.main != null && Manager.main.player != null
@@ -51,6 +55,33 @@ namespace CoreKeeperAccess.Navigation
             }
 
             HandleInput();
+            WatchSlotChange();
+        }
+
+        // Apres une prise/pose/deplacement, la selection ne bouge pas mais le contenu
+        // du slot change : on reannonce alors simplement le nouvel etat du slot
+        // (ex. "vide" apres avoir grab, ou "Terre" apres avoir pose).
+        private static void WatchSlotChange()
+        {
+            ObjectID id = ObjectID.None;
+            int amount = 0;
+            if (_current != null)
+            {
+                var data = _current.GetContainedObject().objectData;
+                id = data.objectID;
+                amount = data.amount;
+            }
+
+            if (_current != null && _current == _watchedSlot
+                && (id != _watchedId || amount != _watchedAmount)
+                && _sectionIndex < _sections.Count)
+            {
+                Announce(_sections[_sectionIndex], _current, announceSectionName: false);
+            }
+
+            _watchedSlot = _current;
+            _watchedId = id;
+            _watchedAmount = amount;
         }
 
         private static void Enter()
@@ -69,6 +100,9 @@ namespace CoreKeeperAccess.Navigation
             _sections = new List<SlotSection>();
             _sectionIndex = 0;
             _current = null;
+            _watchedSlot = null;
+            _watchedId = ObjectID.None;
+            _watchedAmount = 0;
         }
 
         private static void Rebuild()
@@ -200,7 +234,7 @@ namespace CoreKeeperAccess.Navigation
             }
 
             string text = announceSectionName ? section.SectionName + ". " + body : body;
-            Tolk.Output(text, true);
+            TtsText.Say(text, true);
         }
     }
 }

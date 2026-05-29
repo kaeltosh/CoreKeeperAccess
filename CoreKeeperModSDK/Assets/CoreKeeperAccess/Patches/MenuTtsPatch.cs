@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
 using CoreKeeperAccess.Localization;
-using DavyKager;
 using HarmonyLib;
 
 namespace CoreKeeperAccess.Patches
@@ -27,7 +26,7 @@ namespace CoreKeeperAccess.Patches
             if (string.IsNullOrEmpty(announcement)) return;
 
             MenuTtsState.LastInstanceId = id;
-            Tolk.Output(announcement, true);
+            TtsText.Say(announcement, true);
         }
 
         public static string BuildAnnouncementPublic(RadicalMenuOption option)
@@ -203,7 +202,7 @@ namespace CoreKeeperAccess.Patches
             if (string.IsNullOrEmpty(announcement)) return;
 
             if (option != null) MenuTtsState.LastInstanceId = option.GetInstanceID();
-            Tolk.Output(announcement, true);
+            TtsText.Say(announcement, true);
         }
     }
 }

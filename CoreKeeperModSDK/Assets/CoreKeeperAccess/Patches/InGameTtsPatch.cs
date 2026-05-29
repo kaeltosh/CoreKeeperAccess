@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
-using DavyKager;
 using HarmonyLib;
 
 namespace CoreKeeperAccess.Patches
@@ -26,8 +25,84 @@ namespace CoreKeeperAccess.Patches
             var title = TtsText.ResolveTextAndFormatFields(element.GetHoverTitle());
             if (string.IsNullOrEmpty(title)) return null;
 
-            int amount = element.GetContainedObject().objectData.amount;
-            return amount > 1 ? title + ", " + amount : title;
+            var parts = new List<string> { title };
+            var seen = new HashSet<string> { title };
+
+            int amount = GetAnnounceAmount(element);
+            if (amount > 1) parts.Add(amount.ToString());
+
+            void Add(string s)
+            {
+                if (!string.IsNullOrEmpty(s) && seen.Add(s)) parts.Add(s);
+            }
+
+            Add(BuildCraftInfo(element));
+
+            // Tooltip : description puis stats, lus directement a la selection.
+            // Pour zapper, il suffit de bouger (l'annonce suivante interrompt).
+            var desc = element.GetHoverDescription();
+            if (desc != null)
+                foreach (var d in desc) Add(TtsText.ResolveTextAndFormatFields(d));
+
+            var stats = element.GetHoverStats(false);
+            if (stats != null)
+                foreach (var s in stats) Add(TtsText.ResolveTextAndFormatFields(s));
+
+            return string.Join(", ", parts);
+        }
+
+        // Quantite a annoncer : pour une recette = la quantite PRODUITE par craft
+        // (ex. torche x3), sinon = la quantite contenue dans l'emplacement.
+        private static int GetAnnounceAmount(UIelement element)
+        {
+            var recipe = element as RecipeSlotUI;
+            if (recipe != null)
+            {
+                var player = Manager.main != null ? Manager.main.player : null;
+                var handler = player != null ? player.activeCraftingHandler : null;
+                if (handler != null)
+                {
+                    var info = handler.GetRecipeInfo(recipe.inventorySlotIndex);
+                    return info.isValid ? info.amount : 1;
+                }
+                return 1;
+            }
+            return element.GetContainedObject().objectData.amount;
+        }
+
+        // Pour une recette d'artisanat : "fabricable" si on a tout, sinon la liste
+        // detaillee de ce qui manque ("manque 3 Bois, 2 Cuivre"). Renvoie null pour
+        // tout element qui n'est pas une recette (GetRequiredMaterials = null).
+        private static string BuildCraftInfo(UIelement element)
+        {
+            List<PugDatabase.MaterialInfo> mats;
+            try { mats = element.GetRequiredMaterials(false, false); }
+            catch { return null; }
+            if (mats == null || mats.Count == 0) return null;
+
+            var missing = new List<string>();
+            foreach (var m in mats)
+            {
+                if (m == null || m.amountAvailable >= m.amountNeeded) continue;
+                int lack = m.amountNeeded - m.amountAvailable;
+                var name = ResolveObjectName(m.objectID);
+                missing.Add(string.IsNullOrEmpty(name) ? lack.ToString() : lack + " " + name);
+            }
+
+            return missing.Count == 0
+                ? Strings.L("craft.craftable")
+                : Strings.L("craft.missing") + " " + string.Join(", ", missing);
+        }
+
+        // Nom localise d'un objet a partir de son ObjectID (materiaux, resultat de craft).
+        public static string ResolveObjectName(ObjectID objectID)
+        {
+            if (objectID == ObjectID.None) return null;
+            var taf = PlayerController.GetObjectName(new ContainedObjectsBuffer
+            {
+                objectData = new ObjectDataCD { objectID = objectID }
+            }, false);
+            return TtsText.ResolveTextAndFormatFields(taf);
         }
     }
 
@@ -58,7 +133,7 @@ namespace CoreKeeperAccess.Patches
             }
 
             InGameTtsState.LastSelectedInstanceId = id;
-            Tolk.Output(announcement, true);
+            TtsText.Say(announcement, true);
         }
     }
 
@@ -92,7 +167,33 @@ namespace CoreKeeperAccess.Patches
 
             // File d'attente NVDA (interrupt = false) : les notifs s'enchainent sans
             // se couper entre elles ni ecraser une annonce de navigation en cours.
-            Tolk.Output(announcement, false);
+            TtsText.Say(announcement, false);
+        }
+    }
+
+    // Resultat d'une fabrication : CraftItem n'est appele que si les materiaux sont
+    // la, donc un postfix suffit pour annoncer le succes. L'objet fabrique atterrit
+    // dans la main (curseur) -> on le rappelle a l'utilisateur.
+    [HarmonyPatch(typeof(InventoryHandler), nameof(InventoryHandler.CraftItem))]
+    internal static class InventoryHandlerCraftItemPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix()
+        {
+            // On lit le contenu reel de la main apres le craft : ca donne le total
+            // tenu (cumule si on enchaine les crafts), pas juste ce qui vient d'etre fait.
+            var player = Manager.main != null ? Manager.main.player : null;
+            var mouse = player != null ? player.mouseInventoryHandler : null;
+            if (mouse == null) return;
+
+            var held = mouse.GetObjectData(0);
+            var name = InGameTtsCore.ResolveObjectName(held.objectID);
+            if (string.IsNullOrEmpty(name)) return;
+
+            string qty = held.amount > 1 ? held.amount + " " : "";
+            // interrupt = true : un craft = une annonce qui ECRASE la precedente.
+            // En rafale on n'entend que le dernier etat, pas chaque occurrence empilee.
+            TtsText.Say(Strings.L("craft.crafted") + ", " + qty + name + " " + Strings.L("craft.inhand"), true);
         }
     }
 }

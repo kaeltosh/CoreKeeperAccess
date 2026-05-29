@@ -23,5 +23,9 @@
   "slot.lantern": "Lantern",
   "slot.helmVanity": "Helmet vanity",
   "slot.breastVanity": "Chest vanity",
-  "slot.pantsVanity": "Pants vanity"
+  "slot.pantsVanity": "Pants vanity",
+  "craft.craftable": "craftable",
+  "craft.missing": "missing",
+  "craft.crafted": "Crafted",
+  "craft.inhand": "in hand"
 }

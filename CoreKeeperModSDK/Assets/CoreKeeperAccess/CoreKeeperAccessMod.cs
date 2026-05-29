@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
+using CoreKeeperAccess.Patches;
 using DavyKager;
 using PugMod;
 using Rewired;
@@ -24,7 +25,7 @@ public class CoreKeeperAccessMod : IMod
     {
         Tolk.Load();
         Strings.Load();
-        Tolk.Output(Strings.L("mod.loaded"), false);
+        TtsText.Say(Strings.L("mod.loaded"), false);
     }
 
     public void Shutdown()
