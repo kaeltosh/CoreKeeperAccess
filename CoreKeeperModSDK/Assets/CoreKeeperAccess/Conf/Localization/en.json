@@ -31,5 +31,13 @@
   "equip.preset": "Equipment preset",
   "section.skills": "Skills",
   "section.talents": "Talents",
-  "section.pettalents": "Pet talents"
+  "section.pettalents": "Pet talents",
+  "wheel.sort": "Sort",
+  "wheel.quickstack": "Quick stack",
+  "wheel.pickuphalf": "Pick up half",
+  "wheel.hotbarnext": "Next hotbar",
+  "wheel.hotbarprev": "Previous hotbar",
+  "wheel.trash": "Trash",
+  "wheel.transfer": "Transfer",
+  "wheel.done": "done"
 }

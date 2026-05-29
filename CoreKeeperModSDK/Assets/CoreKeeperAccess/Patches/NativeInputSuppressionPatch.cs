@@ -41,6 +41,13 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
+            // Action armee par la roue : on simule un appui (une seule lecture).
+            if (InventoryNavState.ArmedInput.HasValue && InventoryNavState.ArmedInput.Value == inputType)
+            {
+                InventoryNavState.ArmedInput = null; // consomme
+                __result = true;
+                return false;
+            }
             if (!StolenInputTypes.Blocks(inputType)) return true;
             __result = false;
             return false;
