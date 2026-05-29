@@ -35,6 +35,7 @@ namespace CoreKeeperAccess.Navigation
             { "hotbar", "section.hotbar" }, { "bag", "section.bag" }, { "pouch", "section.pouch" },
             { "equipment", "section.equipment" }, { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
+            { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
         };
 
         // Reconstruit les sections a partir des emplacements actuellement affiches.
@@ -69,7 +70,38 @@ namespace CoreKeeperAccess.Navigation
                 sections.Add(section);
             }
             AppendEquipmentTabs(sections);
+            // Fenetres de progression (sous-vues de characterWindow) : compétences,
+            // arbre de talents de la competence ouverte, talents de familier. Ce sont
+            // des UIelement navigables, captes comme des sections en mode liste.
+            AddElementSection<SkillUIElement>(sections, "skills");
+            AddElementSection<SkillTalentUIElement>(sections, "talents");
+            AddElementSection<PetTalentUIElement>(sections, "pettalents");
             return sections;
+        }
+
+        // Cree une section (mode liste) a partir de tous les UIelement d'un type donne
+        // actuellement affiches. Sert pour les compétences / talents.
+        private static void AddElementSection<T>(List<SlotSection> sections, string kind) where T : UIelement
+        {
+            var found = Object.FindObjectsByType<T>(FindObjectsSortMode.None);
+            var actives = new List<UIelement>();
+            foreach (var e in found)
+            {
+                if (e != null && e.gameObject != null && e.gameObject.activeInHierarchy && e.isShowing)
+                    actives.Add(e);
+            }
+            if (actives.Count == 0) return;
+            actives.Sort(ReadingOrder);
+            var section = new SlotSection { Kind = kind, NameKey = NameKeys[kind], IsList = true };
+            section.Slots.AddRange(actives);
+            sections.Add(section);
+        }
+
+        // Ordre de lecture : du haut vers le bas, puis de gauche a droite.
+        private static int ReadingOrder(UIelement a, UIelement b)
+        {
+            int c = b.transform.position.y.CompareTo(a.transform.position.y);
+            return c != 0 ? c : a.transform.position.x.CompareTo(b.transform.position.x);
         }
 
         // Onglets de la fenetre perso ajoutes a la fin de la section equipement : en mode
@@ -149,7 +181,8 @@ namespace CoreKeeperAccess.Navigation
                 var slot = element as SlotUIBase;
                 return slot != null ? Strings.L(EquipKey(slot.slotType)) : null;
             }
-            if (section.Kind == "crafting" || section.Kind == "trash")
+            if (section.Kind == "crafting" || section.Kind == "trash"
+                || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents")
                 return null;
             return (indexInSection + 1).ToString();
         }

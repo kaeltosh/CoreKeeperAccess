@@ -28,5 +28,8 @@
   "craft.missing": "manque",
   "craft.crafted": "Fabriqué",
   "craft.inhand": "en main",
-  "equip.preset": "Préréglage d'équipement"
+  "equip.preset": "Préréglage d'équipement",
+  "section.skills": "Compétences",
+  "section.talents": "Talents",
+  "section.pettalents": "Talents du familier"
 }

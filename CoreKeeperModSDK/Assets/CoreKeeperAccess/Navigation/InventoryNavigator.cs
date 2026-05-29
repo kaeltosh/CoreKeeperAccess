@@ -35,10 +35,15 @@ namespace CoreKeeperAccess.Navigation
         private static ObjectID _watchedId;
         private static int _watchedAmount;
 
+        // Derniere selection "jeu" hors de nos sections, pour ne reconstruire qu'une
+        // seule fois quand une nouvelle vue s'ouvre (anti-spam de rebuild).
+        private static UIelement _lastSyncTarget;
+
         public static void Update()
         {
-            bool open = Manager.main != null && Manager.main.player != null
-                        && Manager.ui != null && Manager.ui.isAnyInventoryShowing;
+            bool open = Manager.main != null && Manager.main.player != null && Manager.ui != null
+                        && (Manager.ui.isAnyInventoryShowing
+                            || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing));
 
             if (open && !_active) Enter();
             else if (!open && _active) Exit();
@@ -54,6 +59,7 @@ namespace CoreKeeperAccess.Navigation
                 return;
             }
 
+            SyncWithGameSelection();
             HandleInput();
             WatchSlotChange();
         }
@@ -103,6 +109,7 @@ namespace CoreKeeperAccess.Navigation
             _watchedSlot = null;
             _watchedId = ObjectID.None;
             _watchedAmount = 0;
+            _lastSyncTarget = null;
         }
 
         private static void Rebuild()
@@ -151,7 +158,6 @@ namespace CoreKeeperAccess.Navigation
 
         private static void Move(NavDir dir)
         {
-            ResyncFromGame();
             if (_sectionIndex >= _sections.Count) return;
             var section = _sections[_sectionIndex];
             var target = section.IsList
@@ -189,19 +195,34 @@ namespace CoreKeeperAccess.Navigation
             Announce(section, _current, announceSectionName);
         }
 
-        // Si le joueur a bouge la selection au stick (input natif laisse actif),
-        // on se recale dessus avant de naviguer au D-pad.
-        private static void ResyncFromGame()
+        // Le jeu a change la selection (ex. ouverture de la vue compétences qui
+        // auto-selectionne son 1er element) : on se recale dessus, en reconstruisant
+        // les sections si c'est un element qu'on ne connaissait pas encore. Evite le
+        // "bump manuel" pour prendre en compte une nouvelle vue.
+        private static void SyncWithGameSelection()
         {
-            var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement as UIelement : null;
+            var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement : null;
             if (sel == null || sel == _current) return;
-            for (int i = 0; i < _sections.Count; i++)
+
+            int idx = FindSectionIndex(sel);
+            if (idx < 0)
             {
-                if (!_sections[i].Slots.Contains(sel)) continue;
-                _sectionIndex = i;
-                _current = sel;
-                return;
+                if (sel == _lastSyncTarget) return; // deja tente, element non captable
+                _lastSyncTarget = sel;
+                Rebuild();
+                idx = FindSectionIndex(sel);
+                if (idx < 0) return;
             }
+            _sectionIndex = idx;
+            _current = sel;
+            Announce(_sections[idx], sel, announceSectionName: true);
+        }
+
+        private static int FindSectionIndex(UIelement e)
+        {
+            for (int i = 0; i < _sections.Count; i++)
+                if (_sections[i].Slots.Contains(e)) return i;
+            return -1;
         }
 
         private static void ForceSelect(UIelement slot)

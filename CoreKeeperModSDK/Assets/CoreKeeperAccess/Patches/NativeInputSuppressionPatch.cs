@@ -20,6 +20,13 @@ namespace CoreKeeperAccess.Patches
             PlayerInput.InputType.SORT,
             PlayerInput.InputType.SWAP_NEXT_HOTBAR,
             PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR,
+            // Navigation UI native (D-pad dans les fenetres compétences/talents/stats,
+            // et stick). Neutralisee pour que seule NOTRE navigation pilote la selection
+            // (sinon double deplacement : nous + le jeu -> annonces qui oscillent).
+            PlayerInput.InputType.MENU_UP,
+            PlayerInput.InputType.MENU_DOWN,
+            PlayerInput.InputType.MENU_LEFT,
+            PlayerInput.InputType.MENU_RIGHT,
         };
 
         public static bool Blocks(PlayerInput.InputType t)

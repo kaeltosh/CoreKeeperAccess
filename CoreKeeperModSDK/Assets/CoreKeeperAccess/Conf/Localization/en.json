@@ -28,5 +28,8 @@
   "craft.missing": "missing",
   "craft.crafted": "Crafted",
   "craft.inhand": "in hand",
-  "equip.preset": "Equipment preset"
+  "equip.preset": "Equipment preset",
+  "section.skills": "Skills",
+  "section.talents": "Talents",
+  "section.pettalents": "Pet talents"
 }
