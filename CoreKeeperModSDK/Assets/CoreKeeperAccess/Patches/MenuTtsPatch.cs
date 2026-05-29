@@ -1,11 +1,8 @@
 using System.Collections.Generic;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using CoreKeeperAccess.Localization;
 using DavyKager;
 using HarmonyLib;
-using PugMod;
-using UnityEngine;
 
 namespace CoreKeeperAccess.Patches
 {
@@ -140,22 +137,9 @@ namespace CoreKeeperAccess.Patches
             return null;
         }
 
-        private static readonly Regex UnsubstitutedPlaceholder = new Regex(@"\{\d+\}", RegexOptions.Compiled);
-
         private static string ResolvePugText(PugText text)
         {
-            if (text == null) return null;
-            var raw = text.GetText();
-            if (string.IsNullOrEmpty(raw)) return null;
-
-            string result;
-            try { result = text.ProcessText(raw); }
-            catch { result = API.Localization?.GetLocalizedTerm(raw); }
-
-            if (string.IsNullOrEmpty(result)) result = raw;
-            if (UnsubstitutedPlaceholder.IsMatch(result)) return null;
-            if (result.StartsWith("missing:", System.StringComparison.OrdinalIgnoreCase)) return null;
-            return result;
+            return TtsText.ResolvePugText(text);
         }
     }
 

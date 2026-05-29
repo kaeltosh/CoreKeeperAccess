@@ -1,5 +1,27 @@
 {
   "mod.loaded": "Mod accessibilité chargé",
   "menu.option.more": "Plus d'options",
-  "menu.option.delete": "Supprimer"
+  "menu.option.delete": "Supprimer",
+  "ingame.slot.empty": "Vide",
+  "section.hotbar": "Barre rapide",
+  "section.bag": "Sac",
+  "section.equipment": "Équipement",
+  "section.crafting": "Artisanat",
+  "section.chest": "Coffre",
+  "section.trash": "Poubelle",
+  "section.pouch": "Pochette",
+  "section.other": "Autre",
+  "slot.helm": "Casque",
+  "slot.breast": "Torse",
+  "slot.pants": "Pantalon",
+  "slot.necklace": "Collier",
+  "slot.ring1": "Anneau 1",
+  "slot.ring2": "Anneau 2",
+  "slot.offhand": "Main secondaire",
+  "slot.backpack": "Sac à dos",
+  "slot.pet": "Familier",
+  "slot.lantern": "Lanterne",
+  "slot.helmVanity": "Apparence casque",
+  "slot.breastVanity": "Apparence torse",
+  "slot.pantsVanity": "Apparence pantalon"
 }

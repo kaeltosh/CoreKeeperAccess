@@ -1,5 +1,27 @@
 {
   "mod.loaded": "Accessibility mod loaded",
   "menu.option.more": "More options",
-  "menu.option.delete": "Delete"
+  "menu.option.delete": "Delete",
+  "ingame.slot.empty": "Empty",
+  "section.hotbar": "Hotbar",
+  "section.bag": "Bag",
+  "section.equipment": "Equipment",
+  "section.crafting": "Crafting",
+  "section.chest": "Chest",
+  "section.trash": "Trash",
+  "section.pouch": "Pouch",
+  "section.other": "Other",
+  "slot.helm": "Helmet",
+  "slot.breast": "Chest armor",
+  "slot.pants": "Pants",
+  "slot.necklace": "Necklace",
+  "slot.ring1": "Ring 1",
+  "slot.ring2": "Ring 2",
+  "slot.offhand": "Off-hand",
+  "slot.backpack": "Backpack",
+  "slot.pet": "Pet",
+  "slot.lantern": "Lantern",
+  "slot.helmVanity": "Helmet vanity",
+  "slot.breastVanity": "Chest vanity",
+  "slot.pantsVanity": "Pants vanity"
 }

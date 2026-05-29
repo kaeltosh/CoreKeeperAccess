@@ -39,6 +39,8 @@ public class CoreKeeperAccessMod : IMod
 
     public void Update()
     {
+        CoreKeeperAccess.Navigation.InventoryNavigator.Update();
+
         if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
         {
             _inputDiag = !_inputDiag;

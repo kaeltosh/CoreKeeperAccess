@@ -1,0 +1,206 @@
+using System.Collections.Generic;
+using CoreKeeperAccess.Localization;
+using CoreKeeperAccess.Patches;
+using DavyKager;
+using Rewired;
+using UnityEngine;
+
+namespace CoreKeeperAccess.Navigation
+{
+    // Etat partage avec les patches Harmony (neutralisation de l'input natif +
+    // etouffement de l'annonce passive quand c'est nous qui pilotons la selection).
+    internal static class InventoryNavState
+    {
+        public static bool SuppressNativeInput;     // vrai tant que notre nav inventaire tient la main
+        public static bool SuppressPassiveAnnounce;  // vrai le temps d'une selection forcee
+    }
+
+    // Navigation a11y de l'inventaire par sections verrouillees.
+    // Bumpers = section precedente / suivante ; D-pad = deplacement en grille,
+    // borne a la section. Lecture des boutons en brut via Rewired (ids physiques
+    // du template Gamepad), l'action native de ces boutons etant neutralisee par
+    // NativeInputSuppressionPatch tant que la nav est active.
+    internal static class InventoryNavigator
+    {
+        // Ids physiques (template Rewired Gamepad, confirmes en jeu).
+        private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
+        private const int Lb = 10, Rb = 11;
+
+        private static bool _active;
+        private static List<SlotSection> _sections = new List<SlotSection>();
+        private static int _sectionIndex;
+        private static SlotUIBase _current;
+
+        public static void Update()
+        {
+            bool open = Manager.main != null && Manager.main.player != null
+                        && Manager.ui != null && Manager.ui.isAnyInventoryShowing;
+
+            if (open && !_active) Enter();
+            else if (!open && _active) Exit();
+
+            if (!_active) return;
+
+            // Si les emplacements n'etaient pas prets a l'ouverture, on retente.
+            if (_sections.Count == 0)
+            {
+                Rebuild();
+                if (_sections.Count == 0) return;
+                SelectSection(0, announceSectionName: true);
+                return;
+            }
+
+            HandleInput();
+        }
+
+        private static void Enter()
+        {
+            _active = true;
+            InventoryNavState.SuppressNativeInput = true;
+            Rebuild();
+            if (_sections.Count > 0)
+                SelectSection(0, announceSectionName: true);
+        }
+
+        private static void Exit()
+        {
+            _active = false;
+            InventoryNavState.SuppressNativeInput = false;
+            _sections = new List<SlotSection>();
+            _sectionIndex = 0;
+            _current = null;
+        }
+
+        private static void Rebuild()
+        {
+            _sections = SlotSections.Build();
+            if (_sectionIndex >= _sections.Count) _sectionIndex = 0;
+        }
+
+        private static void HandleInput()
+        {
+            var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
+            if (joy == null) return;
+
+            // Boutons presses durant cette frame (front montant).
+            int pressed = -1;
+            for (int i = 0; i < joy.buttonCount; i++)
+            {
+                if (!joy.GetButtonDown(i)) continue;
+                int id = joy.ButtonElementIdentifiers[i].id;
+                if (id == DpadUp || id == DpadDown || id == DpadLeft || id == DpadRight || id == Lb || id == Rb)
+                {
+                    pressed = id;
+                    break;
+                }
+            }
+            if (pressed < 0) return;
+
+            switch (pressed)
+            {
+                case Rb: ChangeSection(+1); break;
+                case Lb: ChangeSection(-1); break;
+                case DpadUp: Move(NavDir.Up); break;
+                case DpadDown: Move(NavDir.Down); break;
+                case DpadLeft: Move(NavDir.Left); break;
+                case DpadRight: Move(NavDir.Right); break;
+            }
+        }
+
+        private static void ChangeSection(int delta)
+        {
+            Rebuild(); // l'ouverture d'un coffre/atelier peut avoir ajoute des sections
+            if (_sections.Count == 0) return;
+            int next = (_sectionIndex + delta % _sections.Count + _sections.Count) % _sections.Count;
+            SelectSection(next, announceSectionName: true);
+        }
+
+        private static void Move(NavDir dir)
+        {
+            ResyncFromGame();
+            if (_sectionIndex >= _sections.Count) return;
+            var section = _sections[_sectionIndex];
+            var target = section.IsList
+                ? ListNeighbour(section, dir)
+                : SlotSections.BestNeighbour(section, _current, dir);
+            if (target == null)
+            {
+                // Bord de section : on ne sort pas, on re-annonce la position courante.
+                Announce(section, _current, announceSectionName: false);
+                return;
+            }
+            _current = target;
+            ForceSelect(target);
+            Announce(section, target, announceSectionName: false);
+        }
+
+        // Navigation en liste : haut/gauche = precedent, bas/droite = suivant, bornee.
+        private static SlotUIBase ListNeighbour(SlotSection section, NavDir dir)
+        {
+            int idx = section.Slots.IndexOf(_current);
+            if (idx < 0) return section.Slots.Count > 0 ? section.Slots[0] : null;
+            int next = (dir == NavDir.Up || dir == NavDir.Left) ? idx - 1 : idx + 1;
+            return (next < 0 || next >= section.Slots.Count) ? null : section.Slots[next];
+        }
+
+        private static void SelectSection(int index, bool announceSectionName)
+        {
+            _sectionIndex = index;
+            var section = _sections[index];
+            _current = section.Slots.Count > 0 ? section.Slots[0] : null;
+            if (_current != null) ForceSelect(_current);
+            Announce(section, _current, announceSectionName);
+        }
+
+        // Si le joueur a bouge la selection au stick (input natif laisse actif),
+        // on se recale dessus avant de naviguer au D-pad.
+        private static void ResyncFromGame()
+        {
+            var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement as SlotUIBase : null;
+            if (sel == null || sel == _current) return;
+            for (int i = 0; i < _sections.Count; i++)
+            {
+                if (!_sections[i].Slots.Contains(sel)) continue;
+                _sectionIndex = i;
+                _current = sel;
+                return;
+            }
+        }
+
+        private static void ForceSelect(SlotUIBase slot)
+        {
+            if (Manager.ui == null) return;
+            InventoryNavState.SuppressPassiveAnnounce = true;
+            try
+            {
+                Manager.ui.OnUIElementSelected(slot);
+                // Recaler le curseur manette virtuel sur l'element : sinon UIMouse
+                // refait un raycast a l'ancienne position au frame suivant et
+                // re-selectionne l'ancien slot (le focus "ne suit pas").
+                if (Manager.ui.mouse != null)
+                    Manager.ui.mouse.PlaceMousePositionOnSelectedUIElementWhenControlledByJoystick();
+            }
+            finally { InventoryNavState.SuppressPassiveAnnounce = false; }
+        }
+
+        private static void Announce(SlotSection section, SlotUIBase slot, bool announceSectionName)
+        {
+            string body;
+            if (slot == null)
+            {
+                body = Strings.L("ingame.slot.empty");
+            }
+            else
+            {
+                int idx = section.Slots.IndexOf(slot);
+                string role = SlotSections.RoleLabel(section, slot, idx);
+                string content = InGameTtsCore.BuildElementAnnouncement(slot);
+                if (string.IsNullOrEmpty(content)) content = Strings.L("ingame.slot.empty");
+                body = string.IsNullOrEmpty(role) ? content : role + ", " + content;
+            }
+
+            string text = announceSectionName ? section.SectionName + ". " + body : body;
+            Tolk.Output(text, true);
+        }
+    }
+}
