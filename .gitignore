@@ -1,0 +1,36 @@
+# Filet de sauvegarde LOCAL — on ne versionne QUE notre travail
+# (mod CoreKeeperAccess, outillage, docs). Le SDK Unity, les DLL du jeu,
+# le code décompilé et les fichiers générés sont exclus : re-clonables,
+# IP du jeu, ou volumineux.
+
+# 1) Tout ignorer par défaut
+/*
+
+# 2) Docs et artefacts à la racine
+!/.gitignore
+!/*.md
+!/mapping_manette.html
+
+# 3) Outillage et dépendances du mod
+!/tools/
+!/third_party/
+
+# 4) Dans le SDK Unity : seulement nos sources + notre manifest + notre outillage editor
+!/CoreKeeperModSDK/
+/CoreKeeperModSDK/*
+!/CoreKeeperModSDK/Assets/
+/CoreKeeperModSDK/Assets/*
+!/CoreKeeperModSDK/Assets/CoreKeeperAccess/
+!/CoreKeeperModSDK/Assets/CoreKeeperAccess.asset
+!/CoreKeeperModSDK/Assets/CoreKeeperAccess.asset.meta
+!/CoreKeeperModSDK/Assets/CoreKeeperAccess.meta
+!/CoreKeeperModSDK/Assets/Editor/
+!/CoreKeeperModSDK/Assets/Editor.meta
+
+# Toujours ignorer les binaires/temp même dans les dossiers whitelistés
+**/obj/
+**/bin/
+**/*.tmp
+
+# Outil tiers téléchargé (AssetStudioMod) : re-téléchargeable, pas notre travail
+/tools/assetstudio/
