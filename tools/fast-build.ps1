@@ -3,7 +3,8 @@ param(
     [string]$ModSource = "C:\Users\flame\Documents\core keeper\CoreKeeperModSDK\Assets\CoreKeeperAccess",
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\Core Keeper",
     [string]$ModName   = "CoreKeeperAccess",
-    [switch]$Launch
+    [switch]$Launch,
+    [switch]$NoCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +19,21 @@ if (-not (Test-Path $ModSource)) {
     Write-Host "ERREUR: source introuvable: $ModSource"
     Beep-Fail
     exit 1
+}
+
+# Filet de securite : valider la compile avant de deployer (debrayable via -NoCheck).
+if (-not $NoCheck) {
+    $checkScript = Join-Path $PSScriptRoot "check-compile.ps1"
+    if (Test-Path $checkScript) {
+        & $checkScript -ModSource $ModSource -GamePath $GamePath -NoBeep
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Deploiement annule (check-compile a echoue). -NoCheck pour forcer."
+            Beep-Fail
+            exit 3
+        }
+    } else {
+        Write-Host "Note: check-compile.ps1 introuvable, deploiement sans verif."
+    }
 }
 if (-not (Test-Path $manifestPath)) {
     Write-Host "ERREUR: $manifestPath introuvable. Build Unity initial requis."

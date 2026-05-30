@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Media;
 using System.Text.RegularExpressions;
 using PugMod;
 using UnityEditor;
@@ -39,6 +40,16 @@ namespace CoreKeeperAccess.Editor
         internal static void TriggerFromPostprocessor()
         {
             EditorApplication.delayCall += RunPending;
+        }
+
+        // Retour sonore de fin de build (l'Editor Unity est inaccessible NVDA, et le
+        // build fige le PC : ce son est le seul signal "c'est termine").
+        // Memes sons que fast-build : Asterisk = succes, Hand (Critical Stop) = echec.
+        // EditorApplication.Beep en filet si SystemSounds est muet sous Mono.
+        private static void NotifyDone(bool ok)
+        {
+            try { if (ok) SystemSounds.Asterisk.Play(); else SystemSounds.Hand.Play(); }
+            catch { EditorApplication.Beep(); }
         }
 
         [Serializable]
@@ -179,6 +190,7 @@ namespace CoreKeeperAccess.Editor
             if (string.IsNullOrEmpty(modName))
             {
                 Debug.LogError($"{LogPrefix} build_install: modName is required");
+                NotifyDone(false);
                 return;
             }
 
@@ -203,6 +215,7 @@ namespace CoreKeeperAccess.Editor
             if (modSettings == null)
             {
                 Debug.LogError($"{LogPrefix} build_install: could not find ModBuilderSettings with name {modName}");
+                NotifyDone(false);
                 return;
             }
 
@@ -214,6 +227,7 @@ namespace CoreKeeperAccess.Editor
             else
             {
                 Debug.LogError($"{LogPrefix} build_install: could not find CoreKeeper_Data at {gamePath}");
+                NotifyDone(false);
                 return;
             }
 
@@ -225,12 +239,14 @@ namespace CoreKeeperAccess.Editor
                 if (!success)
                 {
                     Debug.LogError($"{LogPrefix} build_install: ModBuilder.BuildMod returned failure");
+                    NotifyDone(false);
                     return;
                 }
 
                 Debug.Log($"{LogPrefix} build_install: build OK, applying native plugin post-fix");
                 PostBuildRelocateNatives(modName, installPath, gamePath);
                 Debug.Log($"{LogPrefix} build_install: SUCCESS — {modName} installed at {installPath}/{modName}");
+                NotifyDone(true);
             });
         }
 

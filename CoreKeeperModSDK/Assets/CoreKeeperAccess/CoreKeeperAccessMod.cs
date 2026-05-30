@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using DavyKager;
+using HarmonyLib;
 using PugMod;
 using Rewired;
 using UnityEngine;
@@ -25,7 +28,41 @@ public class CoreKeeperAccessMod : IMod
     {
         Tolk.Load();
         Strings.Load();
+        DiagnosePatches();
         TtsText.Say(Strings.L("mod.loaded"), false);
+    }
+
+    // Verifie au demarrage que chacun de nos patches Harmony s'est bien applique.
+    // Une maj de Core Keeper peut renommer/supprimer une methode cible : le patch
+    // echoue alors silencieusement et la fonctionnalite associee meurt sans bruit.
+    // On loggue un recap (erreur si manquants) pour reperer la casse au boot, sans
+    // avoir a re-tester chaque feature en jeu. Auto-maintenu : tout type [HarmonyPatch]
+    // de notre assembly est compte, donc un patch ajoute plus tard l'est aussi.
+    private static void DiagnosePatches()
+    {
+        var asm = typeof(CoreKeeperAccessMod).Assembly;
+        var expected = asm.GetTypes()
+            .Where(t => t.IsDefined(typeof(HarmonyPatch), false))
+            .ToList();
+
+        var appliedTypes = new HashSet<Type>();
+        foreach (var method in Harmony.GetAllPatchedMethods())
+        {
+            var info = Harmony.GetPatchInfo(method);
+            if (info == null) continue;
+            foreach (var patch in info.Prefixes.Concat(info.Postfixes)
+                         .Concat(info.Transpilers).Concat(info.Finalizers))
+            {
+                var declaring = patch.PatchMethod != null ? patch.PatchMethod.DeclaringType : null;
+                if (declaring != null) appliedTypes.Add(declaring);
+            }
+        }
+
+        var missing = expected.Where(t => !appliedTypes.Contains(t)).Select(t => t.Name).ToList();
+        if (missing.Count == 0)
+            Debug.Log($"[A11yDiag] Patches Harmony OK : {expected.Count}/{expected.Count} appliques.");
+        else
+            Debug.LogError($"[A11yDiag] Patches Harmony : {missing.Count}/{expected.Count} NON appliques -> {string.Join(", ", missing)}");
     }
 
     public void Shutdown()
