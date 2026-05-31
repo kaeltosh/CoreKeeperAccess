@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using CoreKeeperAccess.Localization;
+using CoreKeeperAccess.Patches;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Navigation
@@ -36,6 +37,7 @@ namespace CoreKeeperAccess.Navigation
             { "equipment", "section.equipment" }, { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
             { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
+            { "stats", "section.stats" },
         };
 
         // Reconstruit les sections a partir des emplacements actuellement affiches.
@@ -76,7 +78,74 @@ namespace CoreKeeperAccess.Navigation
             AddElementSection<SkillUIElement>(sections, "skills");
             AddElementSection<SkillTalentUIElement>(sections, "talents");
             AddElementSection<PetTalentUIElement>(sections, "pettalents");
+            // Fiche de stats (overlay de l'etoile) : section a part car ses lignes ne
+            // sont pas des slots mais des StatTextUIElement, avec titres de section.
+            AddStatsSection(sections);
             return sections;
+        }
+
+        // Titre de section associe a chaque ligne de stat navigable (pour prefixer
+        // l'annonce au changement de section : "Defense. Armure plus 12"). Rempli
+        // par AddStatsSection, lu par l'annonce dans InventoryNavigator.
+        private static readonly Dictionary<UIelement, string> StatTitles = new Dictionary<UIelement, string>();
+
+        // Construit la section "stats" si l'overlay de la fiche est ouvert. Les lignes
+        // (StatTextUIElement a conditionEffect != None) sont navigables ; les titres de
+        // section (conditionEffect == None, plus le niveau d'objet total) servent de
+        // jalons et alimentent StatTitles, sans etre navigables eux-memes.
+        // L'overlay de la fiche de stats est-il ouvert ? (bouton etoile bascule juste
+        // l'activeSelf de statsWindow, par-dessus l'onglet courant.)
+        public static bool StatsOverlayActive()
+        {
+            var cw = Manager.ui != null ? Manager.ui.characterWindow : null;
+            var sw = cw != null ? cw.statsWindow : null;
+            return sw != null && sw.gameObject != null && sw.gameObject.activeInHierarchy;
+        }
+
+        private static void AddStatsSection(List<SlotSection> sections)
+        {
+            if (!StatsOverlayActive()) return;
+            var texts = Manager.ui.characterWindow.statsWindow.statsTexts;
+            if (texts == null) return;
+
+            var actives = new List<StatTextUIElement>();
+            foreach (var st in texts)
+                if (st != null && st.gameObject != null && st.gameObject.activeInHierarchy)
+                    actives.Add(st);
+            if (actives.Count == 0) return;
+            // Ordre visuel haut->bas (les lignes sont empilees vers le bas a l'ecran).
+            actives.Sort((a, b) => b.transform.position.y.CompareTo(a.transform.position.y));
+
+            StatTitles.Clear();
+            var lines = new List<UIelement>();
+            string currentTitle = null;
+            foreach (var st in actives)
+            {
+                if (st.conditionEffect == ConditionEffect.None)
+                {
+                    var t = TtsText.ResolvePugText(st.text);
+                    if (!string.IsNullOrEmpty(t)) currentTitle = t;
+                    continue;
+                }
+                lines.Add(st);
+                StatTitles[st] = currentTitle;
+            }
+            if (lines.Count == 0) return;
+
+            var section = new SlotSection { Kind = "stats", NameKey = NameKeys["stats"], IsList = true };
+            section.Slots.AddRange(lines);
+            sections.Add(section);
+        }
+
+        // Titre de section d'une ligne de stat, ou null. Voir StatTitles.
+        public static string StatTitleFor(UIelement e)
+            => e != null && StatTitles.TryGetValue(e, out var t) ? t : null;
+
+        // L'element est-il le bouton etoile qui ouvre/ferme la fiche de stats ?
+        public static bool IsStatsButton(UIelement e)
+        {
+            var cw = Manager.ui != null ? Manager.ui.characterWindow : null;
+            return cw != null && e != null && cw.statsButton == e;
         }
 
         // Cree une section (mode liste) a partir de tous les UIelement d'un type donne
@@ -116,6 +185,11 @@ namespace CoreKeeperAccess.Navigation
             if (cw == null) return;
             AppendTabs(equip, cw.presetTabs);
             AppendTabs(equip, cw.windowTabs);
+            // Bouton etoile = ouvre/ferme l'overlay de la fiche de stats (A dessus).
+            var star = cw.statsButton;
+            if (star != null && star.gameObject != null && star.gameObject.activeInHierarchy
+                && star.isShowing && !equip.Slots.Contains(star))
+                equip.Slots.Add(star);
         }
 
         private static void AppendTabs(SlotSection section, List<CharacterWindowTab> tabs)
@@ -182,7 +256,8 @@ namespace CoreKeeperAccess.Navigation
                 return slot != null ? Strings.L(EquipKey(slot.slotType)) : null;
             }
             if (section.Kind == "crafting" || section.Kind == "trash"
-                || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents")
+                || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents"
+                || section.Kind == "stats")
                 return null;
             return (indexInSection + 1).ToString();
         }

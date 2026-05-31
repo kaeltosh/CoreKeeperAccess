@@ -51,6 +51,27 @@ namespace CoreKeeperAccess.Patches
             return string.Join(", ", parts);
         }
 
+        // Annonce d'une ligne de la fiche de stats. Contrairement aux slots, une
+        // StatTextUIElement n'a pas de hover title : le texte affiche (deja rendu,
+        // valeur substituee) est dans son champ .text. On y ajoute la description
+        // longue (GetHoverStats -> ConditionEffectDesc), dispo si la ligne est a l'ecran.
+        public static string BuildStatLine(UIelement element)
+        {
+            var st = element as StatTextUIElement;
+            if (st == null) return null;
+
+            var parts = new List<string>();
+            var seen = new HashSet<string>();
+            void Add(string s) { if (!string.IsNullOrEmpty(s) && seen.Add(s)) parts.Add(s); }
+
+            Add(TtsText.ResolvePugText(st.text));
+            var hs = st.GetHoverStats(false);
+            if (hs != null)
+                foreach (var h in hs) Add(TtsText.ResolveTextAndFormatFields(h));
+
+            return parts.Count == 0 ? null : string.Join(", ", parts);
+        }
+
         // Quantite a annoncer : pour une recette = la quantite PRODUITE par craft
         // (ex. torche x3), sinon = la quantite contenue dans l'emplacement.
         private static int GetAnnounceAmount(UIelement element)
@@ -119,7 +140,10 @@ namespace CoreKeeperAccess.Patches
             // Quand notre navigation a11y force la selection, c'est elle qui annonce
             // (avec le contexte de section) : on etouffe l'annonce passive.
             if (Navigation.InventoryNavState.SuppressPassiveAnnounce) return;
-            if (uiElement == null || uiElement.isMenuOption) return;
+            // BlockingUIElement = bloqueur invisible (pose par les overlays, ex. la
+            // fiche de stats) ; il n'a jamais de titre lisible et le curseur manette
+            // tend a deraper dessus -> on l'ignore pour ne pas lire un "Vide" parasite.
+            if (uiElement == null || uiElement.isMenuOption || uiElement is BlockingUIElement) return;
 
             int id = uiElement.GetInstanceID();
             if (id == InGameTtsState.LastSelectedInstanceId) return;

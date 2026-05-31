@@ -31,6 +31,14 @@ namespace CoreKeeperAccess.Navigation
         // seule fois quand une nouvelle vue s'ouvre (anti-spam de rebuild).
         private static UIelement _lastSyncTarget;
 
+        // Dernier titre de section annonce dans la fiche de stats (pour ne le repeter
+        // qu'au changement de section). Remis a null a chaque changement de section.
+        private static string _lastStatTitle;
+
+        // Etat precedent de l'overlay de la fiche de stats, pour detecter son
+        // ouverture (front montant) et sauter dessus automatiquement.
+        private static bool _statsOverlayOpen;
+
         public static void Update()
         {
             // Filet temporel de l'armement de la roue (consomme par le patch a la
@@ -56,6 +64,7 @@ namespace CoreKeeperAccess.Navigation
                 return;
             }
 
+            HandleStatsOverlay();
             SyncWithGameSelection();
             HandleInput();
             ActionWheel.Tick();
@@ -108,12 +117,43 @@ namespace CoreKeeperAccess.Navigation
             _watchedId = ObjectID.None;
             _watchedAmount = 0;
             _lastSyncTarget = null;
+            _lastStatTitle = null;
+            _statsOverlayOpen = false;
         }
 
         private static void Rebuild()
         {
             _sections = SlotSections.Build();
             if (_sectionIndex >= _sections.Count) _sectionIndex = 0;
+        }
+
+        // L'ouverture de l'overlay stats (A sur l'etoile) ne deplace pas le focus cote
+        // jeu : on detecte le front montant et on saute nous-memes sur la section stats.
+        // On reessaie chaque frame tant que les lignes ne sont pas peuplees (elles le
+        // sont au LateUpdate du scroll, donc souvent 1 frame apres l'ouverture). Front
+        // descendant : on retire la section du cycle.
+        private static void HandleStatsOverlay()
+        {
+            bool open = SlotSections.StatsOverlayActive();
+            if (open && !_statsOverlayOpen)
+            {
+                if (JumpToSection("stats")) _statsOverlayOpen = true;
+            }
+            else if (!open && _statsOverlayOpen)
+            {
+                _statsOverlayOpen = false;
+                Rebuild();
+            }
+        }
+
+        // Reconstruit et selectionne la section du type donne. Vrai si elle existe.
+        private static bool JumpToSection(string kind)
+        {
+            Rebuild();
+            int idx = _sections.FindIndex(s => s.Kind == kind);
+            if (idx < 0) return false;
+            SelectSection(idx, announceSectionName: true);
+            return true;
         }
 
         private static void HandleInput()
@@ -186,6 +226,7 @@ namespace CoreKeeperAccess.Navigation
 
         private static void SelectSection(int index, bool announceSectionName)
         {
+            _lastStatTitle = null; // tout changement de section reamorce le prefixe de titre
             _sectionIndex = index;
             var section = _sections[index];
             _current = section.Slots.Count > 0 ? section.Slots[0] : null;
@@ -201,6 +242,26 @@ namespace CoreKeeperAccess.Navigation
         {
             var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement : null;
             if (sel == null || sel == _current) return;
+
+            // Overlay stats ouvert mais pas encore bascule dessus (ses lignes ne sont
+            // peuplees qu'une frame apres l'ouverture) : on ignore les derapages du
+            // curseur (slot vide derriere l'overlay) le temps que le saut se fasse,
+            // sinon le tout premier appui lit "Vide" au lieu de la 1re stat.
+            if (SlotSections.StatsOverlayActive() && !_statsOverlayOpen) return;
+
+            // Verrou fiche de stats : juste apres l'ouverture, le scroll n'est pas cale
+            // donc la ligne courante n'est pas "isVisibleOnScreen" -> le curseur manette
+            // virtuel (UIMouse) raccroche un slot d'inventaire derriere l'overlay. Tant
+            // qu'on tient la section stats ouverte, on re-impose notre ligne au lieu de
+            // suivre ce derapage (le temps que le scroll converge). Les deplacements
+            // volontaires (D-pad) passent avant via le test sel == _current ci-dessus.
+            if (_current != null && _sectionIndex < _sections.Count
+                && _sections[_sectionIndex].Kind == "stats" && SlotSections.StatsOverlayActive()
+                && !_sections[_sectionIndex].Slots.Contains(sel))
+            {
+                ForceSelect(_current);
+                return;
+            }
 
             int idx = FindSectionIndex(sel);
             if (idx < 0)
@@ -250,9 +311,24 @@ namespace CoreKeeperAccess.Navigation
             {
                 int idx = section.Slots.IndexOf(slot);
                 string role = SlotSections.RoleLabel(section, slot, idx);
-                string content = InGameTtsCore.BuildElementAnnouncement(slot);
+                string content = section.Kind == "stats"
+                    ? InGameTtsCore.BuildStatLine(slot)
+                    : InGameTtsCore.BuildElementAnnouncement(slot);
+                // L'etoile n'a pas de hover title : libelle de repli.
+                if (string.IsNullOrEmpty(content) && SlotSections.IsStatsButton(slot))
+                    content = Strings.L("section.stats");
                 if (string.IsNullOrEmpty(content)) content = Strings.L("ingame.slot.empty");
                 body = string.IsNullOrEmpty(role) ? content : role + ", " + content;
+
+                // Dans la fiche de stats, on prefixe le titre de section au changement
+                // (les titres ne sont pas des lignes navigables, sinon on les louperait).
+                if (section.Kind == "stats")
+                {
+                    string title = SlotSections.StatTitleFor(slot);
+                    if (!string.IsNullOrEmpty(title) && title != _lastStatTitle)
+                        body = title + ". " + body;
+                    _lastStatTitle = title;
+                }
             }
 
             string text = announceSectionName ? section.SectionName + ". " + body : body;
