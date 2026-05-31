@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Navigation;
 using HarmonyLib;
 
@@ -29,9 +30,24 @@ namespace CoreKeeperAccess.Patches
             PlayerInput.InputType.MENU_RIGHT,
         };
 
+        // En jeu (curseur de tuile actif), seules les 4 actions portees par le D-pad
+        // sont a voler (tri, empiler, swap de page de barre rapide).
+        private static readonly HashSet<PlayerInput.InputType> DpadInGame = new HashSet<PlayerInput.InputType>
+        {
+            PlayerInput.InputType.QUICK_STACK,
+            PlayerInput.InputType.SORT,
+            PlayerInput.InputType.SWAP_NEXT_HOTBAR,
+            PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR,
+        };
+
         public static bool Blocks(PlayerInput.InputType t)
         {
-            return InventoryNavState.SuppressNativeInput && Set.Contains(t);
+            if (InventoryNavState.SuppressNativeInput && Set.Contains(t)) return true;
+            if (BuildModeNavigator.StealsDpad && DpadInGame.Contains(t)) return true;
+            // Curseur detache : on vole Croix pour que l'interaction passe par la case
+            // visee, pas l'objet adjacent natif (sinon impossible d'agir pres d'un coffre).
+            if (BuildModeNavigator.StealsCross && t == PlayerInput.InputType.INTERACT_WITH_OBJECT) return true;
+            return false;
         }
     }
 

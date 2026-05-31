@@ -78,6 +78,7 @@ public class CoreKeeperAccessMod : IMod
     public void Update()
     {
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
+        CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
 
         if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
         {
