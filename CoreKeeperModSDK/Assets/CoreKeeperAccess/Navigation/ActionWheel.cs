@@ -28,6 +28,11 @@ namespace CoreKeeperAccess.Navigation
                 _lastSector = sector;
                 if (sector >= 0)
                 {
+                    // Clic de cran facon "roue a boutons" a chaque changement de secteur.
+                    // FIXME_menu_select = le son de navigation de menu du jeu (choix utilisateur).
+                    // pitchDev=0 : on annule le random pitch que SfxUI applique par defaut (0.15),
+                    // sinon chaque cran sonne a une hauteur differente. Args : pitch, reuse, volume, pitchDev.
+                    AudioManager.SfxUI(SfxID.FIXME_menu_select, 1f, true, 1f, 0f);
                     var key = LabelKey(sector);
                     if (key != null) TtsText.Say(Strings.L(key), true);
                 }
