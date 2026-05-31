@@ -37,7 +37,7 @@ namespace CoreKeeperAccess.Navigation
             { "equipment", "section.equipment" }, { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
             { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
-            { "stats", "section.stats" },
+            { "souls", "section.souls" }, { "stats", "section.stats" },
         };
 
         // Reconstruit les sections a partir des emplacements actuellement affiches.
@@ -78,6 +78,11 @@ namespace CoreKeeperAccess.Navigation
             AddElementSection<SkillUIElement>(sections, "skills");
             AddElementSection<SkillTalentUIElement>(sections, "talents");
             AddElementSection<PetTalentUIElement>(sections, "pettalents");
+            // Onglet ames (debloque seulement si HasUnlockedSouls). Chaque SoulsUIElement
+            // expose deja titre/description/effet + OnLeftClicked (toggle on/off), donc le
+            // pattern generique suffit. On ecarte les emplacements sans ame (soulID None)
+            // qui se liraient "Vide".
+            AddElementSection<SoulsUIElement>(sections, "souls", s => s.soulID != SoulID.None);
             // Fiche de stats (overlay de l'etoile) : section a part car ses lignes ne
             // sont pas des slots mais des StatTextUIElement, avec titres de section.
             AddStatsSection(sections);
@@ -150,13 +155,15 @@ namespace CoreKeeperAccess.Navigation
 
         // Cree une section (mode liste) a partir de tous les UIelement d'un type donne
         // actuellement affiches. Sert pour les compétences / talents.
-        private static void AddElementSection<T>(List<SlotSection> sections, string kind) where T : UIelement
+        private static void AddElementSection<T>(List<SlotSection> sections, string kind,
+            System.Func<T, bool> keep = null) where T : UIelement
         {
             var found = Object.FindObjectsByType<T>(FindObjectsSortMode.None);
             var actives = new List<UIelement>();
             foreach (var e in found)
             {
-                if (e != null && e.gameObject != null && e.gameObject.activeInHierarchy && e.isShowing)
+                if (e != null && e.gameObject != null && e.gameObject.activeInHierarchy && e.isShowing
+                    && (keep == null || keep(e)))
                     actives.Add(e);
             }
             if (actives.Count == 0) return;
@@ -257,7 +264,7 @@ namespace CoreKeeperAccess.Navigation
             }
             if (section.Kind == "crafting" || section.Kind == "trash"
                 || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents"
-                || section.Kind == "stats")
+                || section.Kind == "souls" || section.Kind == "stats")
                 return null;
             return (indexInSection + 1).ToString();
         }
