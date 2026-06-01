@@ -23,7 +23,7 @@ namespace CoreKeeperAccess.Gameplay
         private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
         private const int LeftStickX = 0, LeftStickY = 1;
         private const int CrossButton = 6; // A / Croix (bouton sud)
-        private const float StickMove = 0.3f;
+        private const float StickMove = 0.25f; // deadzone stick gauche du jeu
 
         private static int2 _cursor;
         private static bool _detached;
@@ -59,6 +59,11 @@ namespace CoreKeeperAccess.Gameplay
                 if (ax * ax + ay * ay > StickMove * StickMove) _detached = false;
             }
 
+            // Filet : si le curseur detache n'est plus dans le champ (le perso s'est
+            // eloigne sous lui, la camera l'a suivi), on le recolle. Sinon toute cible
+            // D-pad tomberait hors viewport et le D-pad semblerait gele.
+            if (_detached && !InViewport(_cursor)) _detached = false;
+
             if (!_detached)
             {
                 _cursor = playerTile;
@@ -80,26 +85,65 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
-            // Croix sur la case du curseur (detache) : action contextuelle. Pour
-            // l'instant un seul cas -> se DEPLACER en ligne droite vers la case.
-            if (joy != null && _detached && ButtonDownById(joy, CrossButton))
+            // Croix : action contextuelle sur la case du curseur (detache).
+            bool croixDown = joy != null && ButtonDownById(joy, CrossButton);
+            if (_detached)
             {
                 int cheb = Mathf.Max(Mathf.Abs(_cursor.x - playerTile.x), Mathf.Abs(_cursor.y - playerTile.y));
                 if (cheb <= 1)
                 {
-                    // Case adjacente (ou sous le joueur) : action contextuelle.
-                    // Objet pose -> interagir ; sinon (mur / case libre) -> usage natif
-                    // (pose un bloc en main, mine/tape un mur, etc.).
-                    ActionCommand.Target = new float2(_cursor.x, _cursor.y);
-                    ActionCommand.InteractWithObject = TileQuery.ObjectId != ObjectID.None;
-                    ActionCommand.Active = true;
+                    // Case adjacente. UN APPUI = UN COUP (pas de maintien : le minage
+                    // intensif reste sur la gachette native ; Croix = action ponctuelle
+                    // ciblee). On oriente le perso vers la case EN CONTINU (pre-orientation
+                    // -> le coup part droit), et sur l'APPUI seulement on arme le bouton
+                    // natif contextuel pour une passe (relache par PlayerMoveToSystem).
+                    //  - mur/bloc bloquant -> miner      (INTERACT, prioritaire)
+                    //  - objet sur le sol  -> interagir  (INTERACT_WITH_OBJECT)
+                    //  - case vide         -> s'y deplacer (comme une case lointaine)
+                    GameplayAction.AimActive = true;
+                    GameplayAction.AimDir = AimToward(_cursor, playerTile);
+                    if (croixDown)
+                    {
+                        if (TileQuery.HasWall)
+                        {
+                            // Un mur/bloc bloquant prime -> miner, MEME si une entite "objet"
+                            // est aussi detectee dessus (un bloc de terre est minable, pas
+                            // interactif). Sinon le routage basculait de "miner" a "interagir"
+                            // des que la case frappee se renommait "bloc de terre".
+                            GameplayAction.Held = PlayerInput.InputType.INTERACT;
+                            GameplayAction.Pressed = PlayerInput.InputType.INTERACT;
+                        }
+                        else if (TileQuery.ObjectId != ObjectID.None)
+                        {
+                            // Objet pose sur case NON bloquante (coffre, machine) -> interagir.
+                            GameplayAction.Held = PlayerInput.InputType.INTERACT_WITH_OBJECT;
+                            GameplayAction.Pressed = PlayerInput.InputType.INTERACT_WITH_OBJECT;
+                        }
+                        else if (TileQuery.ResultValid && TileQuery.ResultTile.Equals(_cursor))
+                        {
+                            // Case CONFIRMEE vide (lecture de tuile a jour pour cette case)
+                            // -> s'y deplacer. Le garde-fou evite qu'un appui sur une case a
+                            // peine survolee (lecture pas encore republiee, mur/objet vu comme
+                            // "vide") provoque un deplacement non voulu sur un minable/objet.
+                            MoveCommand.Target = new float2(_cursor.x, _cursor.y);
+                            MoveCommand.Active = true;
+                        }
+                    }
                 }
                 else
                 {
-                    // Case lointaine : on s'y rend (re-Croix une fois arrive pour agir).
-                    MoveCommand.Target = new float2(_cursor.x, _cursor.y);
-                    MoveCommand.Active = true;
+                    // Case lointaine : pas d'action ni d'orientation, Croix = s'y rendre.
+                    GameplayAction.Disarm();
+                    if (croixDown)
+                    {
+                        MoveCommand.Target = new float2(_cursor.x, _cursor.y);
+                        MoveCommand.Active = true;
+                    }
                 }
+            }
+            else
+            {
+                GameplayAction.Disarm();
             }
 
             // Annonce quand le resultat publie correspond a la case du curseur.
@@ -126,6 +170,15 @@ namespace CoreKeeperAccess.Gameplay
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
             GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, 0.4f);
 
+            // Repere central : curseur sur la case du personnage. Sans coordonnees, c'est
+            // le point d'ancrage pour se retrouver. On l'annonce et on s'arrete la (le sol
+            // sous le perso n'est pas une info utile ici).
+            if (dx == 0 && dy == 0)
+            {
+                TtsText.Say(Strings.L("cursor.player"), true);
+                return;
+            }
+
             // TTS pour le contenu remarquable (le sol de base reste muet en voix).
             // Priorite : objet/construction pose > mur > sol notable.
             string text = null;
@@ -146,10 +199,20 @@ namespace CoreKeeperAccess.Gameplay
             StealsDpad = false;
             StealsCross = false;
             TileQuery.Active = false;
+            GameplayAction.Disarm();
         }
 
         private static int2 ToTile(Vector3 wp)
             => new int2((int)math.round(wp.x), (int)math.round(wp.z));
+
+        // Direction de visee (stick droit virtuel) du joueur vers la case ciblee.
+        // Sous le joueur (ecart nul) -> sud par defaut, faute de direction.
+        private static Vector2 AimToward(int2 cursor, int2 playerTile)
+        {
+            Vector2 d = new Vector2(cursor.x - playerTile.x, cursor.y - playerTile.y);
+            if (d.sqrMagnitude < 0.01f) return new Vector2(0f, -1f);
+            return d.normalized;
+        }
 
         // Demi-largeur visible en cases (le "range" pour normaliser le pan -1..+1).
         private static float HalfWidthTiles()
@@ -161,7 +224,12 @@ namespace CoreKeeperAccess.Gameplay
         private static bool InViewport(int2 tile)
         {
             if (Manager.camera == null) return true;
-            return Manager.camera.IsPointInViewport(new Vector3(tile.x, 0f, tile.y), 0f);
+            // IsPointInViewport attend un point dans l'espace RENDER de la gameCamera
+            // (qui vit autour de RenderOrigo, recale quand le joueur s'eloigne). Lui
+            // passer des coords MONDE rendait le test faux des qu'on quittait l'origine
+            // -> toute cible D-pad jugee hors ecran, D-pad "gele" hors zone de depart.
+            int2 r = EntityMonoBehaviour.ToRenderFromWorld(tile);
+            return Manager.camera.IsPointInViewport(new Vector3(r.x, 0f, r.y), 0f);
         }
 
         private static bool DpadDir(Joystick joy, out int2 dir)
@@ -196,13 +264,28 @@ namespace CoreKeeperAccess.Gameplay
         public static float2 Target; // case cible (coordonnee monde x,z)
     }
 
-    // Action contextuelle sur une case adjacente (pose / mine-tape / interagir),
-    // declenchee une frame par le systeme via les button states natifs.
-    internal static class ActionCommand
+    // Action contextuelle ponctuelle (pose / mine / interagir). On ne touche PAS au
+    // ClientInput (le buttonSetMask serait deja fige) : on arme un bouton natif et on
+    // injecte une visee. Lu par les patches Harmony sur PlayerInput (WasButtonPressedDown
+    // ThisFrame / IsButtonCurrentlyDown / GetInputAxisValue), donc SendClientInputSystem
+    // fabrique lui-meme le button state + le masque. Cycle de vie : l'AIM est pilote en
+    // continu par BuildModeNavigator.Tick (pre-orientation) ; le BOUTON (Held+Pressed) est
+    // arme une frame sur l'appui de Croix puis relache par PlayerMoveToSystem apres la
+    // passe -> un appui = un coup (pas de maintien).
+    internal static class GameplayAction
     {
-        public static bool Active;
-        public static float2 Target;            // case visee (coordonnee monde x,z)
-        public static bool InteractWithObject;  // true = interagir objet ; false = usage (Interact)
+        public static PlayerInput.InputType? Held;     // bouton maintenu (IsButtonCurrentlyDown)
+        public static PlayerInput.InputType? Pressed;  // bouton "presse cette frame" (WasButtonPressedDownThisFrame)
+        public static bool AimActive;                  // forcer la visee (stick droit virtuel)
+        public static Vector2 AimDir;                  // direction de visee injectee
+
+        public static void Disarm()
+        {
+            Held = null;
+            Pressed = null;
+            AimActive = false;
+            AimDir = default;
+        }
     }
 
     // Pilote la marche du joueur local en ligne droite vers MoveCommand.Target en
@@ -230,49 +313,41 @@ namespace CoreKeeperAccess.Gameplay
 
         protected override void OnUpdate()
         {
-            if (!MoveCommand.Active && !ActionCommand.Active) return;
+            bool buttonArmed = GameplayAction.Held.HasValue || GameplayAction.Pressed.HasValue;
+            if (!MoveCommand.Active && !buttonArmed) return;
 
-            var entities = _query.ToEntityArray(Allocator.Temp);
-            try
+            if (MoveCommand.Active)
             {
-                if (entities.Length == 0) return;
-
-                Entity e = entities[0];
-                float2 pos = EntityManager.GetComponentData<LocalTransform>(e).Position.xz;
-                ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
-                ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
-                bool changed = false;
-
-                if (MoveCommand.Active)
+                var entities = _query.ToEntityArray(Allocator.Temp);
+                try
                 {
-                    float2 delta = MoveCommand.Target - pos;
-                    float dist = math.length(delta);
-                    if (dist < ArriveDist) MoveCommand.Active = false;                       // arrive
-                    else if (math.length(ci.movementDirection) > StickDeadzone) MoveCommand.Active = false; // reprise main
-                    else { ci.movementDirection = delta / dist; changed = true; }
-                }
+                    if (entities.Length > 0)
+                    {
+                        Entity e = entities[0];
+                        float2 pos = EntityManager.GetComponentData<LocalTransform>(e).Position.xz;
+                        ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
+                        ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
 
-                if (ActionCommand.Active)
-                {
-                    float2 d = ActionCommand.Target - pos;
-                    float l = math.length(d);
-                    float2 dir = l > 0.01f ? d / l : new float2(0f, -1f); // sous le joueur -> sud par defaut
-                    ci.targetingDirection = dir;
-                    ci.aimDirection = dir;
-                    ci.SetButtonState(ActionCommand.InteractWithObject
-                        ? CommandInputButtonStateNames.InteractWithObject_Pressed
-                        : CommandInputButtonStateNames.Interact_Pressed, true);
-                    ActionCommand.Active = false;
-                    changed = true;
+                        float2 delta = MoveCommand.Target - pos;
+                        float dist = math.length(delta);
+                        if (dist < ArriveDist) MoveCommand.Active = false;                       // arrive
+                        else if (math.length(ci.movementDirection) > StickDeadzone) MoveCommand.Active = false; // reprise main
+                        else
+                        {
+                            ci.movementDirection = delta / dist;
+                            data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
+                            EntityManager.SetComponentData(e, data);
+                        }
+                    }
                 }
-
-                if (changed)
-                {
-                    data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
-                    EntityManager.SetComponentData(e, data);
-                }
+                finally { entities.Dispose(); }
             }
-            finally { entities.Dispose(); }
+
+            // Un appui = un coup : on tourne APRES SendClientInputSystem, qui vient de lire
+            // le bouton arme (button state + masque poses nativement). On relache le bouton
+            // pour que l'action ne dure qu'une passe. L'aim (pre-orientation) reste pilote
+            // par BuildModeNavigator.Tick, on n'y touche pas ici.
+            if (buttonArmed) { GameplayAction.Held = null; GameplayAction.Pressed = null; }
         }
     }
 }

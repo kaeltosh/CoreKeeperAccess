@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Navigation;
 using HarmonyLib;
+using UnityEngine;
 
 namespace CoreKeeperAccess.Patches
 {
@@ -57,7 +58,16 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
-            // Action armee par la roue : on simule un appui (une seule lecture).
+            // Action gameplay armee (pose / mine / interagir) : on simule l'appui SANS
+            // consommer. SendClientInputSystem lit ce bouton plusieurs fois dans la meme
+            // passe (ex. INTERACT) ; consommer a la 1re lecture casserait la 2e (celle
+            // qui pose le button state). PlayerMoveToSystem desarme apres la passe.
+            if (GameplayAction.Pressed.HasValue && GameplayAction.Pressed.Value == inputType)
+            {
+                __result = true;
+                return false;
+            }
+            // Action armee par la roue d'inventaire : on simule un appui (une seule lecture).
             if (InventoryNavState.ArmedInput.HasValue && InventoryNavState.ArmedInput.Value == inputType)
             {
                 InventoryNavState.ArmedInput = null; // consomme
@@ -76,9 +86,39 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
+            // Bouton "maintenu" arme par une action gameplay (ex. SECOND_INTERACT pour
+            // poser, qui exige le held). Non consomme : desarme par PlayerMoveToSystem.
+            if (GameplayAction.Held.HasValue && GameplayAction.Held.Value == inputType)
+            {
+                __result = true;
+                return false;
+            }
             if (!StolenInputTypes.Blocks(inputType)) return true;
             __result = false;
             return false;
+        }
+    }
+
+    // Injection de visee : quand une action gameplay est armee, on force le stick droit
+    // virtuel vers la case ciblee. SendClientInputSystem en derive facingDirection /
+    // targetingDirection / mouseOrJoystickWorldPoint -> pose et minage frappent la bonne
+    // case. On ne patche que la surcharge a deux axes (la paire de visee).
+    [HarmonyPatch(typeof(PlayerInput), nameof(PlayerInput.GetInputAxisValue),
+        new[] { typeof(PlayerInput.InputAxisType), typeof(PlayerInput.InputAxisType) })]
+    internal static class PlayerInputAimInjectionPatch
+    {
+        [HarmonyPrefix]
+        public static bool Prefix(PlayerInput.InputAxisType horizontalAxisType,
+            PlayerInput.InputAxisType verticalAxisType, ref Vector2 __result)
+        {
+            if (GameplayAction.AimActive
+                && horizontalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_HORIZONTAL
+                && verticalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_VERTICAL)
+            {
+                __result = GameplayAction.AimDir;
+                return false;
+            }
+            return true;
         }
     }
 }

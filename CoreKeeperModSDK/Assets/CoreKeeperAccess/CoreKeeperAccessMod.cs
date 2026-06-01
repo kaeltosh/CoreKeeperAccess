@@ -24,12 +24,17 @@ public class CoreKeeperAccessMod : IMod
     {
     }
 
+    // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
+    // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
+    // retirer une fois l'ambiguite "build pas a jour ?" levee.
+    private const string BuildTag = "build 10";
+
     public void Init()
     {
         Tolk.Load();
         Strings.Load();
         DiagnosePatches();
-        TtsText.Say(Strings.L("mod.loaded"), false);
+        TtsText.Say(Strings.L("mod.loaded") + ", " + BuildTag, false);
     }
 
     // Verifie au demarrage que chacun de nos patches Harmony s'est bien applique.
