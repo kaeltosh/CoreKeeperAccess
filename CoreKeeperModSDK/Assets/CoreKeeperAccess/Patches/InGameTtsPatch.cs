@@ -195,31 +195,10 @@ namespace CoreKeeperAccess.Patches
         }
     }
 
-    // Resultat d'une fabrication : CraftItem n'est appele que si les materiaux sont
-    // la, donc un postfix suffit pour annoncer le succes. L'objet fabrique atterrit
-    // dans la main (curseur) -> on le rappelle a l'utilisateur.
-    [HarmonyPatch(typeof(InventoryHandler), nameof(InventoryHandler.CraftItem))]
-    internal static class InventoryHandlerCraftItemPatch
-    {
-        [HarmonyPostfix]
-        public static void Postfix()
-        {
-            // On lit le contenu reel de la main apres le craft : ca donne le total
-            // tenu (cumule si on enchaine les crafts), pas juste ce qui vient d'etre fait.
-            var player = Manager.main != null ? Manager.main.player : null;
-            var mouse = player != null ? player.mouseInventoryHandler : null;
-            if (mouse == null) return;
-
-            var held = mouse.GetObjectData(0);
-            var name = InGameTtsCore.ResolveObjectName(held.objectID);
-            if (string.IsNullOrEmpty(name)) return;
-
-            string qty = held.amount > 1 ? held.amount + " " : "";
-            // interrupt = true : un craft = une annonce qui ECRASE la precedente.
-            // En rafale on n'entend que le dernier etat, pas chaque occurrence empilee.
-            TtsText.Say(Strings.L("craft.crafted") + ", " + qty + name + " " + Strings.L("craft.inhand"), true);
-        }
-    }
+    // NOTE : l'annonce du resultat de craft "en main" est desormais geree de facon
+    // unifiee par InventoryNavigator.WatchHandChange (qui surveille la main et couvre
+    // AUSSI les prises d'objet, pas seulement le craft). Le postfix sur CraftItem a donc
+    // ete retire pour eviter le doublon.
 
     // Bascule de jeu d'equipement (onglets I/II/III ou boutons EQUIP_PRESET_1/2/3).
     // On annonce le prereglage actif ; le contenu des slots se relit ensuite via la

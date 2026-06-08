@@ -12,7 +12,9 @@ namespace CoreKeeperAccess.Gameplay
     // (reflection) -> GetNextAudioClip(). Aucun fichier embarque.
     internal static class GameplayAudio
     {
-        private static AudioSource _src;
+        private const int PoolSize = 8;
+        private static AudioSource[] _pool;
+        private static int _poolIdx;
         private static AudioField[] _fields;
         private static bool _init;
 
@@ -20,16 +22,23 @@ namespace CoreKeeperAccess.Gameplay
         public static void PlaySpatial(SfxID id, float pan, float pitch, float volume = 1f)
         {
             EnsureInit();
-            if (_src == null || _fields == null) return;
+            if (_pool == null || _fields == null) return;
 
             int idx = (int)id;
             if (idx < 0 || idx >= _fields.Length || _fields[idx] == null) return;
             var clip = _fields[idx].GetNextAudioClip();
             if (clip == null) return;
 
-            _src.panStereo = Mathf.Clamp(pan, -1f, 1f);
-            _src.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
-            _src.PlayOneShot(clip, volume);
+            // Source dediee prise dans un pool round-robin. Le pitch est une propriete de
+            // l'AudioSource, partagee par TOUS les PlayOneShot en cours dessus : deux sons
+            // simultanes (ex. tick porteur a pitch vertical + marqueur a pitch fixe) sur la
+            // MEME source -> le 2e pitch ecrase celui du 1er encore en train de jouer. Une
+            // source par son => pitchs independants.
+            var src = _pool[_poolIdx];
+            _poolIdx = (_poolIdx + 1) % PoolSize;
+            src.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            src.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            src.PlayOneShot(clip, volume);
         }
 
         private static MethodInfo _getNextSounds;
@@ -82,9 +91,14 @@ namespace CoreKeeperAccess.Gameplay
 
             var go = new GameObject("A11yGameplayAudio");
             Object.DontDestroyOnLoad(go);
-            _src = go.AddComponent<AudioSource>();
-            _src.playOnAwake = false;
-            _src.spatialBlend = 0f; // 2D : on gere le pan/pitch nous-memes
+            _pool = new AudioSource[PoolSize];
+            for (int i = 0; i < PoolSize; i++)
+            {
+                var s = go.AddComponent<AudioSource>();
+                s.playOnAwake = false;
+                s.spatialBlend = 0f; // 2D : on gere le pan/pitch nous-memes
+                _pool[i] = s;
+            }
 
             // audioFieldMap : SfxID -> AudioField (champ prive de l'AudioManager).
             var audio = Manager.audio;

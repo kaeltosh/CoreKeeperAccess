@@ -27,6 +27,12 @@ namespace CoreKeeperAccess.Navigation
         private static ObjectID _watchedId;
         private static int _watchedAmount;
 
+        // Suivi du contenu de la MAIN (mouseInventoryHandler) : une prise ou un craft met
+        // l'objet en main sans changer le slot courant -> on surveille la main a part pour
+        // annoncer ce qu'on tient ("N nom en main").
+        private static ObjectID _handId = ObjectID.None;
+        private static int _handAmount;
+
         // Derniere selection "jeu" hors de nos sections, pour ne reconstruire qu'une
         // seule fois quand une nouvelle vue s'ouvre (anti-spam de rebuild).
         private static UIelement _lastSyncTarget;
@@ -69,6 +75,7 @@ namespace CoreKeeperAccess.Navigation
             HandleInput();
             ActionWheel.Tick();
             WatchSlotChange();
+            WatchHandChange();
         }
 
         // Apres une prise/pose/deplacement, la selection ne bouge pas mais le contenu
@@ -97,6 +104,67 @@ namespace CoreKeeperAccess.Navigation
             _watchedAmount = amount;
         }
 
+        // Apres une prise / un craft, l'objet va dans la MAIN (curseur d'inventaire), pas
+        // dans le slot courant -> on surveille la main a part et on annonce ce qu'on tient
+        // ("N nom en main") des qu'elle change. Pose (main videe) : pas d'annonce ici, le
+        // slot rempli etant deja annonce par WatchSlotChange.
+        private static void WatchHandChange()
+        {
+            var player = Manager.main != null ? Manager.main.player : null;
+            var mouse = player != null ? player.mouseInventoryHandler : null;
+            ObjectID id = ObjectID.None;
+            int amount = 0;
+            if (mouse != null)
+            {
+                var data = mouse.GetObjectData(0);
+                id = data.objectID;
+                amount = data.amount;
+            }
+
+            if ((id != _handId || amount != _handAmount) && id != ObjectID.None)
+            {
+                string nom = InGameTtsCore.ResolveObjectName(id);
+                if (!string.IsNullOrEmpty(nom))
+                {
+                    string qty = amount > 1 ? amount + " " : "";
+                    TtsText.Say(qty + nom + " " + Strings.L("craft.inhand"), true);
+                }
+            }
+
+            _handId = id;
+            _handAmount = amount;
+        }
+
+        // Commande touche access (Triangle + haut) dans l'inventaire : details de l'element
+        // courant. En craft = liste des composants REQUIS de la recette (tout, pas seulement
+        // ce qui manque). Sans effet sur un element qui n'est pas une recette.
+        private static void AnnounceDetail()
+        {
+            if (_current == null) return;
+            string info = BuildRecipeComponents(_current);
+            if (!string.IsNullOrEmpty(info)) TtsText.Say(info, true);
+        }
+
+        // "Requiert 3 Bois, 2 Cuivre" pour une recette ; null si l'element n'est pas une
+        // recette (GetRequiredMaterials renvoie null).
+        private static string BuildRecipeComponents(UIelement element)
+        {
+            List<PugDatabase.MaterialInfo> mats;
+            try { mats = element.GetRequiredMaterials(false, false); }
+            catch { return null; }
+            if (mats == null || mats.Count == 0) return null;
+
+            var parts = new List<string>();
+            foreach (var m in mats)
+            {
+                if (m == null) continue;
+                string nom = InGameTtsCore.ResolveObjectName(m.objectID);
+                if (!string.IsNullOrEmpty(nom)) parts.Add(m.amountNeeded + " " + nom);
+            }
+            if (parts.Count == 0) return null;
+            return Strings.L("craft.requires") + " " + string.Join(", ", parts);
+        }
+
         private static void Enter()
         {
             _active = true;
@@ -116,6 +184,8 @@ namespace CoreKeeperAccess.Navigation
             _watchedSlot = null;
             _watchedId = ObjectID.None;
             _watchedAmount = 0;
+            _handId = ObjectID.None;
+            _handAmount = 0;
             _lastSyncTarget = null;
             _lastStatTitle = null;
             _statsOverlayOpen = false;
@@ -160,6 +230,14 @@ namespace CoreKeeperAccess.Navigation
         {
             var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
             if (joy == null) return;
+
+            // Touche access tenue : le D-pad est reserve aux commandes (pas la nav).
+            // Triangle + haut = details de l'element courant (en craft : composants requis).
+            if (InfoKey.ModifierHeld)
+            {
+                if (InfoKey.DetailRequested) AnnounceDetail();
+                return;
+            }
 
             // Boutons presses durant cette frame (front montant).
             int pressed = -1;

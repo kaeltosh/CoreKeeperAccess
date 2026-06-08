@@ -27,6 +27,9 @@ namespace CoreKeeperAccess.Gameplay
                                           // superpose a un mur de terre sans en etre la tuile
                                           // bloquante -> on le detecte via une couche dediee).
         public static ObjectID ObjectId;  // objet/construction pose sur la case (ou None)
+        public static bool ObjectInteractable; // l'entite porte InteractableObjectReferenceCD
+                                               // (vrai interactible : coffre, machine... ; la
+                                               // deco passive ne l'a pas).
     }
 
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
@@ -49,7 +52,8 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.WallTileset = hasWall ? wall.tileset : 0;
                 bool hasOre = ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal);
                 TileQuery.HasOre = hasOre;
-                TileQuery.ObjectId = ObjectAt(t);
+                TileQuery.ObjectId = ObjectAt(t, out bool interactable);
+                TileQuery.ObjectInteractable = interactable;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
 
@@ -64,7 +68,7 @@ namespace CoreKeeperAccess.Gameplay
                     foreach (var l in layers) sb.Append(l.tileType).Append('/').Append(l.tileset).Append(' ');
                     layers.Dispose();
                     string block = hasWall ? (wall.tileType + "/" + wall.tileset) : "none";
-                    UnityEngine.Debug.Log($"[A11yTileDiag] tile={t.x},{t.y} block={block} ore={hasOre} obj={TileQuery.ObjectId} layers=[{sb}]");
+                    UnityEngine.Debug.Log($"[A11yTileDiag] tile={t.x},{t.y} block={block} ore={hasOre} obj={TileQuery.ObjectId} interact={TileQuery.ObjectInteractable} layers=[{sb}]");
                 }
             }
             catch { }
@@ -80,9 +84,11 @@ namespace CoreKeeperAccess.Gameplay
         };
 
         // Objet/construction pose sur la case : requete spatiale (les objets sont des
-        // entites, pas des tuiles). None si rien.
-        private ObjectID ObjectAt(int2 t)
+        // entites, pas des tuiles). None si rien. interactable = l'entite trouvee porte
+        // InteractableObjectReferenceCD (vrai interactible vs deco passive).
+        private ObjectID ObjectAt(int2 t, out bool interactable)
         {
+            interactable = false;
             var cw = PhysicsManager.GetCollisionWorld();
             var hits = new NativeList<DistanceHit>(8, Allocator.Temp);
             ObjectID id = ObjectID.None;
@@ -94,7 +100,12 @@ namespace CoreKeeperAccess.Gameplay
                     if (EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, World))
                     {
                         var od = EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, World);
-                        if (od.objectID != ObjectID.None) { id = od.objectID; break; }
+                        if (od.objectID != ObjectID.None)
+                        {
+                            id = od.objectID;
+                            interactable = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(h.Entity, World);
+                            break;
+                        }
                     }
                 }
             }

@@ -42,9 +42,11 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null || Manager.ui == null) { Reset(); return; }
 
-            // Jeu normal seulement : si une fenetre prend le D-pad, on se retire.
+            // Jeu normal seulement : si une fenetre (inventaire, fiche perso) OU la carte
+            // (mode voyage rapide, gere par TeleportNavigator) prend le D-pad, on se retire.
             if (Manager.ui.isAnyInventoryShowing
-                || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing))
+                || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
+                || Manager.ui.isShowingMap)
             { Reset(); return; }
 
             StealsDpad = true; // en jeu : on vole le D-pad au jeu pour le curseur
@@ -71,7 +73,9 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             // D-pad -> deplacer le curseur d'une case (un cran par appui), borne a l'ecran.
-            if (joy != null && DpadDir(joy, out int2 dir))
+            // Sauf si Triangle (touche access) est tenu : le D-pad est alors reserve aux
+            // commandes info (InfoKey), il ne deplace plus le curseur.
+            if (joy != null && !InfoKey.ModifierHeld && DpadDir(joy, out int2 dir))
             {
                 int2 target = _cursor + dir;
                 if (InViewport(target))
@@ -153,6 +157,12 @@ namespace CoreKeeperAccess.Gameplay
                 _pending = false;
             }
 
+            // Touche access : Triangle + haut -> details de la case sous le curseur (surtout le
+            // materiau du mur, que le survol ne dit pas a la voix). Curseur detache seulement
+            // (la case sous le perso n'a pas de lecture fraiche).
+            if (InfoKey.DetailRequested && _detached)
+                AnnounceCursorDetails();
+
             StealsCross = _detached; // vol de Croix actif uniquement curseur detache
         }
 
@@ -181,18 +191,50 @@ namespace CoreKeeperAccess.Gameplay
             // Il remplace le tick de deplacement : a l'oreille, bloque != libre.
             if (TileQuery.HasWall)
             {
+                // Un trou (pit) creuse a la pelle, ou de l'eau, remonte comme tuile BLOQUANTE
+                // mais n'est NI un mur minable NI une case franchissable. On les sort de la
+                // categorie "mur" : sinon PlayWallMaterialSfx jouait le son de roche et on
+                // croyait taper un mur impossible a miner/franchir (piege vecu en jeu). Son
+                // DEDIE + TTS, spatialise comme le reste (pan + pitch vertical).
+                if (TileQuery.WallType == TileType.pit)
+                {
+                    PlaySpecialSurface(dx, dy, SfxID.ui_plop_1_01);
+                    TtsText.Say(Strings.L("cursor.pit"), true);
+                    return;
+                }
+                if (TileQuery.WallType == TileType.water)
+                {
+                    PlaySpecialSurface(dx, dy, SfxID.fish_splash_1_02);
+                    TtsText.Say(Strings.L("cursor.water"), true);
+                    return;
+                }
                 PlayWallMaterialSfx(dy);
                 return;
             }
 
-            // Case franchissable : tick de position + TTS du remarquable (le sol de base
-            // reste muet en voix). Priorite : objet/construction pose > sol notable.
-            PlayMoveTick(dx, dy);
+            // Case franchissable. Priorite : objet/construction pose > sol notable.
             string text = null;
             if (TileQuery.ObjectId != ObjectID.None)
+            {
+                // Vrai interactible (coffre, machine...) -> son du materiau si present +
+                // marqueur interactible, qui REMPLACENT le tick de deplacement (comme le
+                // materiau pour un mur). A l'oreille : case vide = tick, mur = materiau,
+                // interactible = (materiau +) marqueur. La deco passive (pas de
+                // InteractableObjectReferenceCD) ne bipe pas : juste le tick, comme une
+                // case nue. Le TTS du nom est conserve dans les deux cas.
+                if (TileQuery.ObjectInteractable)
+                    PlayObjectSfx(dx, dy);
+                else
+                    PlayMoveTick(dx, dy);
                 text = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
-            else if (TileQuery.Ground != TileType.ground)
-                text = TileQuery.Ground.ToString(); // nom brut, table i18n a venir
+            }
+            else
+            {
+                // Sol : tick de position. Sol notable annonce (le sol de base reste muet).
+                PlayMoveTick(dx, dy);
+                if (TileQuery.Ground != TileType.ground)
+                    text = TileQuery.Ground.ToString(); // nom brut, table i18n a venir
+            }
 
             if (!string.IsNullOrEmpty(text)) TtsText.Say(text, true);
         }
@@ -201,16 +243,84 @@ namespace CoreKeeperAccess.Gameplay
         // franchissable : confirme la position du curseur par rapport au joueur. Pan
         // gauche-droite selon l'ecart horizontal (borne au range = demi-largeur visible) ;
         // pitch +1 demi-ton par ligne d'ecart vertical (au-dessus = plus aigu).
+        // Volume du tick de deplacement (case vide / deco), a regler a l'oreille.
+        private const float MoveTickVolume = 0.3f;
+
         private static void PlayMoveTick(int dx, int dy)
         {
             float halfW = HalfWidthTiles();
             float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, 0.4f);
+            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, MoveTickVolume);
+        }
+
+        // Volume des surfaces speciales (trou / eau) au curseur (a regler a l'oreille).
+        private const float SpecialSurfaceVolume = 0.25f;
+
+        // Surface speciale au curseur (trou / eau) : un son DEDIE (pas le son de roche d'un
+        // mur), spatialise gauche-droite + pitch vertical (haut = aigu), comme le tick.
+        private static void PlaySpecialSurface(int dx, int dy, SfxID id)
+        {
+            float halfW = HalfWidthTiles();
+            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
+            float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
+            GameplayAudio.PlaySpatial(id, pan, pitch, SpecialSurfaceVolume);
         }
 
         // Volume du son de materiau au survol d'un mur (a regler a l'oreille).
         private const float WallSfxVolume = 0.5f;
+
+        // Volume du marqueur sonore "interactible" (a regler a l'oreille).
+        private const float ObjectMarkerVolume = 0.1f;
+
+        // Objet interactible au survol. Le marqueur "interactible" (charge_bar_ui_1) est un
+        // SUPPLEMENT d'identite ("on peut agir ici") : hauteur CONSTANTE, faible volume, juste
+        // spatialise gauche-droite. Il se greffe TOUJOURS sur un son INFORMATIF qui, lui, porte
+        // la position : le son du materiau de l'objet s'il en a un (spatialise + pitch vertical),
+        // sinon le tick de deplacement standard. Beaucoup d'objets (coffre/etabli en bois...)
+        // n'ont pas de materiau -> le tick garantit qu'il y a toujours un son porteur sous le
+        // marqueur (qui sinon paraitrait etre le son principal et tromperait).
+        private static void PlayObjectSfx(int dx, int dy)
+        {
+            // Son informatif (porte la position).
+            int matSfx = ResolveObjectSfx();
+            if (matSfx != 0)
+            {
+                int2 r = EntityMonoBehaviour.ToRenderFromWorld(_cursor);
+                var pos = new Vector3(r.x, 0f, r.y);
+                float pitchV = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
+                GameplayAudio.PlayTableSpatialNoPitchDev(matSfx, pos, WallSfxVolume, pitchV);
+            }
+            else
+            {
+                PlayMoveTick(dx, dy);
+            }
+
+            // Marqueur interactible en supplement : hauteur fixe (1f), juste pan gauche-droite.
+            float halfW = HalfWidthTiles();
+            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
+            GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, ObjectMarkerVolume);
+        }
+
+        // Son du materiau que le jeu attribue a l'objet pose : ObjectDataCD (objectID +
+        // variation) -> TileEffectCD -> sfxTableDestroyId, meme chemin qu'EffectsManager.
+        // PAS de fallback (consigne : "materiau si present") -> 0 si l'objet n'en a pas.
+        // Variation 0 par defaut : on ne dispose pas de la variation cote curseur, et le
+        // son de destruction est rarement decline par variation.
+        private static int ResolveObjectSfx()
+        {
+            try
+            {
+                var od = new ObjectDataCD { objectID = TileQuery.ObjectId, variation = 0 };
+                if (PugDatabase.HasComponent<TileEffectCD>(od))
+                {
+                    int id = PugDatabase.GetComponent<TileEffectCD>(od).sfxTableDestroyId;
+                    if (id != 0) return id;
+                }
+            }
+            catch { }
+            return 0;
+        }
 
         // Joue le son du materiau du mur pointe, spatialise NATIVEMENT a la position de la
         // case (pan + distance par rapport au perso, gracieusete du jeu) + un pitch vertical
@@ -260,6 +370,42 @@ namespace CoreKeeperAccess.Gameplay
             }
             catch { }
             return SfxTableID.defaultTileDestroy;
+        }
+
+        // "Plus de details" sur la case sous le curseur (commande Triangle + haut). Donne ce
+        // que le survol normal NE dit PAS a la voix : surtout le MATERIAU du mur (le survol
+        // ne joue qu'un son). Trou/eau -> leur libelle ; objet -> son nom ; sinon le sol.
+        private static void AnnounceCursorDetails()
+        {
+            string text;
+            if (TileQuery.HasWall)
+            {
+                if (TileQuery.WallType == TileType.pit) text = Strings.L("cursor.pit");
+                else if (TileQuery.WallType == TileType.water) text = Strings.L("cursor.water");
+                else text = ResolveWallName();
+            }
+            else if (TileQuery.ObjectId != ObjectID.None)
+                text = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+            else
+                text = TileQuery.Ground.ToString(); // sol brut, i18n a venir
+
+            if (!string.IsNullOrEmpty(text)) TtsText.Say(text, true);
+        }
+
+        // Nom du materiau du mur pointe (ObjectInfo de la tuile -> nom localise), pour la
+        // commande de details. Meme resolution que ResolveWallSfx, mais on rend le NOM.
+        private static string ResolveWallName()
+        {
+            try
+            {
+                TileType wt = TileQuery.WallType;
+                ObjectInfo info = wt.IsContainedResource()
+                    ? PugDatabase.TryGetTileItemInfo(TileType.wall, TileQuery.WallTileset)
+                    : PugDatabase.TryGetTileItemInfo(wt, TileQuery.WallTileset);
+                if (info != null) return InGameTtsCore.ResolveObjectName(info.objectID);
+            }
+            catch { }
+            return null;
         }
 
         private static void Reset()
