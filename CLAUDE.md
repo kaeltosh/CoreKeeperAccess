@@ -20,11 +20,11 @@ Mod d'accessibilité pour **Core Keeper**, nommé **`CoreKeeperAccess`**.
 
 ## Workflow fast-build (PowerShell, par défaut)
 
-**Workflow standard pour itérer sur le code du mod.** `tools/fast-build.ps1` copie en direct les `.cs` (vers `Scripts/`) et les `.json` de `Conf/` (vers `Conf/`) du dossier source du mod vers son install Steam, **sans rien demander à Unity**. Le ModLoader du jeu recompile le code source via Roslyn au démarrage du jeu (CLAUDE Pattern confirmé : `Successfully compiled CoreKeeperAccess` dans Player.log). Beep `SystemSounds.Asterisk` succès, `Hand` échec. Option `-Launch` lance Core Keeper directement.
+**Workflow standard pour itérer sur le code du mod.** `tools/fast-build.ps1` copie en direct les `.cs` (vers `Scripts/`) et les `.json` de `Conf/` (vers `Conf/`) du dossier source du mod vers son install Steam, **sans rien demander à Unity**. Le ModLoader du jeu recompile le code source via Roslyn au démarrage du jeu (CLAUDE Pattern confirmé : `Successfully compiled CoreKeeperAccess` dans Player.log). Beep `SystemSounds.Asterisk` succès, `Hand` échec. **Lance le jeu par défaut** (ferme proprement l'instance en cours d'abord, car le ModLoader recompile au démarrage) ; `-NoLaunch` pour déployer sans lancer.
 
 Usage :
 ```
-& "C:\Users\flame\Documents\core keeper\tools\fast-build.ps1" -Launch
+& "C:\Users\flame\Documents\core keeper\tools\fast-build.ps1"
 ```
 
 Cycle de dev typique : edit code → fast-build -Launch → naviguer en jeu → quitter → inspecter `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log` si erreur. Temps : 1-2 s vs 30+ s avec Unity.

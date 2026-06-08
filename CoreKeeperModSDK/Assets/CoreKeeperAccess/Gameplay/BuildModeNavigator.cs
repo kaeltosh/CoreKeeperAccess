@@ -158,38 +158,108 @@ namespace CoreKeeperAccess.Gameplay
 
         private static void Announce()
         {
-            // Tick SPATIALISE a chaque deplacement (meme sur du vide) : confirme la
-            // position du curseur par rapport au joueur. Pan gauche-droite selon l'ecart
-            // horizontal (borne au range = demi-largeur visible) ; pitch +1 demi-ton par
-            // ligne d'ecart vertical (au-dessus = plus aigu). Son natif placeholder.
             var p = Manager.main != null ? Manager.main.player : null;
             int2 pt = p != null ? ToTile(p.WorldPosition) : _cursor;
             int dx = _cursor.x - pt.x, dy = _cursor.y - pt.y;
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
-            float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, 0.4f);
 
             // Repere central : curseur sur la case du personnage. Sans coordonnees, c'est
             // le point d'ancrage pour se retrouver. On l'annonce et on s'arrete la (le sol
             // sous le perso n'est pas une info utile ici).
             if (dx == 0 && dy == 0)
             {
+                PlayMoveTick(dx, dy);
                 TtsText.Say(Strings.L("cursor.player"), true);
                 return;
             }
 
-            // TTS pour le contenu remarquable (le sol de base reste muet en voix).
-            // Priorite : objet/construction pose > mur > sol notable.
+            // Case infranchissable (mur/bloc) : on joue le SON DU MATERIAU que le jeu
+            // attribue lui-meme a cette tuile (sfxTableDestroyId du TileEffectCD : c'est
+            // le seul son vraiment decline par materiau). Spatialise sur la case (pan +
+            // distance nativement), PLUS un pitch vertical maison (+1 demi-ton par ligne)
+            // car la spatialisation native ne distingue pas haut/bas. Le son porte
+            // "bloque" + materiau + axe vertical -> PAS de TTS "mur", ce serait redondant.
+            // Il remplace le tick de deplacement : a l'oreille, bloque != libre.
+            if (TileQuery.HasWall)
+            {
+                PlayWallMaterialSfx(dy);
+                return;
+            }
+
+            // Case franchissable : tick de position + TTS du remarquable (le sol de base
+            // reste muet en voix). Priorite : objet/construction pose > sol notable.
+            PlayMoveTick(dx, dy);
             string text = null;
             if (TileQuery.ObjectId != ObjectID.None)
                 text = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
-            else if (TileQuery.HasWall)
-                text = Strings.L("cursor.wall");
             else if (TileQuery.Ground != TileType.ground)
                 text = TileQuery.Ground.ToString(); // nom brut, table i18n a venir
 
             if (!string.IsNullOrEmpty(text)) TtsText.Say(text, true);
+        }
+
+        // Tick SPATIALISE (son maison pan/pitch) a chaque deplacement sur une case
+        // franchissable : confirme la position du curseur par rapport au joueur. Pan
+        // gauche-droite selon l'ecart horizontal (borne au range = demi-largeur visible) ;
+        // pitch +1 demi-ton par ligne d'ecart vertical (au-dessus = plus aigu).
+        private static void PlayMoveTick(int dx, int dy)
+        {
+            float halfW = HalfWidthTiles();
+            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
+            float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
+            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, 0.4f);
+        }
+
+        // Volume du son de materiau au survol d'un mur (a regler a l'oreille).
+        private const float WallSfxVolume = 0.5f;
+
+        // Joue le son du materiau du mur pointe, spatialise NATIVEMENT a la position de la
+        // case (pan + distance par rapport au perso, gracieusete du jeu) + un pitch vertical
+        // maison (+1 demi-ton par ligne d'ecart, haut = aigu) car le natif ne distingue pas
+        // haut/bas. On passe par PlayTableSpatialNoPitchDev pour neutraliser le random pitch
+        // de la table (sinon il brouillerait l'info verticale). Coords RENDER (comme InViewport).
+        private static void PlayWallMaterialSfx(int dy)
+        {
+            int sfx = ResolveWallSfx();
+            int2 r = EntityMonoBehaviour.ToRenderFromWorld(_cursor);
+            var pos = new Vector3(r.x, 0f, r.y);
+            float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
+            GameplayAudio.PlayTableSpatialNoPitchDev(sfx, pos, WallSfxVolume, pitch);
+
+            // Minerai (couche ore / ancientCrystal, detectee independamment du mur bloquant :
+            // un filon peut etre superpose a un mur de terre sans etre LA tuile bloquante)
+            // : le jeu superpose un "oreHit" par-dessus le son du materiau -> on fait pareil
+            // pour reperer les minerais a l'oreille (sinon un mur nu et un mur a minerai
+            // sonnent pareil). Pitch constant (signal "minerai" stable et reconnaissable) ;
+            // le son de materiau, lui, porte deja l'axe vertical.
+            if (TileQuery.HasOre)
+                GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit, pos, WallSfxVolume, 1f);
+        }
+
+        // Le son que le jeu attribue a la tuile : ObjectInfo de la tuile (type + tileset)
+        // -> son composant TileEffectCD -> sfxTableDestroyId (le seul son vraiment decline
+        // par materiau ; le son de coup, lui, est generique pour la plupart des murs).
+        // Pour un minerai (ressource contenue), c'est le mur porteur qui porte le son
+        // (comme EffectsManager fait). Fallback defaultTileDestroy.
+        private static int ResolveWallSfx()
+        {
+            try
+            {
+                TileType wt = TileQuery.WallType;
+                ObjectInfo info = wt.IsContainedResource()
+                    ? PugDatabase.TryGetTileItemInfo(TileType.wall, TileQuery.WallTileset)
+                    : PugDatabase.TryGetTileItemInfo(wt, TileQuery.WallTileset);
+                if (info != null)
+                {
+                    var od = new ObjectDataCD { objectID = info.objectID, variation = info.variation };
+                    if (PugDatabase.HasComponent<TileEffectCD>(od))
+                    {
+                        int id = PugDatabase.GetComponent<TileEffectCD>(od).sfxTableDestroyId;
+                        if (id != 0) return id;
+                    }
+                }
+            }
+            catch { }
+            return SfxTableID.defaultTileDestroy;
         }
 
         private static void Reset()

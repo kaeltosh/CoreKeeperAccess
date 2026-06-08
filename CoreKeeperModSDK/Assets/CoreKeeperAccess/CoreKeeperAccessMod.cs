@@ -20,14 +20,31 @@ public class CoreKeeperAccessMod : IMod
     private bool _inputDiag;
     private readonly Dictionary<int, int> _axisState = new Dictionary<int, int>();
 
+    // PROVISOIRE (dev) : auto-charge monde 1 / perso 1 (indices 0/0) au boot, une seule
+    // fois par lancement, pour aller direct en jeu et gagner du temps de test. Saute la
+    // navigation menu ET l'intro narrative (save existante -> LoadMainScene direct).
+    // Flag actif jusqu'a nouvel ordre : passer DevAutoLoad a false pour revenir au menu.
+    private const bool DevAutoLoad = true;
+    private bool _autoLoadDone;
+    private float _autoLoadStable;
+
     public void EarlyInit()
     {
+        // Tentative de couper les logos de demarrage (Unity SplashScreen) si notre code
+        // tourne encore pendant leur affichage. Sans effet s'ils sont deja passes (ils
+        // sont rendus tres tot par le moteur, possiblement avant le chargement du mod).
+        try
+        {
+            UnityEngine.Rendering.SplashScreen.Stop(
+                UnityEngine.Rendering.SplashScreen.StopBehavior.StopImmediate);
+        }
+        catch { }
     }
 
     // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
     // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
     // retirer une fois l'ambiguite "build pas a jour ?" levee.
-    private const string BuildTag = "build 10";
+    private const string BuildTag = "build 11";
 
     public void Init()
     {
@@ -82,6 +99,7 @@ public class CoreKeeperAccessMod : IMod
 
     public void Update()
     {
+        TryAutoLoad();
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
         CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
 
@@ -127,6 +145,23 @@ public class CoreKeeperAccessMod : IMod
             }
             _axisState[i] = now;
         }
+    }
+
+    // PROVISOIRE (dev) : charge direct monde 1 / perso 1 des que le menu est pret.
+    private void TryAutoLoad()
+    {
+        if (!DevAutoLoad || _autoLoadDone) return;
+        if (Manager.main == null || Manager.saves == null
+            || Manager.load == null || Manager.menu == null) return;
+        if (Manager.main.player != null) { _autoLoadDone = true; return; } // deja en jeu
+        // Slot 0 (perso 1) et monde 0 (monde 1) doivent exister et etre charges.
+        if (!Manager.saves.CharacterExists(0) || !Manager.saves.WorldExists(0)) return;
+        // Petite stabilisation pour laisser le menu finir son init avant de charger.
+        _autoLoadStable += Time.deltaTime;
+        if (_autoLoadStable < 0.5f) return;
+        _autoLoadDone = true;
+        Debug.Log("[A11yAutoLoad] Chargement auto monde 1 / perso 1");
+        SaveSlotPlayOption.StartGameFromActivity(0, 0);
     }
 
     // Annonce en TTS (interrompt) ET trace dans Player.log pour lecture cote dev.

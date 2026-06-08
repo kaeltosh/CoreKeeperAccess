@@ -3,7 +3,7 @@ param(
     [string]$ModSource = "C:\Users\flame\Documents\core keeper\CoreKeeperModSDK\Assets\CoreKeeperAccess",
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\Core Keeper",
     [string]$ModName   = "CoreKeeperAccess",
-    [switch]$Launch,
+    [switch]$NoLaunch,
     [switch]$NoCheck
 )
 
@@ -105,9 +105,19 @@ if ($script:undeclared.Count -gt 0) {
 Write-Host "OK : mod a jour."
 Beep-Success
 
-if ($Launch) {
+# Lancement du jeu par defaut (le ModLoader compile le code au demarrage, donc tout
+# build doit relancer le jeu pour prendre effet). -NoLaunch pour deployer sans lancer.
+# On ferme proprement l'instance en cours d'abord (sinon ancien code / double instance).
+if (-not $NoLaunch) {
     $exe = Join-Path $GamePath "CoreKeeper.exe"
     if (Test-Path $exe) {
+        $running = Get-Process -Name "CoreKeeper" -ErrorAction SilentlyContinue
+        if ($running) {
+            Write-Host "Fermeture de l'instance en cours..."
+            foreach ($p in $running) { try { $p.CloseMainWindow() | Out-Null } catch {} }
+            Start-Sleep -Milliseconds 1500
+            Get-Process -Name "CoreKeeper" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
         Write-Host "Lancement: $exe"
         Start-Process -FilePath $exe
     } else {

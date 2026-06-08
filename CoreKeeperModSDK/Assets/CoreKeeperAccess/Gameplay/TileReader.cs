@@ -22,12 +22,19 @@ namespace CoreKeeperAccess.Gameplay
         public static bool HasWall;       // tuile bloquante (mur) presente
         public static TileType WallType;
         public static int WallTileset;
+        public static bool HasOre;        // couche minerai (ore / ancientCrystal) sur la case,
+                                          // independante du mur bloquant (un filon peut etre
+                                          // superpose a un mur de terre sans en etre la tuile
+                                          // bloquante -> on le detecte via une couche dediee).
         public static ObjectID ObjectId;  // objet/construction pose sur la case (ou None)
     }
 
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class TileReaderSystem : SystemBase
     {
+        // PROVISOIRE : derniere case loggee par le diagnostic (evite le spam frame/frame).
+        private int2 _lastDiag = new int2(int.MinValue, int.MinValue);
+
         protected override void OnUpdate()
         {
             if (!TileQuery.Active) return;
@@ -40,9 +47,25 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.HasWall = hasWall;
                 TileQuery.WallType = hasWall ? wall.tileType : default;
                 TileQuery.WallTileset = hasWall ? wall.tileset : 0;
+                bool hasOre = ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal);
+                TileQuery.HasOre = hasOre;
                 TileQuery.ObjectId = ObjectAt(t);
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
+
+                // PROVISOIRE [A11yTileDiag] : a chaque NOUVELLE case, on crache toutes les
+                // couches de tuile + le bloquant/minerai/objet, pour identifier ce que le
+                // jeu voit reellement (ex. un filon superpose qu'on raterait). A RETIRER.
+                if (!t.Equals(_lastDiag))
+                {
+                    _lastDiag = t;
+                    var layers = ta.Get(t, Allocator.Temp);
+                    var sb = new System.Text.StringBuilder();
+                    foreach (var l in layers) sb.Append(l.tileType).Append('/').Append(l.tileset).Append(' ');
+                    layers.Dispose();
+                    string block = hasWall ? (wall.tileType + "/" + wall.tileset) : "none";
+                    UnityEngine.Debug.Log($"[A11yTileDiag] tile={t.x},{t.y} block={block} ore={hasOre} obj={TileQuery.ObjectId} layers=[{sb}]");
+                }
             }
             catch { }
         }

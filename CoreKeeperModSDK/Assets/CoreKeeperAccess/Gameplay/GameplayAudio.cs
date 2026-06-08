@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
@@ -29,6 +30,49 @@ namespace CoreKeeperAccess.Gameplay
             _src.panStereo = Mathf.Clamp(pan, -1f, 1f);
             _src.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
             _src.PlayOneShot(clip, volume);
+        }
+
+        private static MethodInfo _getNextSounds;
+        private static bool _getNextSoundsResolved;
+
+        // Joue un SON DE TABLE (SfxTableID, ex. destruction de tuile) spatialise NATIVEMENT
+        // (position -> pan + distance, gracieusete du jeu) mais avec un pitch EXACT impose :
+        // on force pitchDev a 0, sinon le random pitch de la table brouillerait l'info qu'on
+        // encode dans le pitch (axe vertical). On NE reimplemente PAS la selection des sons
+        // (cycle/variants/multi-couches) : on reutilise la methode privee GetNextSfxInfoSounds
+        // du jeu par reflection (qui rend LA liste de sons a jouer pour cette lecture), et on
+        // joue chacun via la surcharge SfxID native avec pitchDev:0. pitchMul multiplie le
+        // pitch de base de chaque son. Fallback : methode native (timbre OK mais random pitch).
+        public static void PlayTableSpatialNoPitchDev(int sfxTableID, Vector3 pos, float volume, float pitchMul)
+        {
+            var audio = Manager.audio;
+            if (audio == null || audio.sfxTable == null) return;
+
+            if (!_getNextSoundsResolved)
+            {
+                _getNextSoundsResolved = true;
+                _getNextSounds = typeof(AudioManager).GetMethod("GetNextSfxInfoSounds",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+            }
+
+            if (_getNextSounds != null)
+            {
+                var list = _getNextSounds.Invoke(null, new object[] { audio, sfxTableID })
+                           as List<SfxTable.SFXSound>;
+                if (list != null)
+                {
+                    foreach (var s in list)
+                    {
+                        SfxID id = audio.InspectorFriendlySfxIDToSfxID(s.sfx);
+                        AudioManager.Sfx(id, pos, s.volume * volume, s.pitch * pitchMul, 0f);
+                    }
+                    return;
+                }
+            }
+
+            // Reflection indisponible : on laisse le jeu tout gerer (timbre/couches fideles)
+            // au prix du random pitch reinjecte par la table. Mieux que pas de son.
+            AudioManager.Sfx(sfxTableID, pos, volume, pitchMul);
         }
 
         private static void EnsureInit()
