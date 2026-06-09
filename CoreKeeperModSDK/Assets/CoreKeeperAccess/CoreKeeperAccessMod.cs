@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
     // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
     // retirer une fois l'ambiguite "build pas a jour ?" levee.
-    private const string BuildTag = "build 11";
+    private const string BuildTag = "build 18";
 
     public void Init()
     {
@@ -109,6 +109,7 @@ public class CoreKeeperAccessMod : IMod
         InfoKey.Tick();
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
         TeleportNavigator.Update();
+        CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active
         CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
 
         if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
