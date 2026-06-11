@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
     // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
     // retirer une fois l'ambiguite "build pas a jour ?" levee.
-    private const string BuildTag = "build 47";
+    private const string BuildTag = "build 48";
 
     public void Init()
     {
@@ -251,12 +251,24 @@ internal static class InfoKey
     public static bool ComboRight;      // Triangle + droite (reparer, selon contexte)
     public static bool ComboDown;       // Triangle + bas (transferer)
     public static bool ComboLeft;       // Triangle + gauche (tout recycler)
+    public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
+
+    // Double-tap : deux TAPS courts (< TapMaxDuration, sans combo D-pad pendant la
+    // tenue) espaces de moins de DoubleTapWindow. Un appui long ou un combo n'est
+    // jamais un tap -> aucun conflit avec le role de modificateur.
+    private const float TapMaxDuration = 0.30f;
+    private const float DoubleTapWindow = 0.40f;
+    private static bool _wasHeld;
+    private static float _holdStart;
+    private static bool _comboDuringHold;
+    private static float _lastTap = -10f;
 
     public static void Tick()
     {
         ModifierHeld = false;
         DetailRequested = false;
         ComboRight = ComboDown = ComboLeft = false;
+        DoubleTapped = false;
         if (!ReInput.isReady) return;
         int tri = TriangleModifier.TriangleButtonId;
         if (tri < 0) return; // id Triangle pas encore capte
@@ -264,11 +276,35 @@ internal static class InfoKey
         if (joy == null) return;
 
         ModifierHeld = GetButtonById(joy, tri);
-        if (!ModifierHeld) return;
-        if (GetButtonDownById(joy, DpadUp)) DetailRequested = true;
-        else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
-        else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
-        else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
+        if (ModifierHeld)
+        {
+            if (GetButtonDownById(joy, DpadUp)) DetailRequested = true;
+            else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
+            else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
+            else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
+        }
+
+        // Suivi tap / double-tap (fronts montant et descendant de Triangle).
+        if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; }
+        if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft))
+            _comboDuringHold = true;
+        if (!ModifierHeld && _wasHeld)
+        {
+            bool tap = Time.unscaledTime - _holdStart <= TapMaxDuration && !_comboDuringHold;
+            if (tap)
+            {
+                if (Time.unscaledTime - _lastTap <= DoubleTapWindow)
+                {
+                    DoubleTapped = true;
+                    _lastTap = -10f;
+                }
+                else
+                {
+                    _lastTap = Time.unscaledTime;
+                }
+            }
+        }
+        _wasHeld = ModifierHeld;
     }
 
     private static bool GetButtonById(Joystick joy, int id)
@@ -294,13 +330,20 @@ internal static class InfoKey
 // NOTE: a reloger dans son propre fichier au prochain build Unity.
 internal static class TeleportNavigator
 {
-    private const int DpadUp = 16, DpadDown = 18, CrossButton = 6;
+    private const int DpadUp = 16, DpadDown = 18, CrossButton = 6, Lb = 10, Rb = 11;
 
     private static bool _active;
     private static readonly List<MapMarkerUIElement> _dests = new List<MapMarkerUIElement>();      // navigables (CanTeleport)
     private static readonly List<MapMarkerUIElement> _allPortals = new List<MapMarkerUIElement>();  // tous, pour la numerotation stable
+    // Points d'INTERET : tous les autres marqueurs actifs de la carte (boss scannes,
+    // pings...) - pas teleportables, mais nommables et localisables (cap + distance).
+    // Categorie separee aux bumpers (reserves pour ca depuis le debut).
+    private static readonly List<MapMarkerUIElement> _pois = new List<MapMarkerUIElement>();
+    private static int _category; // 0 = destinations (teleport), 1 = points d'interet
     private static MapMarkerUIElement _coreMarker;                                                  // le plus proche de l'origine
     private static int _index;
+
+    private static List<MapMarkerUIElement> CurrentList => _category == 0 ? _dests : _pois;
 
     // CanTeleport est prive -> reflection. (mapMarkerEntity, lui, est un champ PUBLIC :
     // acces direct, pas de reflection.)
@@ -309,12 +352,14 @@ internal static class TeleportNavigator
 
     public static void Update()
     {
+        // Carte ouverte = nav active, AVEC ou SANS relais (le double-tap Triangle
+        // ouvre la carte hors relais : la categorie destinations est alors vide,
+        // mais les points d'interet restent consultables).
         var player = Manager.main != null ? Manager.main.player : null;
-        bool open = player != null && Manager.ui != null
-                    && Manager.ui.isShowingMap && player.currentPortal != null;
+        bool open = player != null && Manager.ui != null && Manager.ui.isShowingMap;
 
         if (open && !_active) Enter();
-        else if (!open && _active) { _active = false; _dests.Clear(); }
+        else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); }
         if (!_active) return;
 
         HandleInput();
@@ -326,8 +371,26 @@ internal static class TeleportNavigator
         ResolveReflection();
         BuildDestinations();
         _index = 0;
-        if (_dests.Count == 0) { TtsText.Say(Strings.L("teleport.none"), true); return; }
-        Select(0);
+        // Categorie de depart : destinations si on vient d'un relais (teleport possible),
+        // sinon points d'interet (consultation pure).
+        var player = Manager.main != null ? Manager.main.player : null;
+        _category = (player != null && player.currentPortal != null && _dests.Count > 0) ? 0 : 1;
+        AnnounceCategory();
+    }
+
+    // Annonce le nom de la categorie courante puis son premier element (ou son vide).
+    private static void AnnounceCategory()
+    {
+        string cat = Strings.L(_category == 0 ? "map.destinations" : "map.poi");
+        var list = CurrentList;
+        if (list.Count == 0)
+        {
+            TtsText.Say(cat + ", " + Strings.L(_category == 0 ? "teleport.none" : "map.poi.none"), true);
+            return;
+        }
+        TtsText.Say(cat, true);
+        _index = 0;
+        Select(0, interruptTts: false);
     }
 
     private static void ResolveReflection()
@@ -350,13 +413,19 @@ internal static class TeleportNavigator
     {
         _dests.Clear();
         _allPortals.Clear();
+        _pois.Clear();
         _coreMarker = null;
 
         var all = Object.FindObjectsByType<MapMarkerUIElement>(FindObjectsSortMode.None);
         foreach (var m in all)
         {
             if (m == null || !m.isActiveAndEnabled) continue;
-            if (m.markerType != MapMarkerType.Portal && m.markerType != MapMarkerType.Waypoint) continue;
+            if (m.markerType != MapMarkerType.Portal && m.markerType != MapMarkerType.Waypoint)
+            {
+                // Tout autre marqueur actif = point d'interet (boss scanne, ping...).
+                _pois.Add(m);
+                continue;
+            }
             _allPortals.Add(m);
             bool ok;
             try { ok = _canTeleport != null && (bool)_canTeleport.Invoke(m, null); }
@@ -366,6 +435,10 @@ internal static class TeleportNavigator
 
         _allPortals.Sort(CompareByCenterDistance);
         _dests.Sort(CompareByCenterDistance);
+        // POI tries du plus proche AU JOUEUR (pas au centre : pas de numerotation
+        // stable a garantir, c'est la pertinence immediate qui compte).
+        float2 pp = PlayerPos();
+        _pois.Sort((a, b) => DistSq(a, pp).CompareTo(DistSq(b, pp)));
 
         float best = float.MaxValue;
         foreach (var m in _allPortals)
@@ -407,29 +480,46 @@ internal static class TeleportNavigator
             if (id == DpadUp) { Move(-1); return; }
             if (id == DpadDown) { Move(+1); return; }
             if (id == CrossButton) { Confirm(); return; }
+            if (id == Lb || id == Rb) { SwitchCategory(); return; }
         }
+    }
+
+    // Bumpers = basculer destinations <-> points d'interet (2 categories : un toggle).
+    private static void SwitchCategory()
+    {
+        _category = 1 - _category;
+        _index = 0;
+        AnnounceCategory();
     }
 
     private static void Move(int step)
     {
-        if (_dests.Count == 0) return;
-        _index = (_index + step + _dests.Count) % _dests.Count;
+        var list = CurrentList;
+        if (list.Count == 0) return;
+        _index = (_index + step + list.Count) % list.Count;
         Select(_index);
     }
 
     // A = clic direct sur la destination selectionnee = teleportation. On appelle
     // OnLeftClicked (public) nous-memes : le routage natif de A ne le declenche pas sur la
     // carte. OnLeftClicked verifie CanTeleport, fait QueueInputAction(Teleport) et ferme la
-    // carte.
+    // carte. Un point d'interet n'est PAS teleportable : refus parlant.
     private static void Confirm()
     {
+        if (_category != 0)
+        {
+            TtsText.Say(Strings.L("map.poi.notteleport"), true);
+            return;
+        }
         if (_index < 0 || _index >= _dests.Count) return;
         _dests[_index].OnLeftClicked(false, false);
     }
 
-    private static void Select(int idx)
+    private static void Select(int idx, bool interruptTts = true)
     {
-        var m = _dests[idx];
+        var list = CurrentList;
+        if (idx < 0 || idx >= list.Count) return;
+        var m = list[idx];
         // Selection forcee + recalage du curseur manette virtuel (meme piege UIMouse que
         // l'inventaire) pour que A native clique bien CE marqueur -> teleportation.
         CoreKeeperAccess.Navigation.InventoryNavState.SuppressPassiveAnnounce = true;
@@ -440,31 +530,45 @@ internal static class TeleportNavigator
                 Manager.ui.mouse.PlaceMousePositionOnSelectedUIElementWhenControlledByJoystick();
         }
         finally { CoreKeeperAccess.Navigation.InventoryNavState.SuppressPassiveAnnounce = false; }
-        Announce(m);
+        Announce(m, interruptTts);
     }
 
-    private static void Announce(MapMarkerUIElement m)
+    private static void Announce(MapMarkerUIElement m, bool interrupt = true)
     {
         string name = (m == _coreMarker)
             ? Strings.L("teleport.core")
             : TtsText.ResolveTextAndFormatFields(m.GetHoverTitle());
-        if (string.IsNullOrEmpty(name)) name = Strings.L("teleport.portal");
-        // Numero STABLE en tete pour distinguer / memoriser les relais ("3, Relais, ...").
-        string head = StableNumber(m) + ", " + name;
+        if (string.IsNullOrEmpty(name))
+            name = Strings.L(_category == 0 ? "teleport.portal" : "map.poi.marker");
+        // Numero en tete : STABLE pour les relais (tri par distance au centre),
+        // simple ordre de proximite pour les points d'interet.
+        int number = _category == 0 ? StableNumber(m) : _index + 1;
+        string head = number + ", " + name;
         string dd = DirectionAndDistance(m);
-        TtsText.Say(string.IsNullOrEmpty(dd) ? head : head + ", " + dd, true);
+        TtsText.Say(string.IsNullOrEmpty(dd) ? head : head + ", " + dd, interrupt);
     }
 
     // Touche access (Triangle + haut) : details de la destination selectionnee -> type
     // (portail / point de passage) + coordonnees exactes + cap + distance.
     private static void AnnounceDetail()
     {
-        if (_index < 0 || _index >= _dests.Count) return;
-        var m = _dests[_index];
-        string label = (m == _coreMarker) ? Strings.L("teleport.core")
-            : (m.markerType == MapMarkerType.Waypoint
-                ? Strings.L("teleport.waypoint") : Strings.L("teleport.portal"));
-        string text = StableNumber(m) + ", " + label;
+        var list = CurrentList;
+        if (_index < 0 || _index >= list.Count) return;
+        var m = list[_index];
+        string label;
+        if (_category == 0)
+        {
+            label = (m == _coreMarker) ? Strings.L("teleport.core")
+                : (m.markerType == MapMarkerType.Waypoint
+                    ? Strings.L("teleport.waypoint") : Strings.L("teleport.portal"));
+        }
+        else
+        {
+            label = TtsText.ResolveTextAndFormatFields(m.GetHoverTitle());
+            if (string.IsNullOrEmpty(label)) label = Strings.L("map.poi.marker");
+        }
+        int number = _category == 0 ? StableNumber(m) : _index + 1;
+        string text = number + ", " + label;
         if (TryMarkerPos(m, out float2 mp))
         {
             text += ", " + Strings.L("teleport.position") + " "

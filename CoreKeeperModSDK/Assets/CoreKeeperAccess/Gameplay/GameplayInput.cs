@@ -54,6 +54,16 @@ namespace CoreKeeperAccess.Gameplay
                           || (Manager.menu != null && Manager.menu.IsAnyMenuActive());
             if (!uiBusy && InfoKey.ComboLeft) RequestProspect(player);
 
+            // Double-tap Triangle = ouvrir/fermer la CARTE : on rejoue l'action native
+            // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
+            // jeu fait le reste (toggle, fermeture au B aussi). La nav de carte
+            // (TeleportNavigator) prend la main une fois la carte ouverte.
+            if (!uiBusy && InfoKey.DoubleTapped)
+            {
+                InventoryNavState.ArmedInput = PlayerInput.InputType.TOGGLE_MAP;
+                InventoryNavState.ArmedTtl = 2;
+            }
+
             TickProspect(player);
             WatchInteractable(player);
         }

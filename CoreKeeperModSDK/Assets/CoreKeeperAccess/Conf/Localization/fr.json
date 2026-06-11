@@ -99,5 +99,10 @@
   "obj.SlimeBossStatue": "Statue du boss slime",
   "obj.LarvaBossStatue": "Statue du boss larve",
   "obj.LarvaHiveBossStatue": "Statue du boss de la ruche",
-  "interact.available": "interaction disponible"
+  "interact.available": "interaction disponible",
+  "map.destinations": "Destinations",
+  "map.poi": "Points d'intérêt",
+  "map.poi.none": "aucun point d'intérêt",
+  "map.poi.marker": "Marqueur",
+  "map.poi.notteleport": "Pas téléportable"
 }

@@ -99,5 +99,10 @@
   "obj.SlimeBossStatue": "Slime boss statue",
   "obj.LarvaBossStatue": "Larva boss statue",
   "obj.LarvaHiveBossStatue": "Hive boss statue",
-  "interact.available": "interaction available"
+  "interact.available": "interaction available",
+  "map.destinations": "Destinations",
+  "map.poi": "Points of interest",
+  "map.poi.none": "no points of interest",
+  "map.poi.marker": "Marker",
+  "map.poi.notteleport": "Not teleportable"
 }
