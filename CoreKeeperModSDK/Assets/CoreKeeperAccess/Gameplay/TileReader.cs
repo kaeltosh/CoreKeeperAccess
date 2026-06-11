@@ -167,10 +167,13 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     // Les creatures et joueurs portent aussi un ObjectDataCD : on ne
                     // veut que les objets POSES (la sonde a mi-hauteur attraperait un
-                    // slime de passage et l'annoncerait comme un meuble).
+                    // slime de passage et l'annoncerait comme un meuble). Idem pour les
+                    // projectiles en vol (fleches du joueur, mortiers...).
                     if (EntityUtility.HasComponentData<EnemyCD>(h.Entity, world)
                         || EntityUtility.HasComponentData<CritterCD>(h.Entity, world)
-                        || EntityUtility.HasComponentData<PlayerGhost>(h.Entity, world)) continue;
+                        || EntityUtility.HasComponentData<PlayerGhost>(h.Entity, world)
+                        || EntityUtility.HasComponentData<ProjectileCD>(h.Entity, world)
+                        || EntityUtility.HasComponentData<MortarProjectileCD>(h.Entity, world)) continue;
                     if (EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, world))
                     {
                         var od = EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world);
@@ -297,6 +300,11 @@ namespace CoreKeeperAccess.Gameplay
                     if (EntityUtility.HasComponentData<EnemyCD>(e, World)
                         || EntityUtility.HasComponentData<CritterCD>(e, World)
                         || EntityUtility.HasComponentData<PlayerGhost>(e, World)) continue;
+                    // Projectiles en vol (fleches du joueur, mortiers...) : des entites
+                    // ObjectDataCD ephemeres, pas des objets POSES -> hors index (sinon
+                    // chaque fleche tiree bipait au laser et au curseur).
+                    if (EntityUtility.HasComponentData<ProjectileCD>(e, World)
+                        || EntityUtility.HasComponentData<MortarProjectileCD>(e, World)) continue;
 
                     var od = EntityManager.GetComponentData<ObjectDataCD>(e);
                     if (od.objectID == ObjectID.None) continue;
