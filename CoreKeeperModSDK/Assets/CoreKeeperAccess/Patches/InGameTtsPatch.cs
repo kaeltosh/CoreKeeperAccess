@@ -130,7 +130,11 @@ namespace CoreKeeperAccess.Patches
                 objectData = new ObjectDataCD { objectID = objectID }
             }, false);
             string name = TtsText.ResolveTextAndFormatFields(taf);
-            return string.IsNullOrEmpty(name) ? SplitEnumName(objectID.ToString()) : name;
+            if (!string.IsNullOrEmpty(name)) return name;
+            // Surcharge i18n du mod pour les orphelins connus (obj.<NomEnum> dans nos
+            // JSON : Core, cable ancien, statues de boss...), sinon nom d'enum decoupe.
+            if (Strings.TryL("obj." + objectID, out string custom)) return custom;
+            return SplitEnumName(objectID.ToString());
         }
 
         // "LarvaHiveBossStatue" -> "Larva Hive Boss Statue" (espaces aux frontieres de

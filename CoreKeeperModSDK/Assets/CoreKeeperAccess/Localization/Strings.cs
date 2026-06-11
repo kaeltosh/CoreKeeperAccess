@@ -49,6 +49,16 @@ namespace CoreKeeperAccess.Localization
             return key;
         }
 
+        // Variante optionnelle : vrai seulement si la cle existe (L rend la cle brute
+        // sinon, inutilisable pour une table de surcharge facultative comme obj.*).
+        public static bool TryL(string key, out string value)
+        {
+            value = null;
+            if (string.IsNullOrEmpty(key)) return false;
+            if (_current.TryGetValue(key, out value)) return true;
+            return _fallback.TryGetValue(key, out value);
+        }
+
         private static void HandleLanguageChange()
         {
             var mod = FindSelf();

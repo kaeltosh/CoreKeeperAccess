@@ -92,5 +92,10 @@
   "prospect.ore": "Minerai",
   "prospect.none": "Pas de minerai à portée",
   "prospect.radius": "rayon",
-  "prospect.here": "sous tes pieds"
+  "prospect.here": "sous tes pieds",
+  "obj.TheCore": "Le Core",
+  "obj.IndestructibleAncientWire": "Câble ancien",
+  "obj.SlimeBossStatue": "Statue du boss slime",
+  "obj.LarvaBossStatue": "Statue du boss larve",
+  "obj.LarvaHiveBossStatue": "Statue du boss de la ruche"
 }

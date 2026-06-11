@@ -92,5 +92,10 @@
   "prospect.ore": "Ore",
   "prospect.none": "No ore in range",
   "prospect.radius": "radius",
-  "prospect.here": "right under you"
+  "prospect.here": "right under you",
+  "obj.TheCore": "The Core",
+  "obj.IndestructibleAncientWire": "Ancient wire",
+  "obj.SlimeBossStatue": "Slime boss statue",
+  "obj.LarvaBossStatue": "Larva boss statue",
+  "obj.LarvaHiveBossStatue": "Hive boss statue"
 }
