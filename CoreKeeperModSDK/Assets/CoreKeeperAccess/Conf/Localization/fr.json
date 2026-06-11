@@ -98,5 +98,6 @@
   "obj.IndestructibleAncientWire": "Câble ancien",
   "obj.SlimeBossStatue": "Statue du boss slime",
   "obj.LarvaBossStatue": "Statue du boss larve",
-  "obj.LarvaHiveBossStatue": "Statue du boss de la ruche"
+  "obj.LarvaHiveBossStatue": "Statue du boss de la ruche",
+  "interact.available": "interaction disponible"
 }

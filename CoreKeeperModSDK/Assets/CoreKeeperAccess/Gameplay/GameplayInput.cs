@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
+using Interaction;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -54,6 +55,48 @@ namespace CoreKeeperAccess.Gameplay
             if (!uiBusy && InfoKey.ComboLeft) RequestProspect(player);
 
             TickProspect(player);
+            WatchInteractable(player);
+        }
+
+        // Annonce d'INTERACTION A PORTEE : le jeu maintient sur le joueur l'interactible
+        // le plus proche actuellement atteignable (InteractorCD.currentClosestInteractable,
+        // la donnee qui pilote le prompt visuel des voyants). On annonce au CHANGEMENT
+        // ("Statue du boss slime, interaction disponible") -> on sait toujours si A va
+        // faire quelque chose et sur quoi. Regle le "il faut etre au bon endroit" des
+        // objets multi-cases (statues, Core...). Sortie de portee : silence.
+        private const float InteractPollInterval = 0.2f;
+        private static int _lastInteractable;
+        private static float _nextInteractPoll;
+
+        private static void WatchInteractable(PlayerController player)
+        {
+            if (Time.unscaledTime < _nextInteractPoll) return;
+            _nextInteractPoll = Time.unscaledTime + InteractPollInterval;
+
+            int key = 0;
+            ObjectID id = ObjectID.None;
+            try
+            {
+                if (!EntityUtility.HasComponentData<InteractorCD>(player.entity, player.world)) return;
+                var e = EntityUtility.GetComponentData<InteractorCD>(player.entity, player.world)
+                    .currentClosestInteractable;
+                if (e != Entity.Null && EntityUtility.HasComponentData<ObjectDataCD>(e, player.world))
+                {
+                    id = EntityUtility.GetComponentData<ObjectDataCD>(e, player.world).objectID;
+                    key = e.Index;
+                }
+            }
+            catch { return; }
+
+            if (key == _lastInteractable) return;
+            _lastInteractable = key;
+            if (key == 0 || id == ObjectID.None) return;
+
+            string name = InGameTtsCore.ResolveObjectName(id);
+            if (string.IsNullOrEmpty(name)) return;
+            // interrupt=true (demande utilisateur) : info de POSITION, perimee si elle
+            // attend son tour dans la file - on marche, le point chaud c'est MAINTENANT.
+            TtsText.Say(name + ", " + Strings.L("interact.available"), true);
         }
 
         // Pose la demande de scan : rayon = stat VisibleOreDistance du perso, la MEME
