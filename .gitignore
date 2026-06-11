@@ -10,6 +10,11 @@
 !/.gitignore
 !/*.md
 !/mapping_manette.html
+!/LICENSE
+!/install.ps1
+
+# 2b) Distribution testeurs : artefact buildé du mod + DLL natives Tolk
+!/dist/
 
 # 3) Outillage et dépendances du mod
 !/tools/

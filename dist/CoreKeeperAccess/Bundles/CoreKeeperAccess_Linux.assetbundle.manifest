@@ -1,0 +1,12 @@
+{
+    "assets": [
+        {
+            "path": "Assets/CoreKeeperAccess/Data/CoreKeeperAccess.asset",
+            "guid": "3d2b6ee97a1b5d840868f0fb7d2071de"
+        },
+        {
+            "path": "Assets/CoreKeeperAccess/CoreKeeperAccess.asmdef",
+            "guid": "6d2354f794275354aa6772bf4cf9a2b3"
+        }
+    ]
+}

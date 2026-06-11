@@ -4,7 +4,8 @@ param(
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\Core Keeper",
     [string]$ModName   = "CoreKeeperAccess",
     [switch]$NoLaunch,
-    [switch]$NoCheck
+    [switch]$NoCheck,
+    [switch]$NoDev
 )
 
 $ErrorActionPreference = "Stop"
@@ -100,6 +101,21 @@ if ($script:undeclared.Count -gt 0) {
     Write-Host "Refaire un build Unity au moins une fois pour les declarer."
     Beep-Fail
     exit 2
+}
+
+# Mode dev du mod : fichier-temoin dev.flag dans le dossier d'install (auto-load
+# monde 1/perso 1 + skip logos). Pose par defaut pour le cycle dev local ; -NoDev le
+# retire pour tester le comportement release (menu complet, intro). Le fichier n'est
+# jamais dans l'artefact distribue : seul ce script le cree, sur cette machine.
+$devFlag = Join-Path $installDir "dev.flag"
+if ($NoDev) {
+    if (Test-Path $devFlag) {
+        Remove-Item $devFlag -Force
+        Write-Host "Mode dev : dev.flag retire (comportement release)."
+    }
+} elseif (-not (Test-Path $devFlag)) {
+    Set-Content -Path $devFlag -Encoding utf8 -Value "Mode dev CoreKeeperAccess : auto-load monde 1/perso 1 + skip logos studio. Supprimer ce fichier (ou fast-build -NoDev) pour le comportement release."
+    Write-Host "Mode dev : dev.flag pose (auto-load actif)."
 }
 
 Write-Host "OK : mod a jour."
