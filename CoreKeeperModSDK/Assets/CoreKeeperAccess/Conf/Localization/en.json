@@ -38,6 +38,7 @@
   "cursor.player": "character",
   "cursor.pit": "Hole",
   "cursor.water": "Water",
+  "cursor.immune": "Sealed wall, indestructible",
   "teleport.none": "No destination",
   "teleport.portal": "Portal",
   "teleport.tiles": "tiles",

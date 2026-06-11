@@ -226,7 +226,13 @@ namespace CoreKeeperAccess.Gameplay
                     if (speak) TtsText.Say(Strings.L("cursor.water"), true);
                     return;
                 }
+                // Mur SCELLE (couche immune : Grande Muraille...) : invulnerable, donc
+                // ni minable ni prospectable. Son du materiau conserve (info vraie),
+                // mais TTS explicite - l'equivalent du visuel distinctif qu'un voyant
+                // remarque immediatement. Le ding minerai est coupe dans
+                // PlayWallMaterialSfx (un filon scelle est un piege, pas une ressource).
                 PlayWallMaterialSfx(tile, in info, dy);
+                if (speak && info.IsImmune) TtsText.Say(Strings.L("cursor.immune"), true);
                 return;
             }
 
@@ -359,7 +365,7 @@ namespace CoreKeeperAccess.Gameplay
             // pour reperer les minerais a l'oreille (sinon un mur nu et un mur a minerai
             // sonnent pareil). Pitch constant (signal "minerai" stable et reconnaissable) ;
             // le son de materiau, lui, porte deja l'axe vertical.
-            if (info.HasOre)
+            if (info.HasOre && !info.IsImmune)
                 GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit, pos, WallSfxVolume, 1f);
         }
 
@@ -401,6 +407,11 @@ namespace CoreKeeperAccess.Gameplay
                 if (TileQuery.WallType == TileType.pit) text = Strings.L("cursor.pit");
                 else if (TileQuery.WallType == TileType.water) text = Strings.L("cursor.water");
                 else text = ResolveWallName();
+                // Mur scelle : l'immunite d'abord (l'info qui change tout), puis le materiau.
+                if (TileQuery.IsImmune)
+                    text = string.IsNullOrEmpty(text)
+                        ? Strings.L("cursor.immune")
+                        : Strings.L("cursor.immune") + ", " + text;
             }
             else if (TileQuery.ObjectId != ObjectID.None)
                 text = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);

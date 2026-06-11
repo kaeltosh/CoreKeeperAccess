@@ -38,6 +38,7 @@
   "cursor.player": "personnage",
   "cursor.pit": "Trou",
   "cursor.water": "Eau",
+  "cursor.immune": "Mur scellé, indestructible",
   "teleport.none": "Aucune destination",
   "teleport.portal": "Portail",
   "teleport.tiles": "cases",

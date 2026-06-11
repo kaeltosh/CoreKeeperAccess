@@ -18,6 +18,7 @@ namespace CoreKeeperAccess.Gameplay
         public TileType WallType;
         public int WallTileset;
         public bool HasOre;            // couche minerai (ore / ancientCrystal), independante du mur
+        public bool IsImmune;          // couche immune (Grande Muraille...) : mur INVULNERABLE
         public ObjectID ObjectId;      // objet/construction pose sur la case (ou None)
         public bool ObjectInteractable; // l'entite porte InteractableObjectReferenceCD (vrai interactible)
     }
@@ -39,6 +40,7 @@ namespace CoreKeeperAccess.Gameplay
         public static TileType WallType;
         public static int WallTileset;
         public static bool HasOre;
+        public static bool IsImmune;
         public static ObjectID ObjectId;
         public static bool ObjectInteractable;
 
@@ -50,6 +52,7 @@ namespace CoreKeeperAccess.Gameplay
             WallType = WallType,
             WallTileset = WallTileset,
             HasOre = HasOre,
+            IsImmune = IsImmune,
             ObjectId = ObjectId,
             ObjectInteractable = ObjectInteractable,
         };
@@ -118,6 +121,7 @@ namespace CoreKeeperAccess.Gameplay
             info.WallType = hasWall ? wall.tileType : default;
             info.WallTileset = hasWall ? wall.tileset : 0;
             info.HasOre = ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal);
+            info.IsImmune = ta.HasType(t, TileType.immune);
             info.ObjectId = ObjectAt(t, world, out bool interactable);
             info.ObjectInteractable = interactable;
             return info;
@@ -234,6 +238,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.WallType = info.WallType;
                 TileQuery.WallTileset = info.WallTileset;
                 TileQuery.HasOre = info.HasOre;
+                TileQuery.IsImmune = info.IsImmune;
                 TileQuery.ObjectId = info.ObjectId;
                 TileQuery.ObjectInteractable = info.ObjectInteractable;
                 TileQuery.ResultTile = t;
@@ -357,7 +362,8 @@ namespace CoreKeeperAccess.Gameplay
                     int d2 = dx * dx + dy * dy;
                     if (d2 > r2 || d2 >= best) continue;
                     int2 t = new int2(c.x + dx, c.y + dy);
-                    if (ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal))
+                    if ((ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal))
+                        && !ta.HasType(t, TileType.immune)) // filon SCELLE (Grande Muraille) : iminable, ne pas y guider
                     {
                         found = true;
                         best = d2;
