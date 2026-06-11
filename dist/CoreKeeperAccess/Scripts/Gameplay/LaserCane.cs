@@ -12,7 +12,9 @@ namespace CoreKeeperAccess.Gameplay
     // (ou portee max) : c'est le POINT D'IMPACT. On le sonifie EXACTEMENT comme le curseur de
     // construction (son partage BuildModeNavigator.SonifyTile) mais SANS TTS (balayage continu).
     // En plus, tout ENNEMI rencontre sur le trajet (avant le mur, donc occlus naturellement)
-    // declenche un son positionnel dedie. On LIT la visee, on ne vole PAS le stick droit : le
+    // declenche un son positionnel dedie ; les cibles NON hostiles (creatures paisibles,
+    // objets poses : champignons, drops, meubles...) ont leur propre piste, plus douce,
+    // ECRASEE par tout hostile present. On LIT la visee, on ne vole PAS le stick droit : le
     // joueur continue de viser/frapper normalement (RT), la canne ne fait qu'ecouter.
     //
     // Architecture : pont mod <-> systeme ECS facon TileReader. Le mod (Tick) lit le stick et
@@ -32,6 +34,18 @@ namespace CoreKeeperAccess.Gameplay
         private const SfxID EnemySfxPlaceholder = SfxID.proximity_sensor_set;
         private const float EnemyVolume = 0.5f; // a regler a l'oreille
 
+        // Cibles NON hostiles sur le trajet (creatures passives : insectes, chevres,
+        // slimes dormants... / objets poses : champignons, drops, meubles). Un son par
+        // CATEGORIE (pas par chose) ; placeholders, l'utilisateur choisira. Plus doux
+        // que l'ennemi, et un hostile present les ECRASE (jamais masquer une menace).
+        private const SfxID PassiveCreatureSfxPlaceholder = SfxID.inventory_doot;
+        private const SfxID PassiveObjectSfxPlaceholder = SfxID.inventory_ding;
+        private const float PassiveVolume = 0.35f; // a regler a l'oreille
+
+        // Une creature passive bouge -> rappel (plus lent que l'ennemi : presence, pas
+        // menace). Un objet pose ne bouge pas -> UN bip a l'accroche, pas de rappel.
+        private const float PassiveBeepInterval = 1.0f;
+
         // Expose si la canne est active (stick droit pousse) : le curseur de construction
         // cede alors le D-pad (priorite au laser).
         public static bool Active;
@@ -40,11 +54,17 @@ namespace CoreKeeperAccess.Gameplay
         private static int2 _lastImpact = NoImpact;
         private static int _lastEnemyKey;
         private static float _nextEnemyBeep;
+        private static long _lastPassiveKey;
+        private static float _nextPassiveBeep;
 
         public static void Tick()
         {
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null || Manager.ui == null) { Reset(); return; }
+
+            // Salve du ping sonar en cours : fenetre sonore reservee, le laser se tait
+            // sans perdre son etat (pas de Reset : a la reprise, pas de reannonce).
+            if (PingSonar.Silencing) return;
 
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
             if (Manager.ui.isAnyInventoryShowing
@@ -90,6 +110,8 @@ namespace CoreKeeperAccess.Gameplay
 
             // Ennemi : bip immediat sur une NOUVELLE cible, puis rappel a la cadence tant
             // qu'une cible reste dans le faisceau (cible mobile suivie a l'oreille).
+            // Un hostile present ECRASE la cible passive (une menace ne se partage pas
+            // l'antenne) ; le passif se reannoncera quand la menace sera sortie du faisceau.
             if (LaserScan.HasEnemy)
             {
                 bool isNew = LaserScan.EnemyKey != _lastEnemyKey;
@@ -107,10 +129,38 @@ namespace CoreKeeperAccess.Gameplay
                     if (!string.IsNullOrEmpty(name)) TtsText.Say(name, true);
                 }
                 _lastEnemyKey = LaserScan.EnemyKey;
+                _lastPassiveKey = 0;
             }
             else
             {
                 _lastEnemyKey = 0;
+
+                // Cible passive (creature paisible ou objet pose) : meme grammaire que
+                // l'ennemi - son a l'accroche, TTS du nom sur NOUVELLE cible seulement.
+                // Creature (mobile) : rappel lent pour la suivre ; objet (immobile) : un
+                // seul bip, le re-balayer apres etre passe ailleurs re-accroche.
+                if (LaserScan.HasPassive)
+                {
+                    bool isNew = LaserScan.PassiveKey != _lastPassiveKey;
+                    bool beep = isNew
+                        || (LaserScan.PassiveIsCreature && Time.unscaledTime >= _nextPassiveBeep);
+                    if (beep)
+                    {
+                        PlayPassive(LaserScan.PassivePos, LaserScan.PassiveIsCreature,
+                            LaserScan.PassiveInteractable);
+                        _nextPassiveBeep = Time.unscaledTime + PassiveBeepInterval;
+                    }
+                    if (isNew)
+                    {
+                        string name = InGameTtsCore.ResolveObjectName(LaserScan.PassiveObjectId);
+                        if (!string.IsNullOrEmpty(name)) TtsText.Say(name, true);
+                    }
+                    _lastPassiveKey = LaserScan.PassiveKey;
+                }
+                else
+                {
+                    _lastPassiveKey = 0;
+                }
             }
         }
 
@@ -121,6 +171,7 @@ namespace CoreKeeperAccess.Gameplay
             LaserScan.ResultValid = false; // ne pas agir sur un resultat perime a la reactivation
             _lastImpact = NoImpact;
             _lastEnemyKey = 0;
+            _lastPassiveKey = 0;
         }
 
         // Bip ennemi positionnel : pan gauche-droite + pitch vertical (+1 demi-ton/ligne),
@@ -134,6 +185,25 @@ namespace CoreKeeperAccess.Gameplay
             float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
             float pitch = Mathf.Pow(2f, d.y / 12f);
             GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume);
+        }
+
+        // Bip passif positionnel (meme grammaire pan/pitch que l'ennemi), timbre par
+        // CATEGORIE (creature vs objet). Si l'objet est un vrai interactible, on greffe
+        // le marqueur "on peut agir ici" du curseur (charge_bar_ui_1, hauteur FIXE,
+        // faible volume - add-on d'identite, jamais porteur d'info, regle gravee).
+        private static void PlayPassive(float2 worldPos, bool isCreature, bool interactable)
+        {
+            var p = Manager.main != null ? Manager.main.player : null;
+            if (p == null) return;
+            float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
+            float halfW = HalfWidthTiles();
+            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pitch = Mathf.Pow(2f, d.y / 12f);
+            GameplayAudio.PlaySpatial(
+                isCreature ? PassiveCreatureSfxPlaceholder : PassiveObjectSfxPlaceholder,
+                pan, pitch, PassiveVolume);
+            if (interactable)
+                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f);
         }
 
         // Demi-largeur visible en cases (range pour normaliser le pan -1..+1), comme le curseur.
@@ -159,6 +229,16 @@ namespace CoreKeeperAccess.Gameplay
         public static float2 EnemyPos;   // position monde (xz) de l'ennemi le plus proche
         public static int EnemyKey;      // index d'entite (pour detecter une NOUVELLE cible)
         public static ObjectID EnemyObjectId; // type de la creature (pour le TTS du nom)
+
+        // Cible NON hostile la plus proche sur le trajet (creature passive ou objet pose),
+        // independante de l'ennemi : un hostile plus loin ne doit jamais etre masque par
+        // un champignon proche, donc les deux pistes sont publiees separement.
+        public static bool HasPassive;
+        public static float2 PassivePos;
+        public static long PassiveKey;          // index d'entite (creature) ou cle de case (objet)
+        public static ObjectID PassiveObjectId; // pour le TTS du nom
+        public static bool PassiveIsCreature;   // creature (timbre + rappel) vs objet (un bip)
+        public static bool PassiveInteractable; // objet interactible -> marqueur du curseur
     }
 
     // Avance le faisceau case par case (DDA) dans la direction de visee jusqu'au premier mur
@@ -201,6 +281,12 @@ namespace CoreKeeperAccess.Gameplay
                 float2 enemyPos = default;
                 int enemyKey = 0;
                 ObjectID enemyObj = ObjectID.None;
+                bool foundPassive = false;
+                float2 passivePos = default;
+                long passiveKey = 0;
+                ObjectID passiveObj = ObjectID.None;
+                bool passiveCreature = false;
+                bool passiveInteractable = false;
 
                 for (float dd = 1f; dd <= MaxRange + 0.001f; dd += Step)
                 {
@@ -218,13 +304,29 @@ namespace CoreKeeperAccess.Gameplay
                     if (ta.TryGetBlockingTile(c, out _, true)) { impact = c; break; }
                     impact = c; // derniere case libre atteinte
 
-                    // Premier ennemi rencontre = le plus proche (cases parcourues proche->loin).
-                    if (!foundEnemy && TryFindEnemy(c, out int ek, out ObjectID eid))
+                    // Premiere creature rencontree de chaque bord (hostile / paisible) =
+                    // la plus proche (cases parcourues proche->loin). Les deux pistes sont
+                    // independantes : un champignon proche ne masque pas l'ennemi derriere.
+                    if (!foundEnemy || !foundPassive)
                     {
-                        foundEnemy = true;
-                        enemyPos = new float2(c.x, c.y);
-                        enemyKey = ek;
-                        enemyObj = eid;
+                        ScanCreatures(c, World,
+                            ref foundEnemy, ref enemyPos, ref enemyKey, ref enemyObj,
+                            ref foundPassive, ref passivePos, ref passiveKey, ref passiveObj,
+                            ref passiveCreature, ref passiveInteractable);
+                    }
+
+                    // Objet pose (champignon, drop, meuble...) : via l'INDEX case->objet
+                    // (gratuit, couvre aussi les objets sans collider ; rayon d'index 24 >
+                    // portee 12, tout le faisceau est couvert). Une creature deja accrochee
+                    // garde la main (plus saillante qu'un objet immobile).
+                    if (!foundPassive && ObjectIndex.TryGet(c, out var entry))
+                    {
+                        foundPassive = true;
+                        passivePos = new float2(c.x, c.y);
+                        passiveKey = ObjectIndex.Key(c);
+                        passiveObj = entry.Id;
+                        passiveCreature = false;
+                        passiveInteractable = entry.Interactable;
                     }
                 }
 
@@ -234,63 +336,75 @@ namespace CoreKeeperAccess.Gameplay
                 LaserScan.EnemyPos = enemyPos;
                 LaserScan.EnemyKey = enemyKey;
                 LaserScan.EnemyObjectId = enemyObj;
+                LaserScan.HasPassive = foundPassive;
+                LaserScan.PassivePos = passivePos;
+                LaserScan.PassiveKey = passiveKey;
+                LaserScan.PassiveObjectId = passiveObj;
+                LaserScan.PassiveIsCreature = passiveCreature;
+                LaserScan.PassiveInteractable = passiveInteractable;
                 LaserScan.ResultValid = true;
             }
             catch { }
         }
 
-        // Un ennemi sur la case ? Entite a FactionCD dont la faction n'est pas exclue.
-        // out objId = type de la creature (pour le TTS du nom), None si indispo.
-        private bool TryFindEnemy(int2 c, out int key, out ObjectID objId)
+        // Creatures sur la case, classees en deux bords. HOSTILE : entite a FactionCD non
+        // exclue, hors CritterCD et hors slime dormant (l'existant). PAISIBLE : tout le
+        // reste du regne animal - CritterCD (lucioles, insectes...), EnemyCD a faction
+        // non hostile (chevres, betail), slime dormant (plante dans sa flaque, le jeu
+        // lui-meme l'exclut de "ennemis a proximite" via ClaimBedSystem ; reveille = en
+        // combat -> sentinelle d'aggro, pas de perte de securite). Les entites sans
+        // EnemyCD ni CritterCD ni FactionCD hostile (PNJ, meubles a collider) ne sont
+        // pas des creatures : elles passent par l'index d'objets.
+        private void ScanCreatures(int2 c, World world,
+            ref bool foundEnemy, ref float2 enemyPos, ref int enemyKey, ref ObjectID enemyObj,
+            ref bool foundPassive, ref float2 passivePos, ref long passiveKey,
+            ref ObjectID passiveObj, ref bool passiveCreature, ref bool passiveInteractable)
         {
-            key = 0;
-            objId = ObjectID.None;
             var cw = PhysicsManager.GetCollisionWorld();
             var hits = new NativeList<DistanceHit>(8, Allocator.Temp);
-            bool found = false;
             if (cw.OverlapSphere(new float3(c.x, 0f, c.y), 0.5f, ref hits,
                     AnyFilter, QueryInteraction.Default))
             {
                 foreach (var h in hits)
                 {
-                    if (!EntityUtility.HasComponentData<FactionCD>(h.Entity, World)) continue;
-                    // Creatures PASSIVES (lucioles, vers...) : marquees CritterCD par le jeu
-                    // (distinct de EnemyCD, les deux s'excluent). On les ecarte du repere
-                    // ennemi -> elles ne declenchent plus le bip de menace.
-                    if (EntityUtility.HasComponentData<CritterCD>(h.Entity, World)) continue;
-                    var faction = EntityUtility.GetComponentData<FactionCD>(h.Entity, World).faction;
-                    if (IsEnemy(faction))
+                    bool critter = EntityUtility.HasComponentData<CritterCD>(h.Entity, world);
+                    bool enemyCd = EntityUtility.HasComponentData<EnemyCD>(h.Entity, world);
+                    if (!critter && !enemyCd) continue; // pas une creature
+                    ObjectID oid = EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, world)
+                        ? EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world).objectID
+                        : ObjectID.None;
+
+                    bool hostile = !critter
+                        && EntityUtility.HasComponentData<FactionCD>(h.Entity, world)
+                        && IsEnemy(EntityUtility.GetComponentData<FactionCD>(h.Entity, world).faction)
+                        && !IsDormantSlime(oid);
+
+                    if (hostile && !foundEnemy)
                     {
-                        ObjectID oid = EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, World)
-                            ? EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, World).objectID
-                            : ObjectID.None;
-                        // Masses de slime DORMANTES (plantees dans leur flaque, faction
-                        // hostile + EnemyCD mais inertes tant qu'on ne les reveille pas) :
-                        // le jeu lui-meme les exclut de son test "ennemis a proximite"
-                        // (ClaimBedSystem) -> meme liste ici. Reveillees = en combat ->
-                        // couvertes par la sentinelle d'aggro, pas de perte de securite.
-                        if (IsDormantSlime(oid)) continue;
-                        key = h.Entity.Index;
-                        objId = oid;
-                        found = true;
-                        break;
+                        foundEnemy = true;
+                        enemyPos = new float2(c.x, c.y);
+                        enemyKey = h.Entity.Index;
+                        enemyObj = oid;
                     }
+                    else if (!hostile && !foundPassive)
+                    {
+                        foundPassive = true;
+                        passivePos = new float2(c.x, c.y);
+                        passiveKey = h.Entity.Index;
+                        passiveObj = oid;
+                        passiveCreature = true;
+                        passiveInteractable = false;
+                    }
+                    if (foundEnemy && foundPassive) break;
                 }
             }
             hits.Dispose();
-            return found;
         }
 
-        // Liste d'EXCLUSION v1, partagee avec la sentinelle d'aggro (HostileFilter,
-        // dans AggroSentinel.cs) : tout ce qui n'est pas exclu compte comme ennemi.
+        // Listes d'EXCLUSION partagees avec la sentinelle d'aggro et le ping sonar
+        // (HostileFilter, dans AggroSentinel.cs) : tout ce qui n'est pas exclu compte
+        // comme ennemi ; les slimes dormants sont rangees cote paisible.
         private static bool IsEnemy(FactionID f) => HostileFilter.IsHostile(f);
-
-        // Slimes-masses ambiants : la liste est celle de ClaimBedSystem (le jeu). Si un
-        // jour des fantomes apparaissent dans d'autres biomes, candidats du meme genre :
-        // RoyalSlimeBlob, LavaSlimeBlob (non exclus par le jeu, donc pas par nous).
-        private static bool IsDormantSlime(ObjectID id)
-            => id == ObjectID.SlimeBlob
-            || id == ObjectID.SlipperySlimeBlob
-            || id == ObjectID.PoisonSlimeBlob;
+        private static bool IsDormantSlime(ObjectID id) => HostileFilter.IsDormantSlime(id);
     }
 }

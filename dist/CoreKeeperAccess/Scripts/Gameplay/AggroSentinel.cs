@@ -51,6 +51,10 @@ namespace CoreKeeperAccess.Gameplay
             // temps reel et c'est precisement la qu'on se fait surprendre.
             if (Manager.menu != null && Manager.menu.IsAnyMenuActive()) return;
 
+            // Salve du ping sonar en cours : fenetre sonore reservee, les bips de la
+            // sentinelle attendent dans leur file (rien n'est perdu, juste differe).
+            if (PingSonar.Silencing) return;
+
             // Publie le rectangle ecran approximatif en coordonnees MONDE (camera ortho
             // centree joueur) : le systeme s'en sert pour ecarter les mobs hors ecran.
             // Demi-largeur/hauteur en cases + marge d'une case.
@@ -188,6 +192,14 @@ namespace CoreKeeperAccess.Gameplay
                     return true;
             }
         }
+
+        // Slimes-masses ambiants : faction hostile + EnemyCD mais inertes tant qu'on ne
+        // les reveille pas. La liste est celle de ClaimBedSystem (le jeu lui-meme les
+        // exclut de son test "ennemis a proximite"). Partage laser / ping sonar.
+        public static bool IsDormantSlime(ObjectID id)
+            => id == ObjectID.SlimeBlob
+            || id == ObjectID.SlipperySlimeBlob
+            || id == ObjectID.PoisonSlimeBlob;
     }
 
     // Enumere les mobs hostiles EN COMBAT visibles a l'ecran, via le flag natif

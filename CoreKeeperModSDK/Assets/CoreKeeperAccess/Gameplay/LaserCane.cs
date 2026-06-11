@@ -62,6 +62,10 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null || Manager.ui == null) { Reset(); return; }
 
+            // Salve du ping sonar en cours : fenetre sonore reservee, le laser se tait
+            // sans perdre son etat (pas de Reset : a la reprise, pas de reannonce).
+            if (PingSonar.Silencing) return;
+
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
             if (Manager.ui.isAnyInventoryShowing
                 || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
@@ -397,16 +401,10 @@ namespace CoreKeeperAccess.Gameplay
             hits.Dispose();
         }
 
-        // Liste d'EXCLUSION v1, partagee avec la sentinelle d'aggro (HostileFilter,
-        // dans AggroSentinel.cs) : tout ce qui n'est pas exclu compte comme ennemi.
+        // Listes d'EXCLUSION partagees avec la sentinelle d'aggro et le ping sonar
+        // (HostileFilter, dans AggroSentinel.cs) : tout ce qui n'est pas exclu compte
+        // comme ennemi ; les slimes dormants sont rangees cote paisible.
         private static bool IsEnemy(FactionID f) => HostileFilter.IsHostile(f);
-
-        // Slimes-masses ambiants : la liste est celle de ClaimBedSystem (le jeu). Si un
-        // jour des fantomes apparaissent dans d'autres biomes, candidats du meme genre :
-        // RoyalSlimeBlob, LavaSlimeBlob (non exclus par le jeu, donc pas par nous).
-        private static bool IsDormantSlime(ObjectID id)
-            => id == ObjectID.SlimeBlob
-            || id == ObjectID.SlipperySlimeBlob
-            || id == ObjectID.PoisonSlimeBlob;
+        private static bool IsDormantSlime(ObjectID id) => HostileFilter.IsDormantSlime(id);
     }
 }

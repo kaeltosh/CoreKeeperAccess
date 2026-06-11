@@ -91,6 +91,7 @@ Triangle is taken over by the mod as its **accessibility modifier** (its native 
 - **Triangle + down**: outside inventory, health / hunger / mana / barrier. Inventory open: transfer the selected item.
 - **Triangle + right**: outside inventory, character position. Repair station open: repair the selected item.
 - **Triangle + left**: outside inventory, prospecting — direction and distance of the nearest ore vein, with a positional ding. Station open: salvage everything.
+- **Triangle + L1**: ping sonar — a sound snapshot of everything notable around you (12-tile radius): one beep per target, nearest to farthest, with three timbres (hostile, peaceful creature, find). "Nothing around" if empty. While Triangle is held, L1 does not switch hotbar slot.
 - **Double-tap Triangle**: open the map anywhere (points-of-interest category).
 
 A combo outside its context says nothing: if it is silent, it has no meaning here.

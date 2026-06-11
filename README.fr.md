@@ -91,6 +91,7 @@ Triangle est réquisitionné par le mod comme **modificateur d'accessibilité** 
 - **Triangle + bas** : hors inventaire, vie / faim / mana / barrière. Inventaire ouvert : transférer l'objet sélectionné.
 - **Triangle + droite** : hors inventaire, position du personnage. Station de réparation ouverte : réparer l'objet sélectionné.
 - **Triangle + gauche** : hors inventaire, prospection — direction et distance du filon de minerai le plus proche, avec un ding positionnel. Station ouverte : tout recycler.
+- **Triangle + L1** : ping sonar — une photo sonore de ce qui est notable autour de toi (rayon de 12 cases) : un bip par cible, du plus proche au plus lointain, avec trois timbres (hostile, créature paisible, trouvaille). « Rien autour » si c'est vide. Tant que Triangle est tenu, L1 ne change pas de slot de barre rapide.
 - **Double-tap Triangle** : ouvrir la carte n'importe où (catégorie points d'intérêt).
 
 Un combo hors contexte ne dit rien : s'il est muet, c'est qu'il n'a pas de sens ici.

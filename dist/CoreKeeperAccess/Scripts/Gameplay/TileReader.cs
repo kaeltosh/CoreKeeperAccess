@@ -75,6 +75,29 @@ namespace CoreKeeperAccess.Gameplay
         public static int2 Tile;        // tuile de minerai la plus proche
     }
 
+    // Pont ping sonar (Triangle + L1). Le mod pose une demande (centre, rayon) ; le
+    // systeme balaye les CREATURES en query ECS (EnemyCD / CritterCD) et publie
+    // position + bord (hostile ou paisible). Les trouvailles (objets type zone de
+    // fouille) sont lues cote mod directement dans ObjectIndex - pas besoin d'ECS.
+    internal static class PingScan
+    {
+        public struct Target
+        {
+            public float2 Pos;
+            public bool Hostile;
+        }
+
+        public const int MaxTargets = 24;
+
+        public static bool Requested;   // demande posee par le mod (consommee par le systeme)
+        public static float2 Center;    // position joueur
+        public static float Radius;     // rayon en cases
+
+        public static bool ResultValid; // reponse publiee (consommee par le mod)
+        public static int Count;
+        public static readonly Target[] Targets = new Target[MaxTargets];
+    }
+
     // Index case -> objet pose, reconstruit periodiquement depuis les ENTITES
     // (position + emprise prefab lue dans PugDatabase). Capte les objets SANS
     // collider physique - etabli en fer, generateur, Core, torches... - que les
@@ -167,10 +190,13 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     // Les creatures et joueurs portent aussi un ObjectDataCD : on ne
                     // veut que les objets POSES (la sonde a mi-hauteur attraperait un
-                    // slime de passage et l'annoncerait comme un meuble).
+                    // slime de passage et l'annoncerait comme un meuble). Idem pour les
+                    // projectiles en vol (fleches du joueur, mortiers...).
                     if (EntityUtility.HasComponentData<EnemyCD>(h.Entity, world)
                         || EntityUtility.HasComponentData<CritterCD>(h.Entity, world)
-                        || EntityUtility.HasComponentData<PlayerGhost>(h.Entity, world)) continue;
+                        || EntityUtility.HasComponentData<PlayerGhost>(h.Entity, world)
+                        || EntityUtility.HasComponentData<ProjectileCD>(h.Entity, world)
+                        || EntityUtility.HasComponentData<MortarProjectileCD>(h.Entity, world)) continue;
                     if (EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, world))
                     {
                         var od = EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world);
@@ -199,6 +225,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private EntityQuery _objQuery;
         private EntityQuery _dbQuery;
+        private EntityQuery _creatureQuery;
         private float _nextIndex;
 
         protected override void OnCreate()
@@ -210,11 +237,28 @@ namespace CoreKeeperAccess.Gameplay
             // large et on lit la position composant par composant dans la boucle.
             _objQuery = GetEntityQuery(ComponentType.ReadOnly<ObjectDataCD>());
             _dbQuery = GetEntityQuery(ComponentType.ReadOnly<PugDatabase.DatabaseBankCD>());
+            // Creatures pour le ping sonar : tout ce qui porte EnemyCD OU CritterCD
+            // (exclusifs entre eux ; le joueur n'a ni l'un ni l'autre).
+            _creatureQuery = GetEntityQuery(new EntityQueryDesc
+            {
+                Any = new[]
+                {
+                    ComponentType.ReadOnly<EnemyCD>(),
+                    ComponentType.ReadOnly<CritterCD>(),
+                },
+            });
         }
 
         protected override void OnUpdate()
         {
             RebuildObjectIndex();
+            // Ping sonar : scan des creatures a la demande (independant du curseur).
+            if (PingScan.Requested)
+            {
+                PingScan.Requested = false;
+                try { ScanCreaturesForPing(); }
+                catch { PingScan.Count = 0; PingScan.ResultValid = true; }
+            }
             // Prospection minerai : independante du curseur (TileQuery peut etre inactif).
             if (OreScan.Requested)
             {
@@ -297,6 +341,11 @@ namespace CoreKeeperAccess.Gameplay
                     if (EntityUtility.HasComponentData<EnemyCD>(e, World)
                         || EntityUtility.HasComponentData<CritterCD>(e, World)
                         || EntityUtility.HasComponentData<PlayerGhost>(e, World)) continue;
+                    // Projectiles en vol (fleches du joueur, mortiers...) : des entites
+                    // ObjectDataCD ephemeres, pas des objets POSES -> hors index (sinon
+                    // chaque fleche tiree bipait au laser et au curseur).
+                    if (EntityUtility.HasComponentData<ProjectileCD>(e, World)
+                        || EntityUtility.HasComponentData<MortarProjectileCD>(e, World)) continue;
 
                     var od = EntityManager.GetComponentData<ObjectDataCD>(e);
                     if (od.objectID == ObjectID.None) continue;
@@ -375,6 +424,51 @@ namespace CoreKeeperAccess.Gameplay
             OreScan.Found = found;
             OreScan.Tile = bestTile;
             OreScan.ResultValid = true;
+        }
+
+        // Balaye les creatures dans le rayon du ping et publie position + bord.
+        // Memes regles que le laser : CritterCD = paisible ; EnemyCD a faction
+        // hostile = hostile, sauf slime dormant (paisible) ; EnemyCD a faction
+        // neutre (chevres, betail) = paisible. Cadavres ecartes (HealthCD a 0 :
+        // l'entite persiste quelques secondes apres la mort).
+        private void ScanCreaturesForPing()
+        {
+            int count = 0;
+            float r2 = PingScan.Radius * PingScan.Radius;
+            float2 center = PingScan.Center;
+
+            var ents = _creatureQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in ents)
+            {
+                if (count >= PingScan.MaxTargets) break;
+
+                float3 pos;
+                if (EntityManager.HasComponent<LocalToWorld>(e))
+                    pos = EntityManager.GetComponentData<LocalToWorld>(e).Position;
+                else if (EntityManager.HasComponent<LocalTransform>(e))
+                    pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
+                else continue;
+                float2 p = new float2(pos.x, pos.z);
+                if (math.lengthsq(p - center) > r2) continue;
+
+                if (EntityManager.HasComponent<HealthCD>(e)
+                    && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
+
+                bool critter = EntityManager.HasComponent<CritterCD>(e);
+                ObjectID oid = EntityManager.HasComponent<ObjectDataCD>(e)
+                    ? EntityManager.GetComponentData<ObjectDataCD>(e).objectID
+                    : ObjectID.None;
+                bool hostile = !critter
+                    && EntityManager.HasComponent<FactionCD>(e)
+                    && HostileFilter.IsHostile(EntityManager.GetComponentData<FactionCD>(e).faction)
+                    && !HostileFilter.IsDormantSlime(oid);
+
+                PingScan.Targets[count++] = new PingScan.Target { Pos = p, Hostile = hostile };
+            }
+            ents.Dispose();
+
+            PingScan.Count = count;
+            PingScan.ResultValid = true;
         }
     }
 }

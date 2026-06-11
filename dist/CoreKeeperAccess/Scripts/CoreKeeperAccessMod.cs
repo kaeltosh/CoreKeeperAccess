@@ -59,7 +59,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 51";
+    private const string BuildTag = "build 52";
 
     public void Init()
     {
@@ -255,12 +255,14 @@ internal static class TriangleModifier
 internal static class InfoKey
 {
     private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
+    private const int BumperLeft = 10; // LB / L1 (id physique template Rewired Gamepad)
 
     public static bool ModifierHeld;    // Triangle physiquement tenu
     public static bool DetailRequested; // combo Triangle + haut declenche cette frame
     public static bool ComboRight;      // Triangle + droite (reparer, selon contexte)
     public static bool ComboDown;       // Triangle + bas (transferer)
     public static bool ComboLeft;       // Triangle + gauche (tout recycler)
+    public static bool ComboLB;         // Triangle + L1 (ping sonar)
     public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
 
     // Double-tap : deux TAPS courts (< TapMaxDuration, sans combo D-pad pendant la
@@ -277,7 +279,7 @@ internal static class InfoKey
     {
         ModifierHeld = false;
         DetailRequested = false;
-        ComboRight = ComboDown = ComboLeft = false;
+        ComboRight = ComboDown = ComboLeft = ComboLB = false;
         DoubleTapped = false;
         if (!ReInput.isReady) return;
         int tri = TriangleModifier.TriangleButtonId;
@@ -292,11 +294,12 @@ internal static class InfoKey
             else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
             else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
             else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
+            else if (GetButtonDownById(joy, BumperLeft)) ComboLB = true;
         }
 
         // Suivi tap / double-tap (fronts montant et descendant de Triangle).
         if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; }
-        if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft))
+        if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB))
             _comboDuringHold = true;
         if (!ModifierHeld && _wasHeld)
         {

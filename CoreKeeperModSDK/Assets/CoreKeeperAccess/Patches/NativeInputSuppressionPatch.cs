@@ -48,6 +48,9 @@ namespace CoreKeeperAccess.Patches
             // Curseur detache : on vole Croix pour que l'interaction passe par la case
             // visee, pas l'objet adjacent natif (sinon impossible d'agir pres d'un coffre).
             if (BuildModeNavigator.StealsCross && t == PlayerInput.InputType.INTERACT_WITH_OBJECT) return true;
+            // Triangle tenu : L1 = ping sonar -> son action native (slot precedent)
+            // ne doit pas partir en meme temps. RB n'est pas vole (pas de combo dessus).
+            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.PREVIOUS_SLOT) return true;
             return false;
         }
     }
