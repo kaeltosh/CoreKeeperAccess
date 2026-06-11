@@ -223,6 +223,30 @@ namespace CoreKeeperAccess.Patches
         }
     }
 
+    // Messages flottants contextuels (systeme Emote) : "trop dur, il me faut un
+    // drill", "cet objet a besoin d'energie", messages du Core et des forges, lit
+    // occupe, tutoriels... OnOccupied choisit le terme selon l'EmoteType puis rend le
+    // PugText DANS la methode -> un postfix relit le texte rendu (deja localise).
+    // Filtres : emotes ICONE (emoteTypeInput = __illegal__ -> le PugText contient
+    // encore le texte d'une emote precedente du pool, ne rien lire) et ponctuation
+    // pure ("!", "?") sans valeur en TTS. interrupt=false : evenement passif, file
+    // d'attente NVDA (regle commune avec les notifications).
+    [HarmonyPatch(typeof(Emote), "OnOccupied")]
+    internal static class EmoteOnOccupiedPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(Emote.EmoteType ___emoteTypeInput, PugText ___text)
+        {
+            if (___emoteTypeInput == Emote.EmoteType.__illegal__) return;
+            if (___emoteTypeInput == Emote.EmoteType.ExclamationMark
+                || ___emoteTypeInput == Emote.EmoteType.QuestionMark) return;
+
+            var announcement = TtsText.ResolvePugText(___text);
+            if (string.IsNullOrEmpty(announcement)) return;
+            TtsText.Say(announcement, false);
+        }
+    }
+
     // NOTE : l'annonce du resultat de craft "en main" est desormais geree de facon
     // unifiee par InventoryNavigator.WatchHandChange (qui surveille la main et couvre
     // AUSSI les prises d'objet, pas seulement le craft). Le postfix sur CraftItem a donc

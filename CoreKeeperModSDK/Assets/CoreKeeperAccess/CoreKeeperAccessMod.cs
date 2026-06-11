@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
     // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
     // retirer une fois l'ambiguite "build pas a jour ?" levee.
-    private const string BuildTag = "build 43";
+    private const string BuildTag = "build 44";
 
     public void Init()
     {
