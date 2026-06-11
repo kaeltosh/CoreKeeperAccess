@@ -8,8 +8,9 @@ namespace CoreKeeperAccess.Navigation
     // Roue d'actions au stick gauche (uniquement quand l'inventaire est ouvert, donc
     // le stick est libre). On pointe une des 8 directions -> annonce de l'action ;
     // un clic R3 l'execute. Les actions "volees" (tri, empiler, ramasser moitie,
-    // pages de barre rapide, poubelle) sont rejouees en armant leur InputType natif ;
-    // le transfert passe par un appel direct (geste natif = maintien + A, pas simulable).
+    // pages de barre rapide, poubelle) sont rejouees en armant leur InputType natif.
+    // Le transfert a ete RELOGE sur Triangle + D-pad bas (GameplayInput) -> les
+    // secteurs O et NO sont libres.
     internal static class ActionWheel
     {
         private const float Deadzone = 0.5f;
@@ -51,8 +52,7 @@ namespace CoreKeeperAccess.Navigation
                 case 3: Arm(PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR); break;
                 case 4: Arm(PlayerInput.InputType.PICK_UP_HALF); break;
                 case 5: Arm(PlayerInput.InputType.TRASH_ITEM); break;
-                case 6: Transfer(); break;
-                default: return; // NO : libre
+                default: return; // O, NO : libres
             }
             // Confirmation au clic : "Trier, lancé". Distinct du simple survol qui ne
             // dit que "Trier". Donne un retour meme quand l'action n'a pas d'effet sonore.
@@ -70,8 +70,7 @@ namespace CoreKeeperAccess.Navigation
                 case 3: return "wheel.hotbarprev";
                 case 4: return "wheel.pickuphalf";
                 case 5: return "wheel.trash";
-                case 6: return "wheel.transfer";
-                default: return null; // NO (7) : libre
+                default: return null; // O (6), NO (7) : libres
             }
         }
 
@@ -79,12 +78,6 @@ namespace CoreKeeperAccess.Navigation
         {
             InventoryNavState.ArmedInput = input;
             InventoryNavState.ArmedTtl = 2;
-        }
-
-        private static void Transfer()
-        {
-            var slot = Manager.ui != null ? Manager.ui.currentSelectedUIElement as InventorySlotUI : null;
-            if (slot != null) slot.TryToSendItemToOtherInventoryOrEquip();
         }
 
         // Secteur 0=N,1=NE,2=E,3=SE,4=S,5=SO,6=O,7=NO ; -1 = centre (deadzone).

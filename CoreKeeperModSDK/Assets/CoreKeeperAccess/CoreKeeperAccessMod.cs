@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // PROVISOIRE (diagnostic) : numero de version annonce au boot, a incrementer a
     // chaque build, pour confirmer a l'oreille quelle version tourne reellement. A
     // retirer une fois l'ambiguite "build pas a jour ?" levee.
-    private const string BuildTag = "build 18";
+    private const string BuildTag = "build 42";
 
     public void Init()
     {
@@ -107,10 +107,13 @@ public class CoreKeeperAccessMod : IMod
         TryAutoLoad();
         TriangleModifier.Tick();
         InfoKey.Tick();
+        CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
+        CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
         TeleportNavigator.Update();
         CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active
         CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
+        CoreKeeperAccess.Gameplay.AggroSentinel.Tick();
 
         if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
         {
@@ -200,6 +203,13 @@ internal static class TriangleModifier
 
     private static float _nextCheck;
 
+    // Id physique de SECOURS : 9 = Y/Triangle du template Rewired Gamepad standard,
+    // confirme en jeu par le diagnostic F9 (DualSense). Necessaire car le jeu PEUT
+    // sauvegarder sa config controles APRES notre suppression en memoire (vecu le
+    // 11 juin 2026 : plus aucun binding de l'action 55 dans CoreKeeper_Controls.json)
+    // -> au boot suivant il n'y a plus rien a capter et la touche access mourait.
+    private const int FallbackTriangleId = 9;
+
     public static void Tick()
     {
         if (!ReInput.isReady) return;
@@ -222,6 +232,8 @@ internal static class TriangleModifier
                 foreach (var id in toDelete) map.DeleteElementMap(id);
             }
         }
+
+        if (TriangleButtonId < 0) TriangleButtonId = FallbackTriangleId;
     }
 }
 
@@ -232,15 +244,19 @@ internal static class TriangleModifier
 // les consommateurs du D-pad (ils consultent ModifierHeld / DetailRequested).
 internal static class InfoKey
 {
-    private const int DpadUp = 16;
+    private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
 
     public static bool ModifierHeld;    // Triangle physiquement tenu
     public static bool DetailRequested; // combo Triangle + haut declenche cette frame
+    public static bool ComboRight;      // Triangle + droite (reparer, selon contexte)
+    public static bool ComboDown;       // Triangle + bas (transferer)
+    public static bool ComboLeft;       // Triangle + gauche (tout recycler)
 
     public static void Tick()
     {
         ModifierHeld = false;
         DetailRequested = false;
+        ComboRight = ComboDown = ComboLeft = false;
         if (!ReInput.isReady) return;
         int tri = TriangleModifier.TriangleButtonId;
         if (tri < 0) return; // id Triangle pas encore capte
@@ -248,8 +264,11 @@ internal static class InfoKey
         if (joy == null) return;
 
         ModifierHeld = GetButtonById(joy, tri);
-        if (ModifierHeld && GetButtonDownById(joy, DpadUp))
-            DetailRequested = true;
+        if (!ModifierHeld) return;
+        if (GetButtonDownById(joy, DpadUp)) DetailRequested = true;
+        else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
+        else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
+        else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
     }
 
     private static bool GetButtonById(Joystick joy, int id)
