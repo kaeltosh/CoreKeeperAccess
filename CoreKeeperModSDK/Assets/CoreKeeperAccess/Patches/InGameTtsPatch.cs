@@ -116,6 +116,12 @@ namespace CoreKeeperAccess.Patches
         }
 
         // Nom localise d'un objet a partir de son ObjectID (materiaux, resultat de craft).
+        // FALLBACK : certains objets n'ont pas de terme localise (cable ancien des
+        // ruines, statues de boss, generateur...) -> ils etaient DETECTES mais MUETS
+        // (bip sans nom, info vide). Plutot que le silence, on lit le nom d'enum
+        // decoupe pour le TTS ("IndestructibleAncientWire" -> "Indestructible Ancient
+        // Wire"). Pas localise, mais identifiable - des libelles i18n cibles pourront
+        // s'ajouter au cas par cas.
         public static string ResolveObjectName(ObjectID objectID)
         {
             if (objectID == ObjectID.None) return null;
@@ -123,7 +129,25 @@ namespace CoreKeeperAccess.Patches
             {
                 objectData = new ObjectDataCD { objectID = objectID }
             }, false);
-            return TtsText.ResolveTextAndFormatFields(taf);
+            string name = TtsText.ResolveTextAndFormatFields(taf);
+            return string.IsNullOrEmpty(name) ? SplitEnumName(objectID.ToString()) : name;
+        }
+
+        // "LarvaHiveBossStatue" -> "Larva Hive Boss Statue" (espaces aux frontieres de
+        // majuscules, en preservant les sigles).
+        private static string SplitEnumName(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return raw;
+            var sb = new System.Text.StringBuilder(raw.Length + 8);
+            for (int i = 0; i < raw.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(raw[i])
+                    && (char.IsLower(raw[i - 1])
+                        || (i + 1 < raw.Length && char.IsLower(raw[i + 1]))))
+                    sb.Append(' ');
+                sb.Append(raw[i]);
+            }
+            return sb.ToString();
         }
     }
 

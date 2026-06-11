@@ -118,9 +118,13 @@ namespace CoreKeeperAccess.Gameplay
                             GameplayAction.Held = PlayerInput.InputType.INTERACT;
                             GameplayAction.Pressed = PlayerInput.InputType.INTERACT;
                         }
-                        else if (TileQuery.ObjectId != ObjectID.None)
+                        else if (TileQuery.ObjectId != ObjectID.None && TileQuery.ObjectInteractable)
                         {
-                            // Objet pose sur case NON bloquante (coffre, machine) -> interagir.
+                            // VRAI interactible sur case non bloquante (coffre, machine) ->
+                            // interagir. Les objets PASSIFS (cable ancien, deco, statues...)
+                            // ne comptent pas : depuis l'index d'objets ils occupent plein de
+                            // cases marchables, et router "interagir" dessus interdisait de
+                            // s'y deplacer au Croix.
                             GameplayAction.Held = PlayerInput.InputType.INTERACT_WITH_OBJECT;
                             GameplayAction.Pressed = PlayerInput.InputType.INTERACT_WITH_OBJECT;
                         }
@@ -403,7 +407,12 @@ namespace CoreKeeperAccess.Gameplay
             else
                 text = TileQuery.Ground.ToString(); // sol brut, i18n a venir
 
-            if (!string.IsNullOrEmpty(text)) TtsText.Say(text, true);
+            // Coordonnees monde de la case pointee, en queue de l'annonce (demande
+            // utilisateur : repere absolu pour noter/retrouver un endroit).
+            string pos = Strings.L("vitals.position") + " " + _cursor.x + ", " + _cursor.y;
+            text = string.IsNullOrEmpty(text) ? pos : text + ", " + pos;
+
+            TtsText.Say(text, true);
         }
 
         // Nom du materiau du mur pointe (ObjectInfo de la tuile -> nom localise), pour la
