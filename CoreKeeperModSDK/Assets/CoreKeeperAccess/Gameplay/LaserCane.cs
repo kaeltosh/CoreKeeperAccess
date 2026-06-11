@@ -210,6 +210,14 @@ namespace CoreKeeperAccess.Gameplay
                     if (c.Equals(last)) continue; // meme case qu'au pas precedent
                     last = c;
 
+                    // Mur -> point d'impact ici, on s'arrete (occlusion). Teste AVANT le
+                    // scan ennemi : l'OverlapSphere (rayon 0.5) lance sur la case du mur
+                    // attrapait un mob colle de L'AUTRE COTE de la paroi -> faux positif
+                    // "a travers le mur" (mobile et introuvable, ex. slime en galerie
+                    // voisine). Sur une case de mur on ne cherche donc JAMAIS d'ennemi.
+                    if (ta.TryGetBlockingTile(c, out _, true)) { impact = c; break; }
+                    impact = c; // derniere case libre atteinte
+
                     // Premier ennemi rencontre = le plus proche (cases parcourues proche->loin).
                     if (!foundEnemy && TryFindEnemy(c, out int ek, out ObjectID eid))
                     {
@@ -218,10 +226,6 @@ namespace CoreKeeperAccess.Gameplay
                         enemyKey = ek;
                         enemyObj = eid;
                     }
-
-                    // Mur -> point d'impact ici, on s'arrete (occlusion).
-                    if (ta.TryGetBlockingTile(c, out _, true)) { impact = c; break; }
-                    impact = c; // derniere case libre atteinte
                 }
 
                 LaserScan.Impact = TileScan.Read(ref ta, impact, World);
@@ -257,9 +261,17 @@ namespace CoreKeeperAccess.Gameplay
                     var faction = EntityUtility.GetComponentData<FactionCD>(h.Entity, World).faction;
                     if (IsEnemy(faction))
                     {
+                        ObjectID oid = EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, World)
+                            ? EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, World).objectID
+                            : ObjectID.None;
+                        // Masses de slime DORMANTES (plantees dans leur flaque, faction
+                        // hostile + EnemyCD mais inertes tant qu'on ne les reveille pas) :
+                        // le jeu lui-meme les exclut de son test "ennemis a proximite"
+                        // (ClaimBedSystem) -> meme liste ici. Reveillees = en combat ->
+                        // couvertes par la sentinelle d'aggro, pas de perte de securite.
+                        if (IsDormantSlime(oid)) continue;
                         key = h.Entity.Index;
-                        if (EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, World))
-                            objId = EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, World).objectID;
+                        objId = oid;
                         found = true;
                         break;
                     }
@@ -269,23 +281,16 @@ namespace CoreKeeperAccess.Gameplay
             return found;
         }
 
-        // Liste d'EXCLUSION v1 : tout ce qui n'est pas la-dedans compte comme ennemi. None
-        // (pas de faction), Player / PlayerMinion (soi et ses alliés), Neutral, Merchant
-        // (PNJ), Explosion (volume de degats transitoire, pas une creature a cibler).
-        private static bool IsEnemy(FactionID f)
-        {
-            switch (f)
-            {
-                case FactionID.None:
-                case FactionID.Player:
-                case FactionID.Neutral:
-                case FactionID.Merchant:
-                case FactionID.PlayerMinion:
-                case FactionID.Explosion:
-                    return false;
-                default:
-                    return true;
-            }
-        }
+        // Liste d'EXCLUSION v1, partagee avec la sentinelle d'aggro (HostileFilter,
+        // dans AggroSentinel.cs) : tout ce qui n'est pas exclu compte comme ennemi.
+        private static bool IsEnemy(FactionID f) => HostileFilter.IsHostile(f);
+
+        // Slimes-masses ambiants : la liste est celle de ClaimBedSystem (le jeu). Si un
+        // jour des fantomes apparaissent dans d'autres biomes, candidats du meme genre :
+        // RoyalSlimeBlob, LavaSlimeBlob (non exclus par le jeu, donc pas par nous).
+        private static bool IsDormantSlime(ObjectID id)
+            => id == ObjectID.SlimeBlob
+            || id == ObjectID.SlipperySlimeBlob
+            || id == ObjectID.PoisonSlimeBlob;
     }
 }

@@ -41,6 +41,41 @@ namespace CoreKeeperAccess.Gameplay
             src.PlayOneShot(clip, volume);
         }
 
+        private static AudioSource _toneSource;
+        private static AudioClip _toneClip;
+
+        // Bip sinusoidal GENERE (aucun asset) : 40 ms de sinus a 440 Hz, fondu
+        // d'attaque/sortie de 5 ms contre les clics. Source DEDIEE hors pool : les
+        // appelants (sentinelle d'aggro) sequencent leurs bips en file, jamais
+        // superposes, donc une seule source suffit et son pitch est libre a chaque bip.
+        public static void PlayTone(float pan, float pitch, float volume = 1f)
+        {
+            EnsureInit();
+            if (_toneSource == null) return;
+
+            if (_toneClip == null)
+            {
+                const int rate = 44100;
+                const int len = rate * 40 / 1000;   // 40 ms
+                const int fade = rate * 5 / 1000;   // 5 ms
+                var data = new float[len];
+                double w = 2.0 * System.Math.PI * 440.0 / rate;
+                for (int i = 0; i < len; i++)
+                {
+                    float env = 1f;
+                    if (i < fade) env = i / (float)fade;
+                    else if (i >= len - fade) env = (len - 1 - i) / (float)fade;
+                    data[i] = (float)System.Math.Sin(w * i) * env;
+                }
+                _toneClip = AudioClip.Create("A11ySineBeep", len, 1, rate, false);
+                _toneClip.SetData(data, 0);
+            }
+
+            _toneSource.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            _toneSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            _toneSource.PlayOneShot(_toneClip, volume);
+        }
+
         private static MethodInfo _getNextSounds;
         private static bool _getNextSoundsResolved;
 
@@ -99,6 +134,10 @@ namespace CoreKeeperAccess.Gameplay
                 s.spatialBlend = 0f; // 2D : on gere le pan/pitch nous-memes
                 _pool[i] = s;
             }
+
+            _toneSource = go.AddComponent<AudioSource>();
+            _toneSource.playOnAwake = false;
+            _toneSource.spatialBlend = 0f;
 
             // audioFieldMap : SfxID -> AudioField (champ prive de l'AudioManager).
             var audio = Manager.audio;
