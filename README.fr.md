@@ -121,8 +121,8 @@ Deux outils complémentaires pour percevoir l'espace, et ils parlent la même la
   - Sons du curseur : tick discret = case libre ; son de matériau = mur ou bloc ; ding = minerai dans le mur ; petit marqueur aigu en plus = objet interactif ; plop = trou ; éclaboussure = eau. « Mur scellé » = indestructible, n'insistez pas.
 - **Croix sur la case du curseur** : miner (mur), interagir (objet), ou s'y déplacer en ligne droite (case vide).
 - **LT** : poser l'objet en main sur la case du curseur (creuser, si une pelle est équipée).
-- **Canne laser au stick droit** : un faisceau balaye dans la direction du stick, joue le son de la première case bloquante (le « mur d'en face ») et signale les ennemis sur le trajet par un bip positionnel plus leur nom.
-- **Sentinelle d'aggro** : automatique. Des bips en file = autant de monstres en train de vous attaquer.
+- **Canne laser au stick droit** : un faisceau balaye dans la direction du stick, joue le son de la première case bloquante (le « mur d'en face ») et signale les ennemis sur le trajet par un bip positionnel plus leur nom. Les créatures paisibles et les objets posés ont leurs propres timbres, plus doux (un hostile les écrase toujours). Les gouffres et l'eau n'arrêtent pas le faisceau : vous entendez le bord (plop / splash), puis ce qu'il y a au-delà — visez au travers et tirez.
+- **Sentinelle d'aggro** : automatique. Des bips en file = autant de monstres en train de vous attaquer. Un **boss** a son propre bip grave et rapide sur un canal dédié — impossible à confondre.
 - Annonces automatiques : objet en main au changement de slot, « interaction disponible » quand un objet utilisable est à portée, messages flottants du jeu (tutoriels, « trop dur », besoin d'énergie…), ramassages.
 
 ### Station de réparation et de recyclage

@@ -2,6 +2,12 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## Alpha 1, build 54 — juin 2026
+
+- **Les boss ont désormais leur propre bip dans la sentinelle d'aggro** : un ton grave et plus long, répété environ trois fois par seconde sur un canal dédié, au lieu de se fondre dans la file normale à un bip par seconde. Même langage positionnel (pan, hauteur verticale, volume-distance).
+- **La canne laser voit à travers les gouffres et l'eau** : ces cases bloquent la marche mais pas la vue ni les flèches, donc le faisceau signale le bord (le plop / splash habituel) et continue — les ennemis et murs de l'autre côté sont détectés. Visez au travers et tirez.
+- **Correctif carte** : le marqueur du troisième boss que le jeu lui-même laisse en anglais (« Larva Boss ») est maintenant lu « Ghorm le Dévoreur ». Signalez tout autre marqueur entendu en anglais.
+
 ## Alpha 1, build 52 — juin 2026
 
 - **Le laser rapporte désormais aussi les cibles non hostiles** : créatures paisibles (insectes, chèvres, slimes dormants…) et objets posés (champignons, objets au sol, meubles, zones de fouille), une cible à la fois — la plus proche sur le faisceau. Chaque bord a son timbre ; le nom est dit au changement de cible. Un hostile dans le faisceau écrase toujours la piste paisible : aucune menace n'est jamais masquée.

@@ -1,4 +1,5 @@
 using CoreKeeperAccess.Patches;
+using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -52,6 +53,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private static readonly int2 NoImpact = new int2(int.MinValue, int.MinValue);
         private static int2 _lastImpact = NoImpact;
+        private static int2 _lastSpecial = NoImpact;
         private static int _lastEnemyKey;
         private static float _nextEnemyBeep;
         private static long _lastPassiveKey;
@@ -98,14 +100,39 @@ namespace CoreKeeperAccess.Gameplay
             // Consomme le resultat publie par le systeme (scan de la frame precedente).
             if (!LaserScan.ResultValid) return;
 
+            // Bord de gouffre / d'eau sur le trajet : sonifie au changement de case
+            // (plop / splash spatialise, meme langage que le curseur). Le rayon continue
+            // au-dela : c'est l'info "il y a un vide a franchir ici" sans masquer la suite.
+            if (LaserScan.HasSpecial)
+            {
+                if (!LaserScan.SpecialTile.Equals(_lastSpecial))
+                {
+                    _lastSpecial = LaserScan.SpecialTile;
+                    int sx = LaserScan.SpecialTile.x - LaserScan.PlayerTile.x;
+                    int sy = LaserScan.SpecialTile.y - LaserScan.PlayerTile.y;
+                    BuildModeNavigator.SonifyTile(LaserScan.SpecialTile, in LaserScan.Special, sx, sy, false);
+                }
+            }
+            else
+            {
+                _lastSpecial = NoImpact;
+            }
+
             // Point d'impact : on ne (re)sonifie qu'au CHANGEMENT de case (comme le curseur
-            // ne parle qu'au deplacement) -> pas de spam en visee stable.
+            // ne parle qu'au deplacement) -> pas de spam en visee stable. Si le rayon est
+            // mort en portee max DANS l'eau / le gouffre, le bord a deja parle : silence.
+            bool impactIsSurvolable = LaserScan.Impact.HasWall
+                && (LaserScan.Impact.WallType == TileType.pit
+                    || LaserScan.Impact.WallType == TileType.water);
             if (!LaserScan.ImpactTile.Equals(_lastImpact))
             {
                 _lastImpact = LaserScan.ImpactTile;
-                int dx = LaserScan.ImpactTile.x - LaserScan.PlayerTile.x;
-                int dy = LaserScan.ImpactTile.y - LaserScan.PlayerTile.y;
-                BuildModeNavigator.SonifyTile(LaserScan.ImpactTile, in LaserScan.Impact, dx, dy, false);
+                if (!impactIsSurvolable)
+                {
+                    int dx = LaserScan.ImpactTile.x - LaserScan.PlayerTile.x;
+                    int dy = LaserScan.ImpactTile.y - LaserScan.PlayerTile.y;
+                    BuildModeNavigator.SonifyTile(LaserScan.ImpactTile, in LaserScan.Impact, dx, dy, false);
+                }
             }
 
             // Ennemi : bip immediat sur une NOUVELLE cible, puis rappel a la cadence tant
@@ -170,6 +197,7 @@ namespace CoreKeeperAccess.Gameplay
             LaserScan.Active = false;
             LaserScan.ResultValid = false; // ne pas agir sur un resultat perime a la reactivation
             _lastImpact = NoImpact;
+            _lastSpecial = NoImpact;
             _lastEnemyKey = 0;
             _lastPassiveKey = 0;
         }
@@ -225,6 +253,14 @@ namespace CoreKeeperAccess.Gameplay
         public static bool ResultValid;
         public static int2 ImpactTile;   // case d'impact (premier mur, ou portee max)
         public static TileInfo Impact;   // contenu de la case d'impact
+
+        // Premier BORD de gouffre (pit) ou d'eau sur le trajet. Ces surfaces sont
+        // bloquantes pour la MARCHE mais transparentes pour la VUE et les projectiles
+        // (une fleche passe au-dessus, un voyant vise au travers) : le rayon les
+        // signale puis continue, seuls les murs pleins l'arretent.
+        public static bool HasSpecial;
+        public static int2 SpecialTile;
+        public static TileInfo Special;
         public static bool HasEnemy;     // un ennemi est sur le trajet (avant le mur)
         public static float2 EnemyPos;   // position monde (xz) de l'ennemi le plus proche
         public static int EnemyKey;      // index d'entite (pour detecter une NOUVELLE cible)
@@ -287,6 +323,9 @@ namespace CoreKeeperAccess.Gameplay
                 ObjectID passiveObj = ObjectID.None;
                 bool passiveCreature = false;
                 bool passiveInteractable = false;
+                bool foundSpecial = false;
+                int2 specialTile = default;
+                TileInfo specialInfo = default;
 
                 for (float dd = 1f; dd <= MaxRange + 0.001f; dd += Step)
                 {
@@ -301,8 +340,24 @@ namespace CoreKeeperAccess.Gameplay
                     // attrapait un mob colle de L'AUTRE COTE de la paroi -> faux positif
                     // "a travers le mur" (mobile et introuvable, ex. slime en galerie
                     // voisine). Sur une case de mur on ne cherche donc JAMAIS d'ennemi.
-                    if (ta.TryGetBlockingTile(c, out _, true)) { impact = c; break; }
-                    impact = c; // derniere case libre atteinte
+                    // EXCEPTION : gouffre (pit) et eau sont bloquants pour la MARCHE
+                    // mais transparents pour la vue et les projectiles (un voyant vise
+                    // a travers, la fleche passe au-dessus) -> on note le premier BORD
+                    // (sonifie cote mod) et le rayon CONTINUE ; le scan creatures reste
+                    // actif sur ces cases (ennemis nageurs legitimes, ils sont visibles).
+                    if (ta.TryGetBlockingTile(c, out TileCD blocking, true))
+                    {
+                        bool seeThrough = blocking.tileType == TileType.pit
+                                       || blocking.tileType == TileType.water;
+                        if (!seeThrough) { impact = c; break; }
+                        if (!foundSpecial)
+                        {
+                            foundSpecial = true;
+                            specialTile = c;
+                            specialInfo = TileScan.Read(ref ta, c, World);
+                        }
+                    }
+                    impact = c; // derniere case atteinte (libre, ou surface survolable)
 
                     // Premiere creature rencontree de chaque bord (hostile / paisible) =
                     // la plus proche (cases parcourues proche->loin). Les deux pistes sont
@@ -332,6 +387,9 @@ namespace CoreKeeperAccess.Gameplay
 
                 LaserScan.Impact = TileScan.Read(ref ta, impact, World);
                 LaserScan.ImpactTile = impact;
+                LaserScan.HasSpecial = foundSpecial;
+                LaserScan.SpecialTile = specialTile;
+                LaserScan.Special = specialInfo;
                 LaserScan.HasEnemy = foundEnemy;
                 LaserScan.EnemyPos = enemyPos;
                 LaserScan.EnemyKey = enemyKey;

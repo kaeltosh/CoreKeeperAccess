@@ -43,37 +43,54 @@ namespace CoreKeeperAccess.Gameplay
 
         private static AudioSource _toneSource;
         private static AudioClip _toneClip;
+        private static AudioClip _bossToneClip;
 
-        // Bip sinusoidal GENERE (aucun asset) : 40 ms de sinus a 440 Hz, fondu
-        // d'attaque/sortie de 5 ms contre les clics. Source DEDIEE hors pool : les
+        // Bip sinusoidal GENERE (aucun asset) : sinus a freqHz pendant ms, fondu
+        // d'attaque/sortie de 5 ms contre les clics.
+        private static AudioClip BuildSine(string name, double freqHz, int ms)
+        {
+            const int rate = 44100;
+            int len = rate * ms / 1000;
+            const int fade = rate * 5 / 1000;   // 5 ms
+            var data = new float[len];
+            double w = 2.0 * System.Math.PI * freqHz / rate;
+            for (int i = 0; i < len; i++)
+            {
+                float env = 1f;
+                if (i < fade) env = i / (float)fade;
+                else if (i >= len - fade) env = (len - 1 - i) / (float)fade;
+                data[i] = (float)System.Math.Sin(w * i) * env;
+            }
+            var clip = AudioClip.Create(name, len, 1, rate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        // Bip standard de la sentinelle : 40 ms a 440 Hz. Source DEDIEE hors pool : les
         // appelants (sentinelle d'aggro) sequencent leurs bips en file, jamais
         // superposes, donc une seule source suffit et son pitch est libre a chaque bip.
         public static void PlayTone(float pan, float pitch, float volume = 1f)
         {
             EnsureInit();
             if (_toneSource == null) return;
-
-            if (_toneClip == null)
-            {
-                const int rate = 44100;
-                const int len = rate * 40 / 1000;   // 40 ms
-                const int fade = rate * 5 / 1000;   // 5 ms
-                var data = new float[len];
-                double w = 2.0 * System.Math.PI * 440.0 / rate;
-                for (int i = 0; i < len; i++)
-                {
-                    float env = 1f;
-                    if (i < fade) env = i / (float)fade;
-                    else if (i >= len - fade) env = (len - 1 - i) / (float)fade;
-                    data[i] = (float)System.Math.Sin(w * i) * env;
-                }
-                _toneClip = AudioClip.Create("A11ySineBeep", len, 1, rate, false);
-                _toneClip.SetData(data, 0);
-            }
-
+            if (_toneClip == null) _toneClip = BuildSine("A11ySineBeep", 440.0, 40);
             _toneSource.panStereo = Mathf.Clamp(pan, -1f, 1f);
             _toneSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
             _toneSource.PlayOneShot(_toneClip, volume);
+        }
+
+        // Bip BOSS de la sentinelle : registre GRAVE (110 Hz, deux octaves sous le bip
+        // standard) et un peu plus long (90 ms) -> impossible a confondre, tout en
+        // gardant le meme langage positionnel (le pitch vertical module AUTOUR du
+        // grave). Timbre placeholder, a regler a l'oreille.
+        public static void PlayBossTone(float pan, float pitch, float volume = 1f)
+        {
+            EnsureInit();
+            if (_toneSource == null) return;
+            if (_bossToneClip == null) _bossToneClip = BuildSine("A11yBossBeep", 110.0, 90);
+            _toneSource.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            _toneSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            _toneSource.PlayOneShot(_bossToneClip, volume);
         }
 
         private static MethodInfo _getNextSounds;

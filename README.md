@@ -121,8 +121,8 @@ Two complementary tools to perceive space, and they speak the same sound languag
   - Cursor sounds: soft tick = free tile; material sound = wall or block; ding = ore in the wall; small high-pitched marker added = interactive object; plop = pit; splash = water. "Sealed wall" = indestructible, don't bother.
 - **Cross on the cursor's tile**: mine (wall), interact (object), or walk there in a straight line (empty tile).
 - **LT**: place the held item on the cursor's tile (dig, if a shovel is equipped).
-- **Laser cane on the right stick**: a beam sweeps in the stick's direction, plays the sound of the first blocking tile (the "wall ahead") and flags enemies along the path with a positional beep plus their name.
-- **Aggro sentinel**: automatic. Queued beeps = that many monsters currently attacking you.
+- **Laser cane on the right stick**: a beam sweeps in the stick's direction, plays the sound of the first blocking tile (the "wall ahead") and flags enemies along the path with a positional beep plus their name. Peaceful creatures and placed objects get their own softer timbres (a hostile always overrides them). Chasms and water do not stop the beam: you hear the edge (plop / splash), then what lies beyond — aim across and shoot.
+- **Aggro sentinel**: automatic. Queued beeps = that many monsters currently attacking you. A **boss** gets its own deep, fast beep on a dedicated channel — unmistakable.
 - Automatic announcements: held item on slot change, "interaction available" when a usable object is in range, the game's floating messages (tutorials, "too hard", energy needed…), pickups.
 
 ### Repair and salvage station

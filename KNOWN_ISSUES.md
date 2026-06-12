@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of alpha 1 (build 52). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of alpha 1 (build 54). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 ## Known bugs
 

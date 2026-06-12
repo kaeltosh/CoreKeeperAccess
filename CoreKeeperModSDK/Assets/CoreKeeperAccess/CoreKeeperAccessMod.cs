@@ -59,7 +59,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 52";
+    private const string BuildTag = "build 54";
 
     public void Init()
     {
@@ -546,11 +546,23 @@ internal static class TeleportNavigator
         Announce(m, interruptTts);
     }
 
+    // Titre d'un marqueur, avec rattrapage des libelles que le JEU laisse en anglais
+    // meme en francais (trad I2 manquante, un voyant FR voit le meme anglais) : on
+    // substitue notre cle i18n. Comparaison insensible a la casse ; si une maj du jeu
+    // traduit enfin le terme, le texte ne matche plus et le natif reprend la main.
+    private static string MarkerTitle(MapMarkerUIElement m)
+    {
+        string t = TtsText.ResolveTextAndFormatFields(m.GetHoverTitle());
+        if (string.Equals(t, "Larva Boss", System.StringComparison.OrdinalIgnoreCase))
+            return Strings.L("poi.ghorm");
+        return t;
+    }
+
     private static void Announce(MapMarkerUIElement m, bool interrupt = true)
     {
         string name = (m == _coreMarker)
             ? Strings.L("teleport.core")
-            : TtsText.ResolveTextAndFormatFields(m.GetHoverTitle());
+            : MarkerTitle(m);
         if (string.IsNullOrEmpty(name))
             name = Strings.L(_category == 0 ? "teleport.portal" : "map.poi.marker");
         // Numero en tete : STABLE pour les relais (tri par distance au centre),
@@ -577,7 +589,7 @@ internal static class TeleportNavigator
         }
         else
         {
-            label = TtsText.ResolveTextAndFormatFields(m.GetHoverTitle());
+            label = MarkerTitle(m);
             if (string.IsNullOrEmpty(label)) label = Strings.L("map.poi.marker");
         }
         int number = _category == 0 ? StableNumber(m) : _index + 1;

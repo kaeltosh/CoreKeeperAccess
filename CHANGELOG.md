@@ -2,6 +2,12 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## Alpha 1, build 54 — June 2026
+
+- **Bosses now have their own beep in the aggro sentinel**: a deep, longer tone repeated about three times per second on a dedicated channel, instead of blending into the regular one-beep-per-second queue. Same positional language (pan, vertical pitch, distance volume).
+- **The laser cane sees across chasms and water**: those tiles block walking but not sight or arrows, so the beam now reports the edge (the familiar plop / splash) and keeps going — enemies and walls on the far side are detected. Aim across and shoot.
+- **Map fix**: the third-boss map marker that the game itself leaves untranslated ("Larva Boss") is now spoken as "Ghorm the Devourer" (and properly translated in French). Report any other English-only markers you hear.
+
 ## Alpha 1, build 52 — June 2026
 
 - **The laser now reports non-hostile targets too**: peaceful creatures (insects, goats, dormant slimes...) and placed objects (mushrooms, dropped items, furniture, digging spots), one target at a time — the closest on the beam. Each side has its own timbre; the name is spoken when the target changes. A hostile in the beam always overrides the peaceful track, so no threat ever gets masked.

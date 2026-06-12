@@ -30,6 +30,8 @@ namespace CoreKeeperAccess.Gameplay
     {
         private const float SlotInterval = 0.1f;   // 100 ms entre deux bips (file, jamais superposes)
         private const float CycleInterval = 1f;    // cadence de rappel de la jauge
+        private const float BossInterval = 0.35f;  // cadence dediee BOSS (demande utilisateur :
+                                                   // plus frequent qu'un mob, et un bip DIFFERENT)
         private const float MaxAudibleDist = 30f;  // au-dela, volume plancher
         private const float BaseVolume = 0.5f;     // "doux" - a regler a l'oreille
 
@@ -39,6 +41,7 @@ namespace CoreKeeperAccess.Gameplay
         private static readonly List<KeyValuePair<int, float>> _sort = new List<KeyValuePair<int, float>>();
         private static float _nextCycle;
         private static float _nextSlot;
+        private static float _nextBossBeep;
         private static int _lastVersion;
 
         public static void Tick()
@@ -90,16 +93,31 @@ namespace CoreKeeperAccess.Gameplay
                 if (names != null) TtsText.Say(names, true);
             }
 
+            // BOSS : canal dedie, cadence rapide (BossInterval), bip GRAVE distinct
+            // (PlayBossTone) - exclu de la file standard pour ne pas doubler. Respecte
+            // le creneau global _nextSlot (jamais deux bips superposes). S'il y a
+            // plusieurs boss (rarissime), le plus proche porte le signal.
+            if (now >= _nextBossBeep && now >= _nextSlot && TryGetNearestBoss(playerPos, out float2 bossPos))
+            {
+                PlayBeep(bossPos, playerPos, true);
+                _nextBossBeep = now + BossInterval;
+                _nextSlot = now + SlotInterval;
+            }
+
             // Recharge de la file : seulement quand elle est VIDE et que le cycle est
             // echu -> si plus de 10 chasseurs, le cycle glisse, la file ne deborde pas.
             // Tri du plus proche au plus lointain : la menace prioritaire bipe en premier.
+            // Les boss n'y entrent pas (canal dedie ci-dessus).
             if (_queue.Count == 0 && now >= _nextCycle && AggroScan.Count > 0)
             {
                 _sort.Clear();
                 for (int i = 0; i < AggroScan.Count; i++)
+                {
+                    if (AggroScan.Chasers[i].IsBoss) continue;
                     _sort.Add(new KeyValuePair<int, float>(
                         AggroScan.Chasers[i].Key,
                         math.distancesq(AggroScan.Chasers[i].Pos, playerPos)));
+                }
                 _sort.Sort((a, b) => a.Value.CompareTo(b.Value));
                 foreach (var kv in _sort) _queue.Enqueue(kv.Key);
                 _nextCycle = now + CycleInterval;
@@ -128,9 +146,24 @@ namespace CoreKeeperAccess.Gameplay
             return false;
         }
 
+        private static bool TryGetNearestBoss(float2 playerPos, out float2 pos)
+        {
+            pos = default;
+            float best = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < AggroScan.Count; i++)
+            {
+                if (!AggroScan.Chasers[i].IsBoss) continue;
+                float d2 = math.distancesq(AggroScan.Chasers[i].Pos, playerPos);
+                if (d2 < best) { best = d2; pos = AggroScan.Chasers[i].Pos; found = true; }
+            }
+            return found;
+        }
+
         // Bip positionnel : pan gauche-droite normalise sur la demi-largeur ecran +
         // pitch vertical (+1 demi-ton/ligne, borne a une octave) + volume-distance.
-        private static void PlayBeep(float2 worldPos, float2 playerPos)
+        // boss=true -> bip grave dedie (PlayBossTone), meme langage positionnel.
+        private static void PlayBeep(float2 worldPos, float2 playerPos, bool boss = false)
         {
             float2 d = worldPos - playerPos;
             var cam = Manager.camera != null ? Manager.camera.gameCamera : null;
@@ -138,7 +171,8 @@ namespace CoreKeeperAccess.Gameplay
             float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
             float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
             float volume = BaseVolume * Mathf.Clamp(1f - math.length(d) / MaxAudibleDist, 0.15f, 1f);
-            GameplayAudio.PlayTone(pan, pitch, volume);
+            if (boss) GameplayAudio.PlayBossTone(pan, pitch, volume);
+            else GameplayAudio.PlayTone(pan, pitch, volume);
         }
 
         private static void Reset()
@@ -161,6 +195,7 @@ namespace CoreKeeperAccess.Gameplay
             public int Key;        // index d'entite (identite du chasseur)
             public float2 Pos;     // position monde (xz)
             public ObjectID Obj;   // type de creature (TTS du nom)
+            public bool IsBoss;    // entite marquee BossCD -> bip dedie, cadence rapide
         }
 
         public static bool Active;
@@ -272,6 +307,7 @@ namespace CoreKeeperAccess.Gameplay
                         Key = e.Index,
                         Pos = p,
                         Obj = obj,
+                        IsBoss = EntityUtility.HasComponentData<BossCD>(e, World),
                     };
                 }
                 ents.Dispose();
