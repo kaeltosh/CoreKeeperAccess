@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using CoreKeeperAccess;
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using DavyKager;
@@ -17,14 +19,6 @@ using Object = UnityEngine.Object;
 
 public class CoreKeeperAccessMod : IMod
 {
-    // --- Diagnostic d'input (outil temporaire) ---
-    // F9 active / coupe le mode. Quand actif, chaque bouton ou axe de la manette
-    // pressé est annonce via Tolk ET ecrit dans Player.log (prefixe [A11yInputDiag]),
-    // pour confirmer le mapping physique sans avoir a retenir les id a l'oreille.
-    // Lit directement Rewired (ReInput), aucun patch Harmony.
-    private bool _inputDiag;
-    private readonly Dictionary<int, int> _axisState = new Dictionary<int, int>();
-
     // Mode dev : toggle par fichier-temoin "dev.flag" a la racine du dossier d'install
     // du mod (absent = comportement release, c'est le defaut distribue aux testeurs).
     // Actif : auto-charge monde 1 / perso 1 (indices 0/0) au boot — saute la navigation
@@ -59,13 +53,15 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 54";
+    private const string BuildTag = "build 56";
 
     public void Init()
     {
         Tolk.Load();
         Strings.Load();
         DiagnosePatches();
+        ComboBindings.RegisterAll(); // table combo x contexte de la touche access
+        if (_devMode) TtsText.SelfTest(); // auto-verifs du composeur, cote dev seulement
         TtsText.Say(Strings.L("mod.loaded") + ", " + ReleaseTag + ", " + BuildTag, false);
     }
 
@@ -97,9 +93,9 @@ public class CoreKeeperAccessMod : IMod
 
         var missing = expected.Where(t => !appliedTypes.Contains(t)).Select(t => t.Name).ToList();
         if (missing.Count == 0)
-            Debug.Log($"[A11yDiag] Patches Harmony OK : {expected.Count}/{expected.Count} appliques.");
+            Diag.Log("A11yDiag", $"Patches Harmony OK : {expected.Count}/{expected.Count} appliques.");
         else
-            Debug.LogError($"[A11yDiag] Patches Harmony : {missing.Count}/{expected.Count} NON appliques -> {string.Join(", ", missing)}");
+            Debug.LogError($"[A11yDiag] {Diag.Stamp()} Patches Harmony : {missing.Count}/{expected.Count} NON appliques -> {string.Join(", ", missing)}");
     }
 
     public void Shutdown()
@@ -117,6 +113,7 @@ public class CoreKeeperAccessMod : IMod
         TryAutoLoad();
         TriangleModifier.Tick();
         InfoKey.Tick();
+        InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
@@ -124,49 +121,10 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active
         CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
         CoreKeeperAccess.Gameplay.AggroSentinel.Tick();
-
-        if (UnityEngine.Input.GetKeyDown(KeyCode.F9))
-        {
-            _inputDiag = !_inputDiag;
-            _axisState.Clear();
-            Announce(_inputDiag ? "Diagnostic manette active" : "Diagnostic manette coupe");
-        }
-
-        if (!_inputDiag || !ReInput.isReady)
-        {
-            return;
-        }
-
-        var joy = ReInput.controllers.GetLastActiveController<Joystick>();
-        if (joy == null)
-        {
-            return;
-        }
-
-        // Boutons : annonce au moment de l'appui.
-        for (int i = 0; i < joy.buttonCount; i++)
-        {
-            if (joy.GetButtonDown(i))
-            {
-                var el = joy.ButtonElementIdentifiers[i];
-                Announce("Bouton " + el.name + ", id " + el.id);
-            }
-        }
-
-        // Axes : annonce une seule fois au franchissement d'un seuil.
-        for (int i = 0; i < joy.axisCount; i++)
-        {
-            float v = joy.GetAxis(i);
-            int now = v > 0.6f ? 1 : (v < -0.6f ? -1 : 0);
-            int prev;
-            _axisState.TryGetValue(i, out prev);
-            if (now != 0 && now != prev)
-            {
-                var el = joy.AxisElementIdentifiers[i];
-                Announce("Axe " + el.name + ", id " + el.id + ", " + (now > 0 ? "positif" : "negatif"));
-            }
-            _axisState[i] = now;
-        }
+        // Apres le tick de tous les modules : les gardes de contexte lisent des etats
+        // frais (curseur detache, nav inventaire...) au moment de router les combos.
+        ComboDispatcher.Tick();
+        PadDiagnostic.Tick(); // diagnostic manette F9
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.
@@ -182,157 +140,10 @@ public class CoreKeeperAccessMod : IMod
         _autoLoadStable += Time.deltaTime;
         if (_autoLoadStable < 0.5f) return;
         _autoLoadDone = true;
-        Debug.Log("[A11yAutoLoad] Chargement auto monde 1 / perso 1");
+        Diag.Log("A11yAutoLoad", "Chargement auto monde 1 / perso 1");
         SaveSlotPlayOption.StartGameFromActivity(0, 0);
     }
 
-    // Annonce en TTS (interrompt) ET trace dans Player.log pour lecture cote dev.
-    private static void Announce(string text)
-    {
-        Tolk.Output(text, true);
-        Debug.Log("[A11yInputDiag] " + text);
-    }
-}
-
-// Libere le bouton Triangle pour en faire le modificateur a11y du mod (notre "touche
-// NVDA") : on retire l'assignation MANETTE de l'action carte (ToggleMap, id 55 - inutile
-// pour un joueur aveugle) via l'API Rewired DeleteElementMap. On NE touche ni aux autres
-// actions de Triangle (note d'instrument), ni au clavier. En memoire seulement (aucune
-// sauvegarde) -> reversible, config Rewired du joueur intacte. Re-applique chaque seconde
-// car le jeu peut reconstruire les maps selon le contexte (gameplay / UI). Le mod lit
-// ensuite le bouton Triangle PHYSIQUE en direct (independant du mapping d'action).
-// NOTE: a deplacer dans son propre fichier au prochain build Unity (futur moteur keymaps).
-internal static class TriangleModifier
-{
-    private const int ToggleMapActionId = 55; // RewiredConsts.Action.ToggleMap
-
-    // Id physique du bouton Triangle, capte automatiquement depuis le binding de la carte
-    // avant qu'on le supprime -> juste pour la manette reelle du joueur (PS/Xbox/...), pas
-    // de valeur en dur. -1 tant que pas encore capte.
-    public static int TriangleButtonId = -1;
-
-    private static float _nextCheck;
-
-    // Id physique de SECOURS : 9 = Y/Triangle du template Rewired Gamepad standard,
-    // confirme en jeu par le diagnostic F9 (DualSense). Necessaire car le jeu PEUT
-    // sauvegarder sa config controles APRES notre suppression en memoire (vecu le
-    // 11 juin 2026 : plus aucun binding de l'action 55 dans CoreKeeper_Controls.json)
-    // -> au boot suivant il n'y a plus rien a capter et la touche access mourait.
-    private const int FallbackTriangleId = 9;
-
-    public static void Tick()
-    {
-        if (!ReInput.isReady) return;
-        if (Time.unscaledTime < _nextCheck) return;
-        _nextCheck = Time.unscaledTime + 1f; // cout negligeable : balayage une fois/seconde
-
-        var toDelete = new List<int>();
-        foreach (var player in ReInput.players.AllPlayers)
-        {
-            foreach (var map in player.controllers.maps.GetAllMaps())
-            {
-                if (map == null || map.controllerType != ControllerType.Joystick) continue;
-                toDelete.Clear();
-                foreach (var aem in map.AllMaps)
-                    if (aem.actionId == ToggleMapActionId)
-                    {
-                        TriangleButtonId = aem.elementIdentifierId; // bouton physique = Triangle
-                        toDelete.Add(aem.id);
-                    }
-                foreach (var id in toDelete) map.DeleteElementMap(id);
-            }
-        }
-
-        if (TriangleButtonId < 0) TriangleButtonId = FallbackTriangleId;
-    }
-}
-
-// Dispatcher de la "touche access" du mod. Triangle (libere par TriangleModifier) sert de
-// MODIFICATEUR : tant qu'il est tenu, le D-pad ne navigue plus mais declenche des commandes
-// a11y. Premier combo : Triangle + D-pad haut = "plus de details" sur l'element focalise,
-// pris en charge par le contexte actif (ici le curseur de tuile). Tick() doit tourner AVANT
-// les consommateurs du D-pad (ils consultent ModifierHeld / DetailRequested).
-internal static class InfoKey
-{
-    private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
-    private const int BumperLeft = 10; // LB / L1 (id physique template Rewired Gamepad)
-
-    public static bool ModifierHeld;    // Triangle physiquement tenu
-    public static bool DetailRequested; // combo Triangle + haut declenche cette frame
-    public static bool ComboRight;      // Triangle + droite (reparer, selon contexte)
-    public static bool ComboDown;       // Triangle + bas (transferer)
-    public static bool ComboLeft;       // Triangle + gauche (tout recycler)
-    public static bool ComboLB;         // Triangle + L1 (ping sonar)
-    public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
-
-    // Double-tap : deux TAPS courts (< TapMaxDuration, sans combo D-pad pendant la
-    // tenue) espaces de moins de DoubleTapWindow. Un appui long ou un combo n'est
-    // jamais un tap -> aucun conflit avec le role de modificateur.
-    private const float TapMaxDuration = 0.30f;
-    private const float DoubleTapWindow = 0.40f;
-    private static bool _wasHeld;
-    private static float _holdStart;
-    private static bool _comboDuringHold;
-    private static float _lastTap = -10f;
-
-    public static void Tick()
-    {
-        ModifierHeld = false;
-        DetailRequested = false;
-        ComboRight = ComboDown = ComboLeft = ComboLB = false;
-        DoubleTapped = false;
-        if (!ReInput.isReady) return;
-        int tri = TriangleModifier.TriangleButtonId;
-        if (tri < 0) return; // id Triangle pas encore capte
-        var joy = ReInput.controllers.GetLastActiveController<Joystick>();
-        if (joy == null) return;
-
-        ModifierHeld = GetButtonById(joy, tri);
-        if (ModifierHeld)
-        {
-            if (GetButtonDownById(joy, DpadUp)) DetailRequested = true;
-            else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
-            else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
-            else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
-            else if (GetButtonDownById(joy, BumperLeft)) ComboLB = true;
-        }
-
-        // Suivi tap / double-tap (fronts montant et descendant de Triangle).
-        if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; }
-        if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB))
-            _comboDuringHold = true;
-        if (!ModifierHeld && _wasHeld)
-        {
-            bool tap = Time.unscaledTime - _holdStart <= TapMaxDuration && !_comboDuringHold;
-            if (tap)
-            {
-                if (Time.unscaledTime - _lastTap <= DoubleTapWindow)
-                {
-                    DoubleTapped = true;
-                    _lastTap = -10f;
-                }
-                else
-                {
-                    _lastTap = Time.unscaledTime;
-                }
-            }
-        }
-        _wasHeld = ModifierHeld;
-    }
-
-    private static bool GetButtonById(Joystick joy, int id)
-    {
-        for (int i = 0; i < joy.buttonCount; i++)
-            if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButton(i);
-        return false;
-    }
-
-    private static bool GetButtonDownById(Joystick joy, int id)
-    {
-        for (int i = 0; i < joy.buttonCount; i++)
-            if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButtonDown(i);
-        return false;
-    }
 }
 
 // Navigateur de destinations de teleportation (anciens relais). Interagir avec un relais
@@ -369,7 +180,7 @@ internal static class TeleportNavigator
         // ouvre la carte hors relais : la categorie destinations est alors vide,
         // mais les points d'interet restent consultables).
         var player = Manager.main != null ? Manager.main.player : null;
-        bool open = player != null && Manager.ui != null && Manager.ui.isShowingMap;
+        bool open = InputContext.MapOpen;
 
         if (open && !_active) Enter();
         else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); }
@@ -480,12 +291,8 @@ internal static class TeleportNavigator
         var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
         if (joy == null) return;
         // Touche access (Triangle) tenue : la croix directionnelle est reservee aux
-        // commandes -> Triangle + haut = details de la destination.
-        if (InfoKey.ModifierHeld)
-        {
-            if (InfoKey.DetailRequested) AnnounceDetail();
-            return;
-        }
+        // commandes (routees par ComboDispatcher, cf. ComboBindings).
+        if (InfoKey.ModifierHeld) return;
         for (int i = 0; i < joy.buttonCount; i++)
         {
             if (!joy.GetButtonDown(i)) continue;
@@ -575,7 +382,7 @@ internal static class TeleportNavigator
 
     // Touche access (Triangle + haut) : details de la destination selectionnee -> type
     // (portail / point de passage) + coordonnees exactes + cap + distance.
-    private static void AnnounceDetail()
+    internal static void AnnounceDetail()
     {
         var list = CurrentList;
         if (_index < 0 || _index >= list.Count) return;
@@ -644,7 +451,7 @@ internal static class TeleportNavigator
             if (dispose) lookup.Dispose();
             return BiomeName(b);
         }
-        catch { return null; }
+        catch (System.Exception ex) { Diag.Error("A11yBiomeDiag", ex); return null; }
     }
 
     private static string BiomeName(Biome b)

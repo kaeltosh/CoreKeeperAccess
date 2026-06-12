@@ -1,3 +1,4 @@
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
@@ -31,15 +32,8 @@ namespace CoreKeeperAccess.Gameplay
                 return;
             }
 
-            // Commandes : pas pendant la nav inventaire (Triangle + bas y veut dire
-            // transferer) ni dans un menu. La carte, elle, laisse passer (sans objet).
-            bool uiBusy = InventoryNavState.SuppressNativeInput
-                          || (Manager.menu != null && Manager.menu.IsAnyMenuActive());
-            if (!uiBusy)
-            {
-                if (InfoKey.ComboDown) AnnounceVitals(player);
-                else if (InfoKey.ComboRight) AnnouncePosition(player);
-            }
+            // Les combos Triangle + bas (vitals) / + droite (position) sont routes par
+            // ComboDispatcher (cf. ComboBindings). Ici ne restent que les alertes.
 
             // Alertes a seuil : poll espace, actif meme inventaire ouvert (le jeu
             // continue en temps reel).
@@ -48,7 +42,7 @@ namespace CoreKeeperAccess.Gameplay
             CheckAlerts(player);
         }
 
-        private static void AnnounceVitals(PlayerController player)
+        internal static void AnnounceVitals(PlayerController player)
         {
             string s = Strings.L("vitals.health") + " " + player.currentHealth + " "
                      + Strings.L("vitals.outof") + " " + player.GetMaxHealth();
@@ -89,7 +83,7 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(s, true);
         }
 
-        private static void AnnouncePosition(PlayerController player)
+        internal static void AnnouncePosition(PlayerController player)
         {
             var w = player.WorldPosition;
             TtsText.Say(Strings.L("vitals.position") + " "

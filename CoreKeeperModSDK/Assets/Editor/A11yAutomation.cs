@@ -35,11 +35,65 @@ namespace CoreKeeperAccess.Editor
         static A11yAutomation()
         {
             EditorApplication.delayCall += RunPending;
+            // Polling SANS focus : NVDA gele si Unity a le focus pendant un build
+            // (appels UIA synchrones vers un thread principal bloque). On detecte donc
+            // le flag sur disque via EditorApplication.update - qui tourne aussi editeur
+            // en arriere-plan - et on declenche refresh + action sans que l'utilisateur
+            // ait jamais a donner le focus a Unity.
+            EditorApplication.update += PollFlag;
         }
 
         internal static void TriggerFromPostprocessor()
         {
             EditorApplication.delayCall += RunPending;
+        }
+
+        private const double PollInterval = 3.0; // secondes entre deux tests du flag
+        private static double _nextPoll;
+        private static bool _refreshIssued;   // refresh deja demande pour ce flag
+        private static bool _failNotified;    // bip d'echec compile deja emis pour ce flag
+
+        private static void PollFlag()
+        {
+            if (EditorApplication.timeSinceStartup < _nextPoll) return;
+            _nextPoll = EditorApplication.timeSinceStartup + PollInterval;
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+
+            if (!File.Exists(FlagPath))
+            {
+                _refreshIssued = false;
+                _failNotified = false;
+                return;
+            }
+
+            if (!_refreshIssued)
+            {
+                // 1er passage : importer les sources fraiches (et le flag lui-meme)
+                // AVANT d'agir. La compile eventuelle suit ; l'action partira a un
+                // prochain passage, hors compilation.
+                _refreshIssued = true;
+                Debug.Log($"{LogPrefix} flag detecte par polling (sans focus), refresh assets");
+                AssetDatabase.Refresh();
+                return;
+            }
+
+            // Ne jamais lancer un build sur un projet en erreur de compile : le
+            // ModBuilder echouerait en silence ("scripts have compile errors").
+            // On laisse le flag en place : l'action repartira une fois le code repare.
+            if (EditorUtility.scriptCompilationFailed)
+            {
+                if (!_failNotified)
+                {
+                    _failNotified = true;
+                    Debug.LogError($"{LogPrefix} compile en erreur, action du flag suspendue (le flag reste en place)");
+                    NotifyDone(false);
+                }
+                return;
+            }
+
+            RunPending();
+            _refreshIssued = false;
+            _failNotified = false;
         }
 
         // Retour sonore de fin de build (l'Editor Unity est inaccessible NVDA, et le

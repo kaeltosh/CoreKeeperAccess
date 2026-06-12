@@ -23,7 +23,7 @@ namespace CoreKeeperAccess.Gameplay
         private const float IntentDeadzone = 0.1f;  // intention traitee (0..1) : en dessous on ne pousse pas
         private const float MoveEpsilon = 0.05f;    // deplacement mini entre deux pas pour "bouge" (sinon immobile)
         private const float SlideAngleMin = 30f;    // degres d'ecart cap/reel a partir desquels c'est du glissement
-        private const bool Diag = false;            // log de calibration (coupe : footstep calibre)
+        private const bool CalibrationLog = false;  // log de calibration (coupe : footstep calibre)
 
         private static readonly AccessTools.FieldRef<PlayerController, Vector3> TargetVel =
             AccessTools.FieldRefAccess<PlayerController, Vector3>("targetMovementVelocity");
@@ -74,8 +74,8 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
-            if (Diag && state != MoveState.Free)
-                Debug.Log($"[A11yNavDiag] {state} dist={dist:0.00} angle={angle:0}deg slide={slide01:0.00}");
+            if (CalibrationLog && state != MoveState.Free)
+                Diag.Log("A11yNavDiag", $"{state} dist={dist:0.00} angle={angle:0}deg slide={slide01:0.00}");
             return state;
         }
     }

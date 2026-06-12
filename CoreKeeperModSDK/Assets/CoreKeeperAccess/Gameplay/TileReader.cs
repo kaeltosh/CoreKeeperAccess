@@ -220,9 +220,6 @@ namespace CoreKeeperAccess.Gameplay
         private const float IndexInterval = 0.25f; // ~4 Hz, assez frais pour un curseur humain
         private const float IndexRadius = 24f;     // cases autour du joueur (couvre l'ecran)
 
-        // PROVISOIRE : derniere case loggee par le diagnostic (evite le spam frame/frame).
-        private int2 _lastDiag = new int2(int.MinValue, int.MinValue);
-
         private EntityQuery _objQuery;
         private EntityQuery _dbQuery;
         private EntityQuery _creatureQuery;
@@ -257,7 +254,12 @@ namespace CoreKeeperAccess.Gameplay
             {
                 PingScan.Requested = false;
                 try { ScanCreaturesForPing(); }
-                catch { PingScan.Count = 0; PingScan.ResultValid = true; }
+                catch (System.Exception ex)
+                {
+                    PingScan.Count = 0;
+                    PingScan.ResultValid = true;
+                    Diag.Error("A11yPingDiag", ex);
+                }
             }
             // Prospection minerai : independante du curseur (TileQuery peut etre inactif).
             if (OreScan.Requested)
@@ -268,7 +270,12 @@ namespace CoreKeeperAccess.Gameplay
                     var taOre = new TileAccessor(ref CheckedStateRef, true);
                     ScanOre(ref taOre);
                 }
-                catch { OreScan.Found = false; OreScan.ResultValid = true; }
+                catch (System.Exception ex)
+                {
+                    OreScan.Found = false;
+                    OreScan.ResultValid = true;
+                    Diag.Error("A11yOreDiag", ex);
+                }
             }
 
             if (!TileQuery.Active) return;
@@ -287,22 +294,8 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.ObjectInteractable = info.ObjectInteractable;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
-
-                // PROVISOIRE [A11yTileDiag] : a chaque NOUVELLE case, on crache toutes les
-                // couches de tuile + le bloquant/minerai/objet, pour identifier ce que le
-                // jeu voit reellement (ex. un filon superpose qu'on raterait). A RETIRER.
-                if (!t.Equals(_lastDiag))
-                {
-                    _lastDiag = t;
-                    var layers = ta.Get(t, Allocator.Temp);
-                    var sb = new System.Text.StringBuilder();
-                    foreach (var l in layers) sb.Append(l.tileType).Append('/').Append(l.tileset).Append(' ');
-                    layers.Dispose();
-                    string block = info.HasWall ? (info.WallType + "/" + info.WallTileset) : "none";
-                    UnityEngine.Debug.Log($"[A11yTileDiag] tile={t.x},{t.y} block={block} ore={info.HasOre} obj={info.ObjectId} interact={info.ObjectInteractable} layers=[{sb}]");
-                }
             }
-            catch { }
+            catch (System.Exception ex) { Diag.Error("A11yTileDiag", ex); }
         }
 
         // Reconstruit l'index case -> objet depuis les entites proches du joueur :
@@ -354,7 +347,8 @@ namespace CoreKeeperAccess.Gameplay
                     int2 corner;
                     try
                     {
-                        var info = PugDatabase.GetEntityObjectInfo(od.objectID, bank.databaseBankBlob, od.variation);
+                        // ref obligatoire (analyseur Unity EA0001) : la donnee vit en blob storage.
+                        ref var info = ref PugDatabase.GetEntityObjectInfo(od.objectID, bank.databaseBankBlob, od.variation);
                         size = math.max(info.prefabTileSize, new int2(1, 1));
                         corner = info.prefabCornerOffset;
                     }
@@ -389,7 +383,7 @@ namespace CoreKeeperAccess.Gameplay
                 }
                 ents.Dispose();
             }
-            catch { }
+            catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
         }
 
         // Balaye le disque (rayon en cases) autour du centre et retient la tuile de

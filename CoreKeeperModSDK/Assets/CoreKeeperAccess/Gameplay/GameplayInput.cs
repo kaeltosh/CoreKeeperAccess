@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
@@ -37,8 +38,7 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _prospectPending;
         private static int _prospectRadius;
 
-        private static bool StationOpen
-            => Manager.ui != null && Manager.ui.isSalvageAndRepairUIShowing;
+        private static bool StationOpen => InputContext.StationOpen;
 
         // Combos de GAMEPLAY (hors nav inventaire, hors menus) consommes ici :
         // Triangle + gauche = prospection minerai. Appele chaque frame apres InfoKey.
@@ -50,29 +50,9 @@ namespace CoreKeeperAccess.Gameplay
             // Centre de l'index d'objets (TileReaderSystem le reconstruit autour).
             ObjectIndex.Center = new float2(player.WorldPosition.x, player.WorldPosition.z);
 
-            bool uiBusy = InventoryNavState.SuppressNativeInput
-                          || (Manager.menu != null && Manager.menu.IsAnyMenuActive());
-            if (!uiBusy && InfoKey.ComboLeft) RequestProspect(player);
-
-            // Triangle + L1 = ping sonar (photo sonore de l'environnement). Jeu normal
-            // seulement, comme le laser : pas en inventaire / fiche perso / carte (sur
-            // la carte, les bumpers naviguent deja les categories de POI).
-            bool inGame = !uiBusy && Manager.ui != null
-                          && !Manager.ui.isAnyInventoryShowing
-                          && !(Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                          && !Manager.ui.isShowingMap;
-            if (inGame && InfoKey.ComboLB) PingSonar.Trigger(player);
+            // Les combos (prospection, ping sonar, double-tap carte) sont routes par
+            // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);
-
-            // Double-tap Triangle = ouvrir/fermer la CARTE : on rejoue l'action native
-            // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
-            // jeu fait le reste (toggle, fermeture au B aussi). La nav de carte
-            // (TeleportNavigator) prend la main une fois la carte ouverte.
-            if (!uiBusy && InfoKey.DoubleTapped)
-            {
-                InventoryNavState.ArmedInput = PlayerInput.InputType.TOGGLE_MAP;
-                InventoryNavState.ArmedTtl = 2;
-            }
 
             TickProspect(player);
             WatchInteractable(player);
@@ -85,7 +65,7 @@ namespace CoreKeeperAccess.Gameplay
         // faire quelque chose et sur quoi. Regle le "il faut etre au bon endroit" des
         // objets multi-cases (statues, Core...). Sortie de portee : silence.
         private const float InteractPollInterval = 0.2f;
-        private static int _lastInteractable;
+        private static long _lastInteractable;
         private static float _nextInteractPoll;
 
         private static void WatchInteractable(PlayerController player)
@@ -93,7 +73,7 @@ namespace CoreKeeperAccess.Gameplay
             if (Time.unscaledTime < _nextInteractPoll) return;
             _nextInteractPoll = Time.unscaledTime + InteractPollInterval;
 
-            int key = 0;
+            long key = 0;
             ObjectID id = ObjectID.None;
             try
             {
@@ -103,10 +83,10 @@ namespace CoreKeeperAccess.Gameplay
                 if (e != Entity.Null && EntityUtility.HasComponentData<ObjectDataCD>(e, player.world))
                 {
                     id = EntityUtility.GetComponentData<ObjectDataCD>(e, player.world).objectID;
-                    key = e.Index;
+                    key = EntityKey.Of(e);
                 }
             }
-            catch { return; }
+            catch (System.Exception ex) { Diag.Error("A11yInteractDiag", ex); return; }
 
             if (key == _lastInteractable) return;
             _lastInteractable = key;
@@ -122,7 +102,7 @@ namespace CoreKeeperAccess.Gameplay
         // Pose la demande de scan : rayon = stat VisibleOreDistance du perso, la MEME
         // que le shader des paillettes (equite stricte : les talents de minage et
         // objets qui l'augmentent portent aussi notre prospection).
-        private static void RequestProspect(PlayerController player)
+        internal static void RequestProspect(PlayerController player)
         {
             int bonus = 0;
             try

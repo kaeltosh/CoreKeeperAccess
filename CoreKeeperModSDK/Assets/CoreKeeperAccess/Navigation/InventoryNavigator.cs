@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using Rewired;
@@ -139,7 +140,7 @@ namespace CoreKeeperAccess.Navigation
         // courant. En craft = liste des composants REQUIS de la recette (tout, pas seulement
         // ce qui manque). Station de reparation ouverte = en plus, cout de reparation et
         // gain de recyclage estime de l'objet. Sans effet sinon.
-        private static void AnnounceDetail()
+        internal static void AnnounceDetail()
         {
             if (_current == null) return;
             string info = BuildRecipeComponents(_current);
@@ -236,17 +237,8 @@ namespace CoreKeeperAccess.Navigation
             if (joy == null) return;
 
             // Touche access tenue : le D-pad est reserve aux commandes (pas la nav).
-            // Triangle + haut = details de l'element courant (en craft : composants
-            // requis) ; + bas = transferer ; + droite = reparer ; + gauche = tout
-            // recycler (les deux derniers exigent la station de reparation ouverte).
-            if (InfoKey.ModifierHeld)
-            {
-                if (InfoKey.DetailRequested) AnnounceDetail();
-                else if (InfoKey.ComboDown) Gameplay.GameplayInput.TransferSelected();
-                else if (InfoKey.ComboRight) Gameplay.GameplayInput.RepairSelected();
-                else if (InfoKey.ComboLeft) Gameplay.GameplayInput.SalvageStation();
-                return;
-            }
+            // Les combos eux-memes sont routes par ComboDispatcher (cf. ComboBindings).
+            if (InfoKey.ModifierHeld) return;
 
             // Boutons presses durant cette frame (front montant).
             int pressed = -1;

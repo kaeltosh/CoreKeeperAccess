@@ -1,3 +1,4 @@
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Patches;
 using PugTilemap;
 using Unity.Collections;
@@ -54,7 +55,7 @@ namespace CoreKeeperAccess.Gameplay
         private static readonly int2 NoImpact = new int2(int.MinValue, int.MinValue);
         private static int2 _lastImpact = NoImpact;
         private static int2 _lastSpecial = NoImpact;
-        private static int _lastEnemyKey;
+        private static long _lastEnemyKey;
         private static float _nextEnemyBeep;
         private static long _lastPassiveKey;
         private static float _nextPassiveBeep;
@@ -69,10 +70,7 @@ namespace CoreKeeperAccess.Gameplay
             if (PingSonar.Silencing) return;
 
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
-            if (Manager.ui.isAnyInventoryShowing
-                || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                || Manager.ui.isShowingMap)
-            { Reset(); return; }
+            if (!InputContext.InGameFree) { Reset(); return; }
 
             var input = player.inputModule;
             if (input == null) { Reset(); return; }
@@ -263,7 +261,7 @@ namespace CoreKeeperAccess.Gameplay
         public static TileInfo Special;
         public static bool HasEnemy;     // un ennemi est sur le trajet (avant le mur)
         public static float2 EnemyPos;   // position monde (xz) de l'ennemi le plus proche
-        public static int EnemyKey;      // index d'entite (pour detecter une NOUVELLE cible)
+        public static long EnemyKey;     // cle d'entite index+version (NOUVELLE cible)
         public static ObjectID EnemyObjectId; // type de la creature (pour le TTS du nom)
 
         // Cible NON hostile la plus proche sur le trajet (creature passive ou objet pose),
@@ -271,7 +269,7 @@ namespace CoreKeeperAccess.Gameplay
         // un champignon proche, donc les deux pistes sont publiees separement.
         public static bool HasPassive;
         public static float2 PassivePos;
-        public static long PassiveKey;          // index d'entite (creature) ou cle de case (objet)
+        public static long PassiveKey;          // cle d'entite (creature) ou cle de case (objet)
         public static ObjectID PassiveObjectId; // pour le TTS du nom
         public static bool PassiveIsCreature;   // creature (timbre + rappel) vs objet (un bip)
         public static bool PassiveInteractable; // objet interactible -> marqueur du curseur
@@ -315,7 +313,7 @@ namespace CoreKeeperAccess.Gameplay
                 int2 last = start;
                 bool foundEnemy = false;
                 float2 enemyPos = default;
-                int enemyKey = 0;
+                long enemyKey = 0;
                 ObjectID enemyObj = ObjectID.None;
                 bool foundPassive = false;
                 float2 passivePos = default;
@@ -402,7 +400,7 @@ namespace CoreKeeperAccess.Gameplay
                 LaserScan.PassiveInteractable = passiveInteractable;
                 LaserScan.ResultValid = true;
             }
-            catch { }
+            catch (System.Exception ex) { Diag.Error("A11yLaserDiag", ex); }
         }
 
         // Creatures sur la case, classees en deux bords. HOSTILE : entite a FactionCD non
@@ -414,7 +412,7 @@ namespace CoreKeeperAccess.Gameplay
         // EnemyCD ni CritterCD ni FactionCD hostile (PNJ, meubles a collider) ne sont
         // pas des creatures : elles passent par l'index d'objets.
         private void ScanCreatures(int2 c, World world,
-            ref bool foundEnemy, ref float2 enemyPos, ref int enemyKey, ref ObjectID enemyObj,
+            ref bool foundEnemy, ref float2 enemyPos, ref long enemyKey, ref ObjectID enemyObj,
             ref bool foundPassive, ref float2 passivePos, ref long passiveKey,
             ref ObjectID passiveObj, ref bool passiveCreature, ref bool passiveInteractable)
         {
@@ -441,14 +439,17 @@ namespace CoreKeeperAccess.Gameplay
                     {
                         foundEnemy = true;
                         enemyPos = new float2(c.x, c.y);
-                        enemyKey = h.Entity.Index;
+                        enemyKey = EntityKey.Of(h.Entity);
                         enemyObj = oid;
                     }
                     else if (!hostile && !foundPassive)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);
-                        passiveKey = h.Entity.Index;
+                        // Cle d'entite dans le meme champ long que les cles de case
+                        // (ObjectIndex.Key) : collision croisee theoriquement possible,
+                        // consequence benigne (une annonce dedupliquee a tort), assumee.
+                        passiveKey = EntityKey.Of(h.Entity);
                         passiveObj = oid;
                         passiveCreature = true;
                         passiveInteractable = false;

@@ -22,7 +22,7 @@ namespace CoreKeeperAccess.Localization
             var mod = FindSelf();
             if (mod == null)
             {
-                Debug.LogWarning("[CoreKeeperAccess] Strings.Load: mod introuvable via API.ModLoader.LoadedMods");
+                Debug.LogWarning("[CoreKeeperAccess] " + Diag.Stamp() + " Strings.Load: mod introuvable via API.ModLoader.LoadedMods");
                 return;
             }
 
@@ -99,7 +99,7 @@ namespace CoreKeeperAccess.Localization
             }
             catch (JsonException ex)
             {
-                Debug.LogWarning($"[CoreKeeperAccess] JSON invalide pour {languageCode}: {ex.Message}");
+                Debug.LogWarning($"[CoreKeeperAccess] {Diag.Stamp()} JSON invalide pour {languageCode}: {ex.Message}");
                 return null;
             }
         }

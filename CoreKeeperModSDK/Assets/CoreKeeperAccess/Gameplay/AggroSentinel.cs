@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Patches;
 using Unity.Collections;
 using Unity.Entities;
@@ -35,10 +36,11 @@ namespace CoreKeeperAccess.Gameplay
         private const float MaxAudibleDist = 30f;  // au-dela, volume plancher
         private const float BaseVolume = 0.5f;     // "doux" - a regler a l'oreille
 
-        private static readonly HashSet<int> _known = new HashSet<int>();   // chasseurs deja annonces (TTS)
-        private static readonly HashSet<int> _current = new HashSet<int>(); // tampon reutilise
-        private static readonly Queue<int> _queue = new Queue<int>();
-        private static readonly List<KeyValuePair<int, float>> _sort = new List<KeyValuePair<int, float>>();
+        private static readonly HashSet<long> _known = new HashSet<long>();   // chasseurs deja annonces (TTS)
+        private static readonly HashSet<long> _current = new HashSet<long>(); // tampon reutilise
+        private static readonly Queue<long> _queue = new Queue<long>();
+        private static readonly List<KeyValuePair<long, float>> _sort = new List<KeyValuePair<long, float>>();
+        private static readonly List<string> _names = new List<string>();     // tampon de composition TTS
         private static float _nextCycle;
         private static float _nextSlot;
         private static float _nextBossBeep;
@@ -52,7 +54,7 @@ namespace CoreKeeperAccess.Gameplay
             // Menu (pause...) ouvert : monde fige -> on suspend les bips sans perdre
             // l'etat. Inventaire/carte ouverts : on RESTE actif, le jeu continue en
             // temps reel et c'est precisement la qu'on se fait surprendre.
-            if (Manager.menu != null && Manager.menu.IsAnyMenuActive()) return;
+            if (InputContext.MenuOpen) return;
 
             // Salve du ping sonar en cours : fenetre sonore reservee, les bips de la
             // sentinelle attendent dans leur file (rien n'est perdu, juste differe).
@@ -77,20 +79,16 @@ namespace CoreKeeperAccess.Gameplay
             {
                 _lastVersion = AggroScan.Version;
                 _current.Clear();
-                string names = null;
+                _names.Clear();
                 for (int i = 0; i < AggroScan.Count; i++)
                 {
                     var c = AggroScan.Chasers[i];
                     _current.Add(c.Key);
                     if (_known.Add(c.Key))
-                    {
-                        string n = InGameTtsCore.ResolveObjectName(c.Obj);
-                        if (!string.IsNullOrEmpty(n))
-                            names = names == null ? n : names + ", " + n;
-                    }
+                        _names.Add(InGameTtsCore.ResolveObjectName(c.Obj));
                 }
                 _known.RemoveWhere(k => !_current.Contains(k));
-                if (names != null) TtsText.Say(names, true);
+                TtsText.Say(TtsText.Compose(_names), true);
             }
 
             // BOSS : canal dedie, cadence rapide (BossInterval), bip GRAVE distinct
@@ -114,7 +112,7 @@ namespace CoreKeeperAccess.Gameplay
                 for (int i = 0; i < AggroScan.Count; i++)
                 {
                     if (AggroScan.Chasers[i].IsBoss) continue;
-                    _sort.Add(new KeyValuePair<int, float>(
+                    _sort.Add(new KeyValuePair<long, float>(
                         AggroScan.Chasers[i].Key,
                         math.distancesq(AggroScan.Chasers[i].Pos, playerPos)));
                 }
@@ -129,7 +127,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 while (_queue.Count > 0)
                 {
-                    int key = _queue.Dequeue();
+                    long key = _queue.Dequeue();
                     if (!TryGetChaser(key, out float2 pos)) continue;
                     PlayBeep(pos, playerPos);
                     _nextSlot = now + SlotInterval;
@@ -138,7 +136,7 @@ namespace CoreKeeperAccess.Gameplay
             }
         }
 
-        private static bool TryGetChaser(int key, out float2 pos)
+        private static bool TryGetChaser(long key, out float2 pos)
         {
             for (int i = 0; i < AggroScan.Count; i++)
                 if (AggroScan.Chasers[i].Key == key) { pos = AggroScan.Chasers[i].Pos; return true; }
@@ -192,7 +190,7 @@ namespace CoreKeeperAccess.Gameplay
     {
         public struct Chaser
         {
-            public int Key;        // index d'entite (identite du chasseur)
+            public long Key;       // cle d'entite index+version (identite du chasseur)
             public float2 Pos;     // position monde (xz)
             public ObjectID Obj;   // type de creature (TTS du nom)
             public bool IsBoss;    // entite marquee BossCD -> bip dedie, cadence rapide
@@ -256,7 +254,6 @@ namespace CoreKeeperAccess.Gameplay
 
         private EntityQuery _query;
         private float _next;
-        private bool _errLogged;
 
         protected override void OnCreate()
         {
@@ -264,7 +261,7 @@ namespace CoreKeeperAccess.Gameplay
                 ComponentType.ReadOnly<IsInCombatCD>(),
                 ComponentType.ReadOnly<LocalTransform>());
             // Diag de mise au point : confirme dans quel monde le systeme s'enregistre.
-            Debug.Log("[A11yAggroDiag] AggroSentinelSystem cree dans " + World.Name);
+            Diag.Log("A11yAggroDiag", "AggroSentinelSystem cree dans " + World.Name);
         }
 
         protected override void OnUpdate()
@@ -304,7 +301,7 @@ namespace CoreKeeperAccess.Gameplay
                         : ObjectID.None;
                     AggroScan.Chasers[n++] = new AggroScan.Chaser
                     {
-                        Key = e.Index,
+                        Key = EntityKey.Of(e),
                         Pos = p,
                         Obj = obj,
                         IsBoss = EntityUtility.HasComponentData<BossCD>(e, World),
@@ -318,9 +315,10 @@ namespace CoreKeeperAccess.Gameplay
             }
             catch (System.Exception ex)
             {
-                // Une seule trace (pas de spam a 5 Hz) : sans ca, un echec de query est
-                // invisible et la sentinelle meurt en silence.
-                if (!_errLogged) { _errLogged = true; Debug.LogError("[A11yAggroDiag] " + ex); }
+                // Sans trace, un echec de query est invisible et la sentinelle meurt
+                // en silence. Diag.Error deduplique (pas de spam a 5 Hz) et laisse
+                // passer une erreur DIFFERENTE au meme site.
+                Diag.Error("A11yAggroDiag", ex);
             }
         }
     }

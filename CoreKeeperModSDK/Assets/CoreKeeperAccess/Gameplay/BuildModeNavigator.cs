@@ -1,3 +1,4 @@
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using PugTilemap;
@@ -37,6 +38,10 @@ namespace CoreKeeperAccess.Gameplay
         // pour que l'action passe par la case visee, pas par l'objet adjacent natif.
         internal static bool StealsCross;
 
+        // Curseur detache, pour la garde du combo "details de la case" (ComboBindings).
+        // La case sous le perso n'a pas de lecture fraiche -> detache seulement.
+        internal static bool CursorDetached => _detached;
+
         public static void Tick()
         {
             var player = Manager.main != null ? Manager.main.player : null;
@@ -44,10 +49,7 @@ namespace CoreKeeperAccess.Gameplay
 
             // Jeu normal seulement : si une fenetre (inventaire, fiche perso) OU la carte
             // (mode voyage rapide, gere par TeleportNavigator) prend le D-pad, on se retire.
-            if (Manager.ui.isAnyInventoryShowing
-                || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                || Manager.ui.isShowingMap)
-            { Reset(); return; }
+            if (!InputContext.InGameFree) { Reset(); return; }
 
             StealsDpad = true; // en jeu : on vole le D-pad au jeu pour le curseur
 
@@ -107,7 +109,13 @@ namespace CoreKeeperAccess.Gameplay
                     //  - case vide         -> s'y deplacer (comme une case lointaine)
                     GameplayAction.AimActive = true;
                     GameplayAction.AimDir = AimToward(_cursor, playerTile);
-                    if (croixDown)
+                    // Garde de fraicheur (fix audit) : TOUT le routage exige une lecture de
+                    // tuile republiee POUR LA CASE COURANTE. Avant, seule la branche
+                    // "deplacer" l'exigeait : miner/interagir pouvaient router sur la
+                    // lecture de la case PRECEDENTE (vieille d'une frame) -> mauvaise
+                    // action sur appui rapide apres un mouvement du curseur. Lecture pas
+                    // fraiche = l'appui ne fait rien, comme pour le deplacement.
+                    if (croixDown && TileQuery.ResultValid && TileQuery.ResultTile.Equals(_cursor))
                     {
                         if (TileQuery.HasWall)
                         {
@@ -128,12 +136,9 @@ namespace CoreKeeperAccess.Gameplay
                             GameplayAction.Held = PlayerInput.InputType.INTERACT_WITH_OBJECT;
                             GameplayAction.Pressed = PlayerInput.InputType.INTERACT_WITH_OBJECT;
                         }
-                        else if (TileQuery.ResultValid && TileQuery.ResultTile.Equals(_cursor))
+                        else
                         {
-                            // Case CONFIRMEE vide (lecture de tuile a jour pour cette case)
-                            // -> s'y deplacer. Le garde-fou evite qu'un appui sur une case a
-                            // peine survolee (lecture pas encore republiee, mur/objet vu comme
-                            // "vide") provoque un deplacement non voulu sur un minable/objet.
+                            // Case CONFIRMEE vide -> s'y deplacer.
                             MoveCommand.Target = new float2(_cursor.x, _cursor.y);
                             MoveCommand.Active = true;
                         }
@@ -162,11 +167,8 @@ namespace CoreKeeperAccess.Gameplay
                 _pending = false;
             }
 
-            // Touche access : Triangle + haut -> details de la case sous le curseur (surtout le
-            // materiau du mur, que le survol ne dit pas a la voix). Curseur detache seulement
-            // (la case sous le perso n'a pas de lecture fraiche).
-            if (InfoKey.DetailRequested && _detached)
-                AnnounceCursorDetails();
+            // Triangle + haut (details de la case) est route par ComboDispatcher
+            // (cf. ComboBindings), garde par CursorDetached.
 
             StealsCross = _detached; // vol de Croix actif uniquement curseur detache
         }
@@ -399,7 +401,7 @@ namespace CoreKeeperAccess.Gameplay
         // "Plus de details" sur la case sous le curseur (commande Triangle + haut). Donne ce
         // que le survol normal NE dit PAS a la voix : surtout le MATERIAU du mur (le survol
         // ne joue qu'un son). Trou/eau -> leur libelle ; objet -> son nom ; sinon le sol.
-        private static void AnnounceCursorDetails()
+        internal static void AnnounceCursorDetails()
         {
             string text;
             if (TileQuery.HasWall)
