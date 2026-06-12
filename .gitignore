@@ -39,3 +39,6 @@
 
 # Outil tiers téléchargé (AssetStudioMod) : re-téléchargeable, pas notre travail
 /tools/assetstudio/
+
+# Logs générés par l'outillage (build Unity batchmode, etc.)
+/tools/*.log
