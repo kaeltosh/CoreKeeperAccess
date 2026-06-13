@@ -373,11 +373,10 @@ namespace CoreKeeperAccess.Gameplay
             {
                 var b = _salvo[_next++];
                 float2 d = b.Pos - new float2(player.WorldPosition.x, player.WorldPosition.z);
-                var cam = Manager.camera != null ? Manager.camera.gameCamera : null;
-                float halfW = cam != null ? cam.orthographicSize * cam.aspect : 0f;
-                float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+                float pan = GameplayAudio.PanFromTiles(d.x);
                 float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
-                GameplayAudio.PlaySpatial(b.Sfx, pan, pitch, b.Volume);
+                GameplayAudio.PlaySpatial(b.Sfx, pan, pitch,
+                    b.Volume * GameplayAudio.DistanceTrim(math.length(d)));
                 _nextTime = Time.unscaledTime + SlotInterval;
             }
         }

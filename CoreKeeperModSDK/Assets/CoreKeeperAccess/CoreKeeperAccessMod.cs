@@ -48,12 +48,13 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 57";
+    private const string BuildTag = "build 78";
 
     public void Init()
     {
         Tolk.Load();
         Strings.Load();
+        CoreKeeperAccess.Gameplay.A11ySettings.Load(); // reglages utilisateur (volume maitre des sons du mod)
         DiagnosePatches();
         ComboBindings.RegisterAll(); // table combo x contexte de la touche access
         if (_devMode) TtsText.SelfTest(); // auto-verifs du composeur, cote dev seulement
@@ -103,9 +104,32 @@ public class CoreKeeperAccessMod : IMod
     {
     }
 
+    // Sentinelle de config audio (12 juin) : si la sortie n'est pas en vraie stereo,
+    // c'est generalement que l'AUDIO SPATIAL WINDOWS (Sonic/Atmos casque) est actif -
+    // il declare le casque en 7.1 et re-melange tous les canaux avec du crossfeed
+    // binaural : AUCUN pan ne survit (diagnostique chez l'utilisateur, builds 64-70 ;
+    // la fuite d'oreille opposee venait de la, pas du jeu ni du mod). On log la
+    // config (support testeurs : chercher driverCaps != Stereo dans Player.log) et
+    // on documente "desactiver l'audio spatial Windows" cote utilisateur.
+    private bool _audioCfgLogged;
+
+    private void LogAudioConfigOnce()
+    {
+        if (_audioCfgLogged) return;
+        _audioCfgLogged = true;
+        var cfg = AudioSettings.GetConfiguration();
+        Diag.Log("A11yPanDiag", "speakerMode=" + cfg.speakerMode
+            + " driverCaps=" + AudioSettings.driverCapabilities
+            + (AudioSettings.driverCapabilities != AudioSpeakerMode.Stereo
+                ? " (audio spatial Windows probablement ACTIF : pan degrade)" : ""));
+    }
+
     public void Update()
     {
         TryAutoLoad();
+        TryDevGodMode();
+        TryDevInvincible();
+        LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
@@ -116,10 +140,49 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active
         CoreKeeperAccess.Gameplay.BuildModeNavigator.Tick();
         CoreKeeperAccess.Gameplay.AggroSentinel.Tick();
+        CoreKeeperAccess.Gameplay.CombatSlowMotion.Tick(); // apres la sentinelle : etat de combat frais
+        CoreKeeperAccess.Gameplay.CenterBeacon.Tick();     // repere de centre d'arene (drone vers la SummonArea)
+        CoreKeeperAccess.Gameplay.FireProximity.Tick();    // alerte de proximite des zones de feu
         // Apres le tick de tous les modules : les gardes de contexte lisent des etats
         // frais (curseur detache, nav inventaire...) au moment de router les combos.
         ComboDispatcher.Tick();
         PadDiagnostic.Tick(); // diagnostic manette F9
+    }
+
+    // Outil de test CACHE (jamais documente cote testeurs) : toggle du god mode CREATIF
+    // natif - god mode INTEGRAL (invincible + passe-muraille + invisible aux ennemis +
+    // degats massifs/one-shot), PAS une simple invincibilite. A activer pour explorer /
+    // se deplacer vite, a COUPER pour tester le combat reel. Combo volontairement
+    // improbable : Triangle (touche access) MAINTENU + F8 clavier -> un testeur ne tombe
+    // pas dessus par hasard (F9 est deja le diag manette, F8 etait libre).
+    private void TryDevGodMode()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F8)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        try
+        {
+            bool on = player.GetLastLocalGodModeState();
+            player.SetGodModeCreative(!on);
+            TtsText.Say(!on ? "Mode createur active" : "Mode createur desactive", true);
+            Diag.Log("A11yDevGodMode", "god mode creatif -> " + (!on));
+        }
+        catch (System.Exception ex) { Diag.Error("A11yDevGodMode", ex); }
+    }
+
+    // Outil de test CACHE : invincibilite PURE (le joueur ne meurt pas, mais le combat
+    // reste normal - DISTINCT du god mode creatif F8). Toggle Triangle (touche access)
+    // MAINTENU + F7 clavier. Le forcage de vie est fait cote serveur par
+    // DevInvincibilitySystem ; ici on ne fait que basculer le flag partage.
+    private void TryDevInvincible()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F7)) return;
+        CoreKeeperAccess.Gameplay.DevInvincibility.Active = !CoreKeeperAccess.Gameplay.DevInvincibility.Active;
+        bool on = CoreKeeperAccess.Gameplay.DevInvincibility.Active;
+        TtsText.Say(on ? "Invincible active" : "Invincible desactive", true);
+        Diag.Log("A11yDevGodMode", "invincibilite pure -> " + on);
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

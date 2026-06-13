@@ -27,14 +27,15 @@ namespace CoreKeeperAccess.Gameplay
     {
         private const float StickDeadzone = 0.25f;          // deadzone stick droit
 
-        // Cadence de rappel du bip ennemi tant qu'une cible reste dans le faisceau (un ennemi
-        // immobile ne ferait sinon qu'un seul bip puis silence). A regler a l'oreille.
-        private const float EnemyBeepInterval = 0.4f;
+        // Cadence de rappel du bip ennemi tant qu'une cible reste dans le faisceau. Volontairement
+        // RAPIDE : ce son est un signal d'ALIGNEMENT (le rayon est sur l'ennemi -> mon tir part
+        // dessus, je peux frapper), pas une simple presence. A cadence serree il devient quasi
+        // tenu -> ca crepite vite = t'es dessus, ca s'arrete = t'as glisse. C'est le "viseur".
+        private const float EnemyBeepInterval = 0.13f;
 
-        // Placeholder : l'utilisateur choisira le vrai son ennemi ensuite. proximity_sensor_set
-        // = un son de detection, plausible en attendant.
+        // Son ennemi du laser. proximity_sensor_set = DEFINITIF (decision utilisateur).
         private const SfxID EnemySfxPlaceholder = SfxID.proximity_sensor_set;
-        private const float EnemyVolume = 0.5f; // a regler a l'oreille
+        private const float EnemyVolume = 0.8f; // a regler a l'oreille
 
         // Cibles NON hostiles sur le trajet (creatures passives : insectes, chevres,
         // slimes dormants... / objets poses : champignons, drops, meubles). Un son par
@@ -201,14 +202,16 @@ namespace CoreKeeperAccess.Gameplay
         }
 
         // Bip ennemi positionnel : pan gauche-droite + pitch vertical (+1 demi-ton/ligne),
-        // par rapport au joueur, comme les sons du curseur.
+        // par rapport au joueur, comme les sons du curseur. PAS de trim distance ici (contrairement
+        // aux autres sons positionnels) : ce son confirme l'ALIGNEMENT du tir, pas la distance (la
+        // distance est deja portee par le bip boss / la sentinelle). Le faire faiblir avec
+        // l'eloignement rendait le "t'es dessus" inaudible sur une cible lointaine -> volume plein.
         private static void PlayEnemy(float2 worldPos)
         {
             var p = Manager.main != null ? Manager.main.player : null;
             if (p == null) return;
             float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Pow(2f, d.y / 12f);
             GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume);
         }
@@ -222,14 +225,14 @@ namespace CoreKeeperAccess.Gameplay
             var p = Manager.main != null ? Manager.main.player : null;
             if (p == null) return;
             float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Pow(2f, d.y / 12f);
+            float trim = GameplayAudio.DistanceTrim(math.length(d));
             GameplayAudio.PlaySpatial(
                 isCreature ? PassiveCreatureSfxPlaceholder : PassiveObjectSfxPlaceholder,
-                pan, pitch, PassiveVolume);
+                pan, pitch, PassiveVolume * trim);
             if (interactable)
-                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f);
+                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f * trim);
         }
 
         // Demi-largeur visible en cases (range pour normaliser le pan -1..+1), comme le curseur.

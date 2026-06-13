@@ -33,8 +33,9 @@ namespace CoreKeeperAccess.Gameplay
         private const float CycleInterval = 1f;    // cadence de rappel de la jauge
         private const float BossInterval = 0.35f;  // cadence dediee BOSS (demande utilisateur :
                                                    // plus frequent qu'un mob, et un bip DIFFERENT)
-        private const float MaxAudibleDist = 30f;  // au-dela, volume plancher
         private const float BaseVolume = 0.5f;     // "doux" - a regler a l'oreille
+        private const float BossVolumeScale = 0.6f; // le bip boss (scie, riche en harmoniques)
+                                                    // sort plus fort qu'un mob a volume egal -> attenue
 
         private static readonly HashSet<long> _known = new HashSet<long>();   // chasseurs deja annonces (TTS)
         private static readonly HashSet<long> _current = new HashSet<long>(); // tampon reutilise
@@ -91,7 +92,7 @@ namespace CoreKeeperAccess.Gameplay
                 TtsText.Say(TtsText.Compose(_names), true);
             }
 
-            // BOSS : canal dedie, cadence rapide (BossInterval), bip GRAVE distinct
+            // BOSS : canal dedie, cadence rapide (BossInterval), timbre distinct
             // (PlayBossTone) - exclu de la file standard pour ne pas doubler. Respecte
             // le creneau global _nextSlot (jamais deux bips superposes). S'il y a
             // plusieurs boss (rarissime), le plus proche porte le signal.
@@ -158,18 +159,16 @@ namespace CoreKeeperAccess.Gameplay
             return found;
         }
 
-        // Bip positionnel : pan gauche-droite normalise sur la demi-largeur ecran +
-        // pitch vertical (+1 demi-ton/ligne, borne a une octave) + volume-distance.
-        // boss=true -> bip grave dedie (PlayBossTone), meme langage positionnel.
+        // Bip positionnel : pan gauche-droite au bareme commun en cases (PanFromTiles)
+        // + pitch vertical (+1 demi-ton/ligne, borne a une octave) + volume-distance.
+        // boss=true -> timbre boss dedie (PlayBossTone), meme langage positionnel.
         private static void PlayBeep(float2 worldPos, float2 playerPos, bool boss = false)
         {
             float2 d = worldPos - playerPos;
-            var cam = Manager.camera != null ? Manager.camera.gameCamera : null;
-            float halfW = cam != null ? cam.orthographicSize * cam.aspect : 0f;
-            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
-            float volume = BaseVolume * Mathf.Clamp(1f - math.length(d) / MaxAudibleDist, 0.15f, 1f);
-            if (boss) GameplayAudio.PlayBossTone(pan, pitch, volume);
+            float volume = BaseVolume * GameplayAudio.DistanceTrim(math.length(d));
+            if (boss) GameplayAudio.PlayBossTone(pan, pitch, volume * BossVolumeScale);
             else GameplayAudio.PlayTone(pan, pitch, volume);
         }
 
@@ -180,6 +179,202 @@ namespace CoreKeeperAccess.Gameplay
             _known.Clear();
             _queue.Clear();
             _lastVersion = 0;
+        }
+    }
+
+    // Ralenti de combat (PROTO, 13 juin). Quand le joueur est EN COMBAT, on ralentit le
+    // temps du jeu via Time.timeScale -> le combat devient tenable a l'oreille. Tout
+    // ralentit ENSEMBLE (le boss ET le joueur) ; le gain vient de ce que le temps de
+    // REACTION humain, lui, est fixe en temps reel : ralenti, il pese bien moins lourd
+    // dans la fenetre de jeu, donc on a le temps d'entendre un signal et d'agir. SOLO
+    // uniquement (on ne ralentit pas un serveur partage). PROTO : se declenche sur TOUT
+    // combat ; a restreindre aux BOSS ensuite (AggroScan.Chasers[i].IsBoss). "En combat"
+    // = exactement ce que publie la sentinelle (hostiles vivants IsInCombatCD a l'ecran
+    // + boss hors-champ, filtres deja faits) -> AggroScan.Count > 0.
+    //
+    // A loger dans son propre fichier au prochain build Unity (ici pour rester fast-build).
+    internal static class CombatSlowMotion
+    {
+        private const float SlowScale = 0.5f; // mi-vitesse ; a regler a l'oreille en jeu
+
+        private static bool _applied;
+
+        public static void Tick()
+        {
+            var player = Manager.main != null ? Manager.main.player : null;
+
+            // Un menu de PAUSE fige le jeu en posant lui-meme timeScale=0 : on ne lutte
+            // JAMAIS contre ca (sinon on casse la pause). MenuOpen = monde fige (pas
+            // l'inventaire, qui lui continue en temps reel).
+            bool worldRunning = player != null && !InputContext.MenuOpen;
+            bool inCombat = AggroScan.ResultValid && AggroScan.Count > 0;
+
+            if (worldRunning && inCombat)
+            {
+                if (!_applied) { Time.timeScale = SlowScale; _applied = true; }
+                return;
+            }
+
+            // On ne ralentit plus : restaurer la vitesse normale - SAUF si une pause a la
+            // main sur timeScale (monde fige), auquel cas on lache sans toucher (le jeu
+            // gere ; au depause, on reposera le ralenti si le combat dure encore).
+            if (_applied)
+            {
+                if (!InputContext.MenuOpen) Time.timeScale = 1f;
+                _applied = false;
+            }
+        }
+    }
+
+    // Repere de centre d'arene (placeholder, 13 juin). Quand une zone d'invocation
+    // (SummonArea = centre de l'arene de boss) est a portee, un drone sinusoidal doux et
+    // CONTINU indique sa direction : pan est-ouest + pitch nord-sud (langage positionnel
+    // du mod), par rapport au joueur. Sert AVANT le combat (poser le crane pile au centre,
+    // fini le tatonnement) ET pendant (se situer dans le disque). Volume tres faible
+    // (ambiance, jamais couvrant). Portee calee sur l'arene (~16 cases de diametre ->
+    // rayon ~8, + marge). Detection = CenterScan, publie par TileReaderSystem au fil de
+    // son scan d'objets. Son = sinus genere placeholder (l'utilisateur choisira).
+    // A loger dans son propre fichier au prochain build Unity (avec CombatSlowMotion).
+    internal static class CenterBeacon
+    {
+        private const float Range = 10f;     // portee max (rayon arene ~8 + marge)
+        private const float Volume = 0.12f;  // tres faible (placeholder, a regler a l'oreille)
+
+        public static void Tick()
+        {
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null || !InputContext.InGameFree || !CenterScan.Found)
+            {
+                GameplayAudio.SetCenterDrone(false, 0f, 1f, 0f);
+                return;
+            }
+
+            float2 me = new float2(player.WorldPosition.x, player.WorldPosition.z);
+            float2 d = CenterScan.Pos - me;
+            float dist = math.length(d);
+            if (dist > Range)
+            {
+                GameplayAudio.SetCenterDrone(false, 0f, 1f, 0f);
+                return;
+            }
+
+            float pan = GameplayAudio.PanFromTiles(d.x);
+            float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
+            GameplayAudio.SetCenterDrone(true, pan, pitch, Volume);
+        }
+    }
+
+    // Detecteur de proximite des ZONES DE FEU (premier jet, 13 juin). Le feu au sol
+    // (zones AoE de Malugaz, pieges de flammes...) n'est PAS une tuile : ce sont des
+    // ENTITES (ObjectID FireAoeDamage / FireTrap / OilFireTrap) -> on les lit dans
+    // l'index case->objet existant (il capte les entites sans collider, deja reconstruit
+    // ~4 Hz). Alerte positionnelle (pan est-ouest + pitch nord-sud) quand une zone est a
+    // <= AlertRange cases ; rappel a la cadence tant qu'elle reste proche. Le joueur
+    // ESQUIVE lui-meme (perception, pas assist). Son = SfxID.dg2 (choix utilisateur, son
+    // natif court du jeu). A loger dans son propre fichier au prochain build Unity.
+    // PREMIER JET : la zone la plus proche seulement (agglomeration
+    // en clusters + alerte de contact dediee a ajouter apres validation de la detection).
+    internal static class FireProximity
+    {
+        private const float AlertRange = 2f;     // cases : seuil d'alerte de proximite
+        private const float ScanInterval = 0.1f; // ~10 Hz : frequence d'iteration de l'index
+        private const float BeepInterval = 0.15f; // rappel rapide (crepitement dense, zone proche)
+        private const SfxID FireSfx = SfxID.dg2;   // son de proximite feu (choix utilisateur)
+        private const float Volume = 1.2f;         // pousse : dg2 est attenue par la normalisation
+
+        private static float _nextScan;
+        private static float _nextBeep;
+
+        public static void Tick()
+        {
+            var p = Manager.main != null ? Manager.main.player : null;
+            if (p == null || !InputContext.InGameFree) return;
+            if (Time.unscaledTime < _nextScan) return;
+            _nextScan = Time.unscaledTime + ScanInterval;
+
+            int2 me = new int2(
+                (int)math.round(p.WorldPosition.x),
+                (int)math.round(p.WorldPosition.z));
+
+            // Zone de feu la plus proche dans l'index (cle = case encodee, cf. ObjectIndex.Key).
+            bool found = false;
+            float best = float.MaxValue;
+            int2 bestTile = default;
+            foreach (var kv in ObjectIndex.Map)
+            {
+                if (!IsFire(kv.Value.Id)) continue;
+                int2 t = new int2((int)(kv.Key >> 32), (int)(kv.Key & 0xFFFFFFFF));
+                float d2 = math.distancesq(new float2(t.x, t.y), new float2(me.x, me.y));
+                if (d2 < best) { best = d2; bestTile = t; found = true; }
+            }
+            if (!found) return;
+
+            float dist = math.sqrt(best);
+            if (dist > AlertRange) return;
+            if (Time.unscaledTime < _nextBeep) return;
+            _nextBeep = Time.unscaledTime + BeepInterval;
+
+            int dx = bestTile.x - me.x, dy = bestTile.y - me.y;
+            // Portee courte (<= AlertRange) -> on EXAGERE pan et pitch, sinon la direction
+            // est imperceptible (le bareme commun 1/12 par case ne bouge presque pas sur
+            // 2 cases) : plein pan a la portee max, ~1 octave de pitch a la portee max.
+            float pan = Mathf.Clamp((float)dx / AlertRange, -1f, 1f);
+            float pitch = Mathf.Clamp(Mathf.Pow(2f, dy / 2f), 0.5f, 2f);
+            GameplayAudio.PlaySpatial(FireSfx, pan, pitch, Volume * GameplayAudio.DistanceTrim(dist));
+        }
+
+        private static bool IsFire(ObjectID id)
+            => id == ObjectID.FireAoeDamage
+            || id == ObjectID.FireTrap
+            || id == ObjectID.OilFireTrap;
+    }
+
+    // Flag de l'invincibilite PURE (outil de test, toggle Triangle+F7). Partage entre le
+    // mod (qui le bascule) et le systeme serveur (qui force la vie) - meme process en solo.
+    // DISTINCT du god mode creatif (F8) : ici le combat reste NORMAL (boss vivant, ennemis
+    // actifs, murs solides), le joueur ne meurt juste pas.
+    internal static class DevInvincibility
+    {
+        public static bool Active;
+    }
+
+    // Force la vie du joueur au max tant que l'invincibilite de test est active. SERVEUR
+    // (autoritaire) : en solo le ServerWorld tourne dans notre process, donc l'ecriture
+    // tient (cote client elle serait corrigee au prochain snapshot). Cible les entites
+    // HealthCD + PlayerGhost (= les joueurs). Pas de SystemAPI.Query en hot-compile ->
+    // GetEntityQuery + EntityManager (cf. fiche acces donnees). health/maxHealth confirmes
+    // sur HealthCD ; on rejoue le meme "health = maxHealth" que le jeu pour soigner.
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    public partial class DevInvincibilitySystem : SystemBase
+    {
+        private EntityQuery _query;
+
+        protected override void OnCreate()
+        {
+            _query = GetEntityQuery(
+                ComponentType.ReadWrite<HealthCD>(),
+                ComponentType.ReadOnly<PlayerGhost>());
+            Diag.Log("A11yDevGodMode", "DevInvincibilitySystem cree dans " + World.Name);
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!DevInvincibility.Active) return;
+            try
+            {
+                var ents = _query.ToEntityArray(Allocator.Temp);
+                foreach (var e in ents)
+                {
+                    var h = EntityManager.GetComponentData<HealthCD>(e);
+                    if (h.health < h.maxHealth)
+                    {
+                        h.health = h.maxHealth;
+                        EntityManager.SetComponentData(e, h);
+                    }
+                }
+                ents.Dispose();
+            }
+            catch (System.Exception ex) { Diag.Error("A11yDevGodMode", ex); }
         }
     }
 
@@ -290,11 +485,15 @@ namespace CoreKeeperAccess.Gameplay
                         && EntityUtility.GetComponentData<HealthCD>(e, World).health <= 0) continue;
 
                     // "Tant qu'il est a l'ecran" (choix utilisateur) : rectangle camera
-                    // approximatif publie par le mod, marge d'une case.
+                    // approximatif publie par le mod, marge d'une case. EXCEPTION boss
+                    // (12 juin) : un boss en combat reste audible HORS camera - les
+                    // teleports de Malugaz sortent du cadre et c'est precisement la
+                    // qu'il faut le suivre ; le volume-distance dit deja "loin".
+                    bool isBoss = EntityUtility.HasComponentData<BossCD>(e, World);
                     var pos = EntityUtility.GetComponentData<LocalTransform>(e, World).Position;
                     float2 p = new float2(pos.x, pos.z);
                     float2 d = p - AggroScan.PlayerPos;
-                    if (math.abs(d.x) > AggroScan.CamHalf.x || math.abs(d.y) > AggroScan.CamHalf.y) continue;
+                    if (!isBoss && (math.abs(d.x) > AggroScan.CamHalf.x || math.abs(d.y) > AggroScan.CamHalf.y)) continue;
 
                     ObjectID obj = EntityUtility.HasComponentData<ObjectDataCD>(e, World)
                         ? EntityUtility.GetComponentData<ObjectDataCD>(e, World).objectID
@@ -304,7 +503,7 @@ namespace CoreKeeperAccess.Gameplay
                         Key = EntityKey.Of(e),
                         Pos = p,
                         Obj = obj,
-                        IsBoss = EntityUtility.HasComponentData<BossCD>(e, World),
+                        IsBoss = isBoss,
                     };
                 }
                 ents.Dispose();

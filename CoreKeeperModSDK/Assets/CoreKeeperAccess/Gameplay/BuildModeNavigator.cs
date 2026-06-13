@@ -267,18 +267,21 @@ namespace CoreKeeperAccess.Gameplay
 
         // Tick SPATIALISE (son maison pan/pitch) a chaque deplacement sur une case
         // franchissable : confirme la position du curseur par rapport au joueur. Pan
-        // gauche-droite selon l'ecart horizontal (borne au range = demi-largeur visible) ;
+        // gauche-droite au bareme commun en cases (GameplayAudio.PanFromTiles) ;
         // pitch +1 demi-ton par ligne d'ecart vertical (au-dessus = plus aigu).
         // Volume du tick de deplacement (case vide / deco), a regler a l'oreille.
         private const float MoveTickVolume = 0.3f;
 
         private static void PlayMoveTick(int dx, int dy)
         {
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(dx);
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch, MoveTickVolume);
+            GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch,
+                MoveTickVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
+
+        // Distance joueur->case en cases, pour le trim de volume commun.
+        private static float Dist(int dx, int dy) => Mathf.Sqrt(dx * dx + dy * dy);
 
         // Volume des surfaces speciales (trou / eau) au curseur (a regler a l'oreille).
         private const float SpecialSurfaceVolume = 0.25f;
@@ -287,10 +290,10 @@ namespace CoreKeeperAccess.Gameplay
         // mur), spatialise gauche-droite + pitch vertical (haut = aigu), comme le tick.
         private static void PlaySpecialSurface(int dx, int dy, SfxID id)
         {
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(dx);
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-            GameplayAudio.PlaySpatial(id, pan, pitch, SpecialSurfaceVolume);
+            GameplayAudio.PlaySpatial(id, pan, pitch,
+                SpecialSurfaceVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Volume du son de materiau au survol d'un mur (a regler a l'oreille).
@@ -323,9 +326,9 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             // Marqueur interactible en supplement : hauteur fixe (1f), juste pan gauche-droite.
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(dx / halfW, -1f, 1f) : 0f;
-            GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, ObjectMarkerVolume);
+            float pan = GameplayAudio.PanFromTiles(dx);
+            GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f,
+                ObjectMarkerVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Son du materiau que le jeu attribue a l'objet pose : ObjectDataCD (objectID +

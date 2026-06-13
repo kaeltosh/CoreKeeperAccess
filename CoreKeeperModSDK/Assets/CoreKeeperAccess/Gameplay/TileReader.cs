@@ -120,6 +120,16 @@ namespace CoreKeeperAccess.Gameplay
         public static bool TryGet(int2 t, out Entry e) => Map.TryGetValue(Key(t), out e);
     }
 
+    // Pont du repere de centre : position de la zone d'invocation (SummonArea = centre
+    // de l'arene de boss) la plus proche, captee par TileReaderSystem au fil de son scan
+    // d'objets (aucun scan dedie). Found=false = aucune SummonArea a portee (cas normal
+    // hors arene) -> le drone du repere se tait.
+    internal static class CenterScan
+    {
+        public static bool Found;
+        public static float2 Pos;
+    }
+
     // Lecture d'une case (sol / mur / minerai / objet pose), partagee par les systemes
     // ECS du mod (curseur de tuile, canne laser). Doit etre appelee depuis un systeme
     // (le TileAccessor vient de son SystemState) ; le CollisionWorld et le World sont
@@ -317,6 +327,10 @@ namespace CoreKeeperAccess.Gameplay
                 float2 center = ObjectIndex.Center;
                 float r2 = IndexRadius * IndexRadius;
 
+                // Repere de centre : on capte au passage la SummonArea (sigil
+                // d'invocation = centre de l'arene de boss) la plus proche, sans
+                // scan dedie (ce balayage d'objets tourne deja a ~4 Hz).
+                bool caFound = false; float caBest = float.MaxValue; float2 caPos = default;
                 var ents = _objQuery.ToEntityArray(Allocator.Temp);
                 foreach (var e in ents)
                 {
@@ -342,6 +356,12 @@ namespace CoreKeeperAccess.Gameplay
 
                     var od = EntityManager.GetComponentData<ObjectDataCD>(e);
                     if (od.objectID == ObjectID.None) continue;
+
+                    if (od.objectID == ObjectID.SummonArea)
+                    {
+                        float caD2 = math.lengthsq(p - center);
+                        if (caD2 < caBest) { caBest = caD2; caPos = p; caFound = true; }
+                    }
 
                     int2 size;
                     int2 corner;
@@ -382,6 +402,8 @@ namespace CoreKeeperAccess.Gameplay
                         }
                 }
                 ents.Dispose();
+                CenterScan.Found = caFound;
+                CenterScan.Pos = caPos;
             }
             catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
         }
