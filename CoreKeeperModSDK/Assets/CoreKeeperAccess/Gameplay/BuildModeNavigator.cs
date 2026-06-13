@@ -173,11 +173,20 @@ namespace CoreKeeperAccess.Gameplay
             StealsCross = _detached; // vol de Croix actif uniquement curseur detache
         }
 
+        // Case du curseur de tuile, exposee pour l'annonce d'emprise differee (PlacementReader
+        // au poll, le temps que le ghost rattrape le curseur -> pas la latence du ghost).
+        internal static int2 CursorTile => _cursor;
+        internal static float FootprintDueAt = -1f; // echeance d'annonce d'emprise (apres deplacement curseur)
+
         private static void Announce()
         {
             var p = Manager.main != null ? Manager.main.player : null;
             int2 pt = p != null ? ToTile(p.WorldPosition) : _cursor;
             int dx = _cursor.x - pt.x, dy = _cursor.y - pt.y;
+            // Curseur deplace deliberement (detache) -> programmer l'annonce d'emprise un
+            // peu plus tard (le ghost a alors rattrape le curseur). Repousse a chaque
+            // deplacement -> une seule annonce quand on s'arrete, pas pendant le balayage.
+            if (CursorDetached) FootprintDueAt = UnityEngine.Time.unscaledTime + 0.12f;
 
             // Repere central : curseur sur la case du personnage. Sans coordonnees, c'est
             // le point d'ancrage pour se retrouver. On l'annonce et on s'arrete la (le sol

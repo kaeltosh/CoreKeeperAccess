@@ -13,7 +13,8 @@ namespace CoreKeeperAccess.Controls
     // ensuite le bouton Triangle PHYSIQUE en direct (independant du mapping d'action).
     internal static class TriangleModifier
     {
-        private const int ToggleMapActionId = 55; // RewiredConsts.Action.ToggleMap
+        private const int ToggleMapActionId = 55;  // RewiredConsts.Action.ToggleMap
+        private const int RotateActionId = 207;    // RewiredConsts.Action.Rotate (sur Croix en placement)
 
         // Id physique du bouton Triangle, capte automatiquement depuis le binding de la carte
         // avant qu'on le supprime -> juste pour la manette reelle du joueur (PS/Xbox/...), pas
@@ -43,11 +44,16 @@ namespace CoreKeeperAccess.Controls
                     if (map == null || map.controllerType != ControllerType.Joystick) continue;
                     toDelete.Clear();
                     foreach (var aem in map.AllMaps)
+                    {
                         if (aem.actionId == ToggleMapActionId)
                         {
                             TriangleButtonId = aem.elementIdentifierId; // bouton physique = Triangle
                             toDelete.Add(aem.id);
                         }
+                        // Rotate (207) : retiree de la manette pour que Croix ne pivote plus
+                        // un objet par accident. On la rejoue via Triangle + R1 (armement).
+                        else if (aem.actionId == RotateActionId) toDelete.Add(aem.id);
+                    }
                     foreach (var id in toDelete) map.DeleteElementMap(id);
                 }
             }

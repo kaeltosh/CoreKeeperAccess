@@ -20,7 +20,9 @@ namespace CoreKeeperAccess.Controls
             Down,      // Triangle + bas
             Left,      // Triangle + gauche
             BumperL,   // Triangle + L1
+            BumperR,   // Triangle + R1 (pivoter / changer taille de zone)
             DoubleTap, // double-tap bref de Triangle
+            LeftStick, // Triangle + L3 (toggle direction assistee)
         }
 
         private struct Entry
@@ -33,7 +35,7 @@ namespace CoreKeeperAccess.Controls
 
         private static List<Entry>[] BuildTable()
         {
-            var t = new List<Entry>[6];
+            var t = new List<Entry>[8];
             for (int i = 0; i < t.Length; i++) t[i] = new List<Entry>(4);
             return t;
         }
@@ -52,6 +54,8 @@ namespace CoreKeeperAccess.Controls
             if (InfoKey.ComboDown) Fire(Combo.Down);
             if (InfoKey.ComboLeft) Fire(Combo.Left);
             if (InfoKey.ComboLB) Fire(Combo.BumperL);
+            if (InfoKey.ComboR1) Fire(Combo.BumperR);
+            if (InfoKey.ComboL3) Fire(Combo.LeftStick);
             if (InfoKey.DoubleTapped) Fire(Combo.DoubleTap);
         }
 

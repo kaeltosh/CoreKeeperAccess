@@ -44,6 +44,23 @@ namespace CoreKeeperAccess.Controls
                 () => !UiBusy() && InputContext.InGameFree && Player() != null,
                 () => PingSonar.Trigger(Player()));
 
+            // Triangle + L3 = bascule "direction assistee" (snap cardinal du deplacement),
+            // jeu normal seulement. Toggle : reste actif jusqu'a re-bascule.
+            ComboDispatcher.Register(ComboDispatcher.Combo.LeftStick,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null,
+                DirectionAssist.Toggle);
+
+            // Triangle + R1 = pivoter l'objet en main / changer la taille de zone (houe,
+            // pelle). On arme l'action ROTATE native -> le jeu tourne/redimensionne lui-meme
+            // (meme canal que la pose). Croix reste libre (action Rotate retiree de la manette
+            // par TriangleModifier, plus de pivot intempestif).
+            ComboDispatcher.Register(ComboDispatcher.Combo.BumperR,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.ROTATE;
+                    InventoryNavState.ArmedTtl = 2;
+                });
+
             // Double-tap Triangle = ouvrir/fermer la carte : on rejoue l'action native
             // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
             // jeu fait le reste (toggle, fermeture au B aussi).

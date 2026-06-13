@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using HarmonyLib;
+using Unity.Mathematics;
 
 namespace CoreKeeperAccess.Patches
 {
@@ -37,6 +38,7 @@ namespace CoreKeeperAccess.Patches
             }
 
             Add(BuildCraftInfo(element));
+            Add(BuildSizeInfo(element));
 
             // Tooltip : description puis stats, lus directement a la selection.
             // Pour zapper, il suffit de bouger (l'annonce suivante interrompt).
@@ -113,6 +115,99 @@ namespace CoreKeeperAccess.Patches
             return missing.Count == 0
                 ? Strings.L("craft.craftable")
                 : Strings.L("craft.missing") + " " + string.Join(", ", missing);
+        }
+
+        // Taille brute "2x2" pour le tooltip inventaire (hors contexte de pose : pas de
+        // direction, qui n'aurait pas de sens sans curseur). Null si 1x1 ou vide.
+        private static string BuildSizeInfo(UIelement element)
+        {
+            try
+            {
+                var od = element.GetContainedObject().objectData;
+                return FootprintSize(od.objectID, od.variation);
+            }
+            catch { return null; }
+        }
+
+        public static string FootprintSize(ObjectID objectID, int variation)
+        {
+            int2 sz, co;
+            if (!TryFootprint(objectID, variation, out sz, out co)) return null;
+            return sz.x + "x" + sz.y;
+        }
+
+        // Debordements de l'emprise PAR RAPPORT au point vise (= la case du curseur),
+        // en cases : "s'etend 2 vers le haut, 1 a droite, 1 a gauche". C'est l'info
+        // actionnable AU CURSEUR (ou la structure tombe si on pose ici). Repere x=est
+        // y=nord, ancre = vise - cornerOffset (confirme PlaceObjectSlot) :
+        //   haut(nord)=sz.y-1-co.y, bas(sud)=co.y, droite(est)=sz.x-1-co.x, gauche(ouest)=co.x.
+        // ROTATION prise en compte : l'emprise tourne AUTOUR du point vise (RotateTransform
+        // = RotateY autour du cornerOffset, decompile) -> les 4 debordements pivotent en
+        // bloc. variation 0=nord..3=ouest = sens horaire -> decalage cyclique de rot crans.
+        // Etalement de l'emprise RELATIF A LA CASE DU CURSEUR. Le ghost SUIT le curseur
+        // (le mod vise la case du curseur), donc on RECALCULE l'ancre nous-memes a partir
+        // du curseur - synchrone, sans la latence d'une frame qui faisait osciller la
+        // lecture de bestPositionToPlaceAt. Le jeu CENTRE l'objet sur la visee :
+        // ancre = curseur - taille/2 (division entiere). VALIDE sur le log (lit 2x1,
+        // curseur x=9 -> ancre 8, comme le jeu). Etalement = comment le ghost deborde
+        // autour de ta case visee. cursor en coord tuile (x=est, y=nord).
+        // Deploiement du ghost RELATIF a la case du curseur (sonde). Le lit se pose dans
+        // la direction de VISEE (pas au curseur) -> on lit sa position REELLE
+        // (PlacementCD.bestPositionToPlaceAt), on la COMPARE au curseur, et on decrit ou
+        // les cases du ghost tombent par rapport a la sonde. Curseur SUR le ghost ->
+        // etalement de chaque cote ; curseur a cote -> "de X a Y" dans la direction du ghost.
+        public static string FootprintFromCursor(int2 cursor)
+        {
+            try
+            {
+                var player = Manager.main != null ? Manager.main.player : null;
+                if (player == null) return null;
+                var held = player.GetHeldObject();
+                int2 szBase, co;
+                if (!TryFootprint(held.objectID, held.variation, out szBase, out co)) return null;
+                if (!EntityUtility.HasComponentData<PlacementCD>(player.entity, player.world)) return null;
+                var pc = EntityUtility.GetComponentData<PlacementCD>(player.entity, player.world);
+
+                int2 sz = DirectionCD.GetPrefabTileSize(szBase,
+                    DirectionBasedOnVariationCD.GetDirectionFromVariation(pc.rotationVariationToPlace, false));
+                var bp = pc.bestPositionToPlaceAt;               // position REELLE de l'hologramme (verifie diag)
+                int xmin = bp.x - co.x, zmin = bp.z - co.y;
+                int xmax = xmin + sz.x - 1, zmax = zmin + sz.y - 1;
+
+                // REGLE STRICTE (demande utilisateur) : curseur PAS sur l'hologramme -> rien.
+                if (cursor.x < xmin || cursor.x > xmax || cursor.y < zmin || cursor.y > zmax) return null;
+
+                // Curseur sur l'hologramme : de combien il deborde de la case du curseur.
+                int left = cursor.x - xmin, right = xmax - cursor.x;
+                int down = cursor.y - zmin, up = zmax - cursor.y;   // z+ = nord
+                var parts = new List<string>();
+                if (up > 0) parts.Add(up + " " + Strings.L("place.up"));
+                if (down > 0) parts.Add(down + " " + Strings.L("place.down"));
+                if (right > 0) parts.Add(right + " " + Strings.L("place.right"));
+                if (left > 0) parts.Add(left + " " + Strings.L("place.left"));
+                if (parts.Count == 0) return null; // hologramme reduit a la case du curseur
+                return Strings.L("place.extends") + " " + string.Join(", ", parts);
+            }
+            catch { return null; }
+        }
+
+        // Lit prefabTileSize + prefabCornerOffset d'un objet ; false si 1x1, vide ou
+        // base de donnees indispo (rien a annoncer).
+        private static bool TryFootprint(ObjectID objectID, int variation, out int2 size, out int2 corner)
+        {
+            size = default; corner = default;
+            try
+            {
+                if (objectID == ObjectID.None) return false;
+                var player = Manager.main != null ? Manager.main.player : null;
+                if (player == null) return false;
+                var bank = player.querySystem.GetSingleton<PugDatabase.DatabaseBankCD>();
+                ref var info = ref PugDatabase.GetEntityObjectInfo(objectID, bank.databaseBankBlob, variation);
+                if (info.prefabTileSize.x <= 1 && info.prefabTileSize.y <= 1) return false;
+                size = info.prefabTileSize; corner = info.prefabCornerOffset;
+                return true;
+            }
+            catch { return false; }
         }
 
         // Nom localise d'un objet a partir de son ObjectID (materiaux, resultat de craft).

@@ -52,6 +52,10 @@ namespace CoreKeeperAccess.Patches
             // Triangle tenu : L1 = ping sonar -> son action native (slot precedent)
             // ne doit pas partir en meme temps. RB n'est pas vole (pas de combo dessus).
             if (InfoKey.ModifierHeld && t == PlayerInput.InputType.PREVIOUS_SLOT) return true;
+            // Triangle tenu : R1 = pivoter / changer taille -> ne pas changer de slot.
+            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.NEXT_SLOT) return true;
+            // Triangle tenu : L3 = bascule direction assistee -> ne pas changer de torche.
+            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.QUICK_SWAP_TORCH) return true;
             return false;
         }
     }

@@ -11,7 +11,9 @@ namespace CoreKeeperAccess.Controls
     internal static class InfoKey
     {
         private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
-        private const int BumperLeft = 10; // LB / L1 (id physique template Rewired Gamepad)
+        private const int BumperLeft = 10;     // LB / L1 (id physique template Rewired Gamepad)
+        private const int BumperRight = 11;    // RB / R1 (id physique template Rewired Gamepad)
+        private const int LeftStickClick = 14; // L3 (id physique template Rewired Gamepad)
 
         public static bool ModifierHeld;    // Triangle physiquement tenu
         public static bool DetailRequested; // combo Triangle + haut declenche cette frame
@@ -19,6 +21,8 @@ namespace CoreKeeperAccess.Controls
         public static bool ComboDown;       // Triangle + bas (transferer)
         public static bool ComboLeft;       // Triangle + gauche (tout recycler)
         public static bool ComboLB;         // Triangle + L1 (ping sonar)
+        public static bool ComboR1;         // Triangle + R1 (pivoter / changer taille de zone)
+        public static bool ComboL3;         // Triangle + L3 (toggle direction assistee)
         public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
 
         // Double-tap : deux TAPS courts (< TapMaxDuration, sans combo D-pad pendant la
@@ -35,7 +39,7 @@ namespace CoreKeeperAccess.Controls
         {
             ModifierHeld = false;
             DetailRequested = false;
-            ComboRight = ComboDown = ComboLeft = ComboLB = false;
+            ComboRight = ComboDown = ComboLeft = ComboLB = ComboR1 = ComboL3 = false;
             DoubleTapped = false;
             if (!ReInput.isReady) return;
             int tri = TriangleModifier.TriangleButtonId;
@@ -51,11 +55,13 @@ namespace CoreKeeperAccess.Controls
                 else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
                 else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
                 else if (GetButtonDownById(joy, BumperLeft)) ComboLB = true;
+                else if (GetButtonDownById(joy, BumperRight)) ComboR1 = true;
+                else if (GetButtonDownById(joy, LeftStickClick)) ComboL3 = true;
             }
 
             // Suivi tap / double-tap (fronts montant et descendant de Triangle).
             if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; }
-            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB))
+            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3))
                 _comboDuringHold = true;
             if (!ModifierHeld && _wasHeld)
             {

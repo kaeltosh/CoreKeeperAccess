@@ -4,8 +4,11 @@ using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
 using Interaction;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Gameplay
@@ -53,6 +56,19 @@ namespace CoreKeeperAccess.Gameplay
             // Les combos (prospection, ping sonar, double-tap carte) sont routes par
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);
+            DirectionAssist.Tick(player);
+            PlacementReader.Tick(player);
+
+            // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
+            // (BuildModeNavigator pose FootprintDueAt), annonce apres un petit delai - le
+            // temps que le ghost rattrape le curseur (sinon ca oscille), et UNIQUEMENT sur
+            // geste -> n'interrompt plus les autres TTS en continu.
+            if (BuildModeNavigator.FootprintDueAt > 0f && Time.unscaledTime >= BuildModeNavigator.FootprintDueAt)
+            {
+                BuildModeNavigator.FootprintDueAt = -1f;
+                string fp = InGameTtsCore.FootprintFromCursor(BuildModeNavigator.CursorTile);
+                if (!string.IsNullOrEmpty(fp)) TtsText.Say(fp, true);
+            }
 
             TickProspect(player);
             WatchInteractable(player);
@@ -442,5 +458,168 @@ namespace CoreKeeperAccess.Gameplay
             || id == ObjectID.DiggingSpotDesert
             || id == ObjectID.DiggingSpotLava
             || id == ObjectID.DiggingSpotExcavation;
+    }
+
+    // Mode "direction assistee" (toggle Triangle + L3). Tant qu'il est actif, le
+    // deplacement au stick gauche est SNAPPE au cardinal dominant (la composante
+    // perpendiculaire est annulee) -> lignes droites franches sans deviation, pour
+    // poser des murs / labourer / semer en rangs. On ne touche NI a la pose NI a la
+    // vitesse : le joueur tient LT et marche, le jeu pose ; on rectifie juste le cap.
+    // Un petit bip par CASE franchie encode la direction (pan est-ouest, pitch
+    // nord-sud, langage du curseur) -> confirme le cap ET compte les cases a l'oreille.
+    internal static class DirectionAssist
+    {
+        public static bool Active;
+
+        // "tout petit bip" (demande utilisateur), baisse de 50 % le 13 juin -> a exposer
+        // comme parametre mod (categorie de volume dediee dans a11y-settings.json).
+        private const float TickVolume = 0.125f;
+        private const float NorthPitch = 1.5f;   // nord = plus aigu
+        private const float SouthPitch = 0.67f;  // sud = plus grave (est/ouest = neutre 1.0)
+
+        private static int _cx, _cz;
+        private static bool _hasCell;
+
+        // Bascule le mode + annonce l'etat. Reset du suivi de case pour repartir propre.
+        public static void Toggle()
+        {
+            Active = !Active;
+            _hasCell = false;
+            TtsText.Say(Strings.L(Active ? "direction.assist.on" : "direction.assist.off"), true);
+        }
+
+        // Bip directionnel a chaque case franchie (appele depuis GameplayInput.Tick).
+        public static void Tick(PlayerController player)
+        {
+            if (!Active || player == null) return;
+            Vector3 pos = player.WorldPosition;
+            int cx = Mathf.RoundToInt(pos.x), cz = Mathf.RoundToInt(pos.z);
+            if (!_hasCell) { _cx = cx; _cz = cz; _hasCell = true; return; }
+            if (cx == _cx && cz == _cz) return;
+
+            int dx = cx - _cx, dz = cz - _cz;
+            _cx = cx; _cz = cz;
+
+            float pan, pitch;
+            if (Mathf.Abs(dx) >= Mathf.Abs(dz)) { pan = dx >= 0 ? 1f : -1f; pitch = 1f; }   // est / ouest
+            else { pan = 0f; pitch = dz > 0 ? NorthPitch : SouthPitch; }                    // nord / sud
+            GameplayAudio.PlayTone(pan, pitch, TickVolume);
+        }
+    }
+
+    // Snappe la marche au cardinal quand DirectionAssist est actif. Tourne APRES
+    // SendClientInputSystem (qui vient d'ecrire movementDirection depuis le stick) :
+    // on lit cette direction, on annule la composante perpendiculaire (la dominante
+    // garde sa magnitude = vitesse analogique preservee), on reecrit. Cede au
+    // point-and-click (MoveCommand) pour ne pas se marcher dessus. Meme pont ECS que
+    // PlayerMoveToSystem (cf. BuildModeNavigator).
+    [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(RunSimulationSystemGroup), OrderLast = true)]
+    [UpdateAfter(typeof(SendClientInputSystem))]
+    public partial class DirectionSnapSystem : SystemBase
+    {
+        private const float SnapDeadzone = 0.1f;
+        private EntityQuery _query;
+
+        protected override void OnCreate()
+        {
+            _query = GetEntityQuery(
+                ComponentType.ReadWrite<ClientInputData>(),
+                ComponentType.ReadOnly<GhostOwnerIsLocal>());
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!DirectionAssist.Active || MoveCommand.Active) return;
+            var entities = _query.ToEntityArray(Allocator.Temp);
+            try
+            {
+                if (entities.Length == 0) return;
+                Entity e = entities[0];
+                ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
+                ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
+
+                float2 m = ci.movementDirection;
+                if (math.length(m) > SnapDeadzone)
+                {
+                    if (math.abs(m.x) >= math.abs(m.y)) m.y = 0f;   // est-ouest domine
+                    else m.x = 0f;                                  // nord-sud domine
+                    ci.movementDirection = m;
+                    data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
+                    EntityManager.SetComponentData(e, data);
+                }
+            }
+            finally { entities.Dispose(); }
+        }
+    }
+
+    // Lecture du PLACEMENT pour les objets en main (pose v1, 13 juin). Surveille le
+    // PlacementCD du joueur (l'etat que le jeu calcule pour le fantome de pose) :
+    //  - rotation (rotationVariationToPlace) change -> annonce le cap ("face nord") ;
+    //  - validite (canPlaceObject = ghost bleu/rouge) passe a INVALIDE -> earcon de refus
+    //    (PAS de TTS : le ghost oscille en balayant, on ne sature pas la voix).
+    // La TAILLE de l'emprise est annoncee a la selection hotbar (HeldItemAnnouncePatch).
+    // Le joueur se replace lui-meme : on donne l'info qui manque, pas un assistant.
+    internal static class PlacementReader
+    {
+        private const float Poll = 0.15f;
+        private const SfxID InvalidSfx = SfxID.menu_denied; // placeholder (choix utilisateur)
+        private const float InvalidVolume = 0.3f;
+
+        private static float _next;
+        private static ObjectID _lastObjId = ObjectID.None;
+        private static int _lastRot = -1;
+        private static bool _lastValid = true;
+        private static bool _primed;
+
+        public static void Tick(PlayerController player)
+        {
+            if (player == null) { _primed = false; return; }
+            if (Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + Poll;
+
+            ObjectDataCD held;
+            try { held = player.GetHeldObject(); } catch { _primed = false; return; }
+            if (held.objectID == ObjectID.None) { _primed = false; return; }
+
+            // Changement d'objet en main : on re-amorce sans annoncer (le nom + la taille
+            // partent par HeldItemAnnouncePatch).
+            if (held.objectID != _lastObjId) { _primed = false; _lastObjId = held.objectID; }
+
+            PlacementCD pc;
+            try
+            {
+                if (!EntityUtility.HasComponentData<PlacementCD>(player.entity, player.world)) { _primed = false; return; }
+                pc = EntityUtility.GetComponentData<PlacementCD>(player.entity, player.world);
+            }
+            catch { _primed = false; return; }
+
+            if (_primed)
+            {
+                if (pc.rotationVariationToPlace != _lastRot)
+                {
+                    int2 dir = DirectionBasedOnVariationCD.GetDirectionFromVariation(pc.rotationVariationToPlace, false);
+                    TtsText.Say(Strings.L("place.facing") + " " + Cardinal4(dir), true);
+                }
+                if (_lastValid && !pc.canPlaceObject)
+                    GameplayAudio.PlaySpatial(InvalidSfx, 0f, 1f, InvalidVolume);
+            }
+
+            _lastRot = pc.rotationVariationToPlace;
+            _lastValid = pc.canPlaceObject;
+            _primed = true;
+        }
+
+        // Cap cardinal (4) d'une direction de variation (x=est, y=nord). Repere CONFIRME
+        // par decompil de DirectionBasedOnVariationCD.GetDirectionFromVariation
+        // (Pug.ECS.Components) : variation 0=(0,1) nord, 1=(1,0) est, 2=(0,-1) sud,
+        // 3=(-1,0) ouest -> Rotate cycle horaire N->E->S->O.
+        private static string Cardinal4(int2 d)
+        {
+            if (d.y > 0) return Strings.L("dir.n");
+            if (d.y < 0) return Strings.L("dir.s");
+            if (d.x > 0) return Strings.L("dir.e");
+            return Strings.L("dir.w");
+        }
     }
 }
