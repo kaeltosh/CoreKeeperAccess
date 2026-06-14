@@ -32,7 +32,13 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => !UiBusy() && Player() != null, () => VitalsReadout.AnnouncePosition(Player()));
 
-            // Triangle + gauche = tout recycler (nav inventaire) / prospection minerai (ailleurs).
+            // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
+            // recycler (station) / prospection minerai (ailleurs). Coherent avec la station
+            // ou gauche = recycler tout. Vente en premier : marchand et station jamais
+            // ouverts ensemble, l'ordre rend juste l'intention explicite.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
+                () => InventoryNavState.SuppressNativeInput && Manager.ui != null && Manager.ui.isSellUIShowing,
+                GameplayInput.SellAllToMerchant);
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.SalvageStation);
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,

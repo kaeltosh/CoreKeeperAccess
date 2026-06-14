@@ -38,6 +38,7 @@ namespace CoreKeeperAccess.Patches
             }
 
             Add(BuildCraftInfo(element));
+            Add(BuildMerchantInfo(element));
             Add(BuildSizeInfo(element));
 
             // Tooltip : description puis stats, lus directement a la selection.
@@ -115,6 +116,68 @@ namespace CoreKeeperAccess.Patches
             return missing.Count == 0
                 ? Strings.L("craft.craftable")
                 : Strings.L("craft.missing") + " " + string.Join(", ", missing);
+        }
+
+        // Prix marchand. Pour un emplacement d'achat (BuySlot) : cout d'achat + verdict
+        // "abordable" / "trop cher" selon les pieces possedees. Pour un emplacement de
+        // vente (PlayerSellSlot rempli) : valeur de revente. Et, quand un marchand est
+        // ouvert, pour un emplacement du joueur (sac/barre/pochette) rempli : la valeur de
+        // revente de l'objet, pour juger quoi vendre sans le deplacer. GetCoinValue()
+        // gere les deux sens (buy deduit du slotType). Null hors de ces cas.
+        private static string BuildMerchantInfo(UIelement element)
+        {
+            var slot = element as InventorySlotUI;
+            if (slot == null) return null;
+            bool buy = slot.slotType == ItemSlotsUIType.BuySlot;
+            bool sell = slot.slotType == ItemSlotsUIType.PlayerSellSlot;
+            bool playerSlot = !buy && !sell && Manager.ui != null && Manager.ui.isSellUIShowing
+                && IsPlayerInventorySlot(slot.slotType);
+            if (!buy && !sell && !playerSlot) return null;
+            if (slot.GetContainedObject().objectData.objectID == ObjectID.None) return null;
+
+            int value = slot.GetCoinValue();
+            // Objet du sac non vendable (valeur nulle) : on ne dit rien, ca n'apporte rien.
+            if (playerSlot && value <= 0) return null;
+
+            string priced = (buy ? Strings.L("merchant.price") : Strings.L("merchant.value"))
+                + " " + value + " " + Strings.L("merchant.coins");
+            if (!buy) return priced;
+
+            var player = Manager.main != null ? Manager.main.player : null;
+            int coins = player != null ? player.playerInventoryHandler.GetExistingAmountOfObject(ObjectID.AncientCoin) : 0;
+            return priced + ", " + Strings.L(value <= coins ? "merchant.affordable" : "merchant.tooExpensive");
+        }
+
+        // Emplacement appartenant a l'inventaire du joueur (sac, barre rapide, pochettes).
+        private static bool IsPlayerInventorySlot(ItemSlotsUIType t)
+        {
+            return t == ItemSlotsUIType.PlayerInventorySlot
+                || t == ItemSlotsUIType.PouchInventorySlot
+                || t == ItemSlotsUIType.Pouch1 || t == ItemSlotsUIType.Pouch2
+                || t == ItemSlotsUIType.Pouch3 || t == ItemSlotsUIType.Pouch4;
+        }
+
+        // Detail marchand (touche access) : solde de pieces du joueur + total de revente
+        // des emplacements de vente actuellement remplis. Null si aucune fenetre marchand
+        // ouverte. Sert a entendre "ce que je gagne si je vends tout" avant de valider.
+        public static string BuildMerchantDetail()
+        {
+            var ui = Manager.ui;
+            if (ui == null || (!ui.isBuyUIShowing && !ui.isSellUIShowing)) return null;
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null) return null;
+
+            int coins = player.playerInventoryHandler.GetExistingAmountOfObject(ObjectID.AncientCoin);
+            var parts = new List<string>
+            {
+                Strings.L("merchant.balance") + " " + coins + " " + Strings.L("merchant.coins")
+            };
+            if (ui.isSellUIShowing && player.sellSlotsHandler != null)
+            {
+                int total = player.sellSlotsHandler.sellSlotsInventoryHandler.GetCoinValueAll(player, false);
+                parts.Add(Strings.L("merchant.sellTotal") + " " + total + " " + Strings.L("merchant.coins"));
+            }
+            return string.Join(", ", parts);
         }
 
         // Taille brute "2x2" pour le tooltip inventaire (hors contexte de pose : pas de

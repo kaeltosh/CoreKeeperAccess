@@ -147,6 +147,9 @@ namespace CoreKeeperAccess.Navigation
             string station = Gameplay.GameplayInput.BuildStationDetail(_current);
             if (!string.IsNullOrEmpty(station))
                 info = string.IsNullOrEmpty(info) ? station : info + ". " + station;
+            string merchant = InGameTtsCore.BuildMerchantDetail();
+            if (!string.IsNullOrEmpty(merchant))
+                info = string.IsNullOrEmpty(info) ? merchant : info + ". " + merchant;
             if (!string.IsNullOrEmpty(info)) TtsText.Say(info, true);
         }
 
@@ -267,9 +270,18 @@ namespace CoreKeeperAccess.Navigation
 
         private static void ChangeSection(int delta)
         {
+            // On memorise la section courante par IDENTITE (son Kind) avant de
+            // reconstruire : le Rebuild peut faire apparaitre/disparaitre des sections
+            // (typiquement les bourses, dont la fenetre s'ouvre/se ferme), et un index
+            // numerique brut se decalerait alors -> dans un sens on saute une section,
+            // dans l'autre on tombe dessus par le wrap. On se recale sur le Kind, puis
+            // on applique le pas depuis cette position stable.
+            string currentKind = _sectionIndex < _sections.Count ? _sections[_sectionIndex].Kind : null;
             Rebuild(); // l'ouverture d'un coffre/atelier peut avoir ajoute des sections
             if (_sections.Count == 0) return;
-            int next = (_sectionIndex + delta % _sections.Count + _sections.Count) % _sections.Count;
+            int baseIdx = currentKind != null ? _sections.FindIndex(s => s.Kind == currentKind) : -1;
+            if (baseIdx < 0) baseIdx = Mathf.Clamp(_sectionIndex, 0, _sections.Count - 1);
+            int next = ((baseIdx + delta) % _sections.Count + _sections.Count) % _sections.Count;
             SelectSection(next, announceSectionName: true);
         }
 
@@ -340,6 +352,26 @@ namespace CoreKeeperAccess.Navigation
             {
                 ForceSelect(_current);
                 return;
+            }
+
+            // Raccrochage parasite du curseur manette virtuel : quand on saute sur une
+            // section dont le slot ne "tient" pas le focus (bourse = slot sous masque de
+            // defilement), UIMouse re-selectionne tout seul, des la frame suivante, un slot
+            // visible de la barre rapide. Ce sel appartient a une section DEJA connue
+            // (trouvee sans rebuild) et DIFFERENTE de la courante : c'est un recul parasite,
+            // pas une nouvelle vue (qui, elle, amene un element inconnu). Si on le suivait,
+            // la section juste apres les bourses (equipement) deviendrait inatteignable au
+            // bumper droit (on retombe en boucle sur la barre rapide). On reimpose donc
+            // notre slot. Une vraie nouvelle vue (sel inconnu) tombe dans la branche
+            // rebuild ci-dessous et reste captee normalement.
+            if (_current != null && _sectionIndex < _sections.Count)
+            {
+                int known = FindSectionIndex(sel);
+                if (known >= 0 && known != _sectionIndex)
+                {
+                    ForceSelect(_current);
+                    return;
+                }
             }
 
             int idx = FindSectionIndex(sel);

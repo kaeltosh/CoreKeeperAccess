@@ -28,13 +28,14 @@ namespace CoreKeeperAccess.Navigation
 
         private static readonly string[] Order =
         {
-            "hotbar", "bag", "pouch", "equipment", "crafting", "chest", "trash", "other"
+            "hotbar", "bag", "pouch", "equipment", "buy", "sell", "crafting", "chest", "trash", "other"
         };
 
         private static readonly Dictionary<string, string> NameKeys = new Dictionary<string, string>
         {
             { "hotbar", "section.hotbar" }, { "bag", "section.bag" }, { "pouch", "section.pouch" },
-            { "equipment", "section.equipment" }, { "crafting", "section.crafting" },
+            { "equipment", "section.equipment" }, { "buy", "section.buy" }, { "sell", "section.sell" },
+            { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
             { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
             { "souls", "section.souls" }, { "stats", "section.stats" },
@@ -236,6 +237,10 @@ namespace CoreKeeperAccess.Navigation
                 case ItemSlotsUIType.BreastVanitySlot:
                 case ItemSlotsUIType.PantsVanitySlot:
                     return "equipment";
+                case ItemSlotsUIType.BuySlot:
+                    return "buy";
+                case ItemSlotsUIType.PlayerSellSlot:
+                    return "sell";
                 case ItemSlotsUIType.RecipeSlot:
                 case ItemSlotsUIType.MaterialSlot:
                 case ItemSlotsUIType.OutputSlot:

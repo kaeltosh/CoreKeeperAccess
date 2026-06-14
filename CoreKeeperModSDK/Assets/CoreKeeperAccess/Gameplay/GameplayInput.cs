@@ -228,6 +228,28 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(Strings.L("salvage.done"), true);
         }
 
+        // "Tout vendre" (Triangle + gauche quand un marchand est ouvert) : encaisse tout
+        // ce qui est depose dans les emplacements de vente via le canal serveur officiel
+        // SellAll (memes gardes et sons natifs que le bouton Vendre du jeu). Annonce le
+        // total encaisse, ou un refus parlant si les emplacements de vente sont vides.
+        public static void SellAllToMerchant()
+        {
+            var ui = Manager.ui;
+            if (ui == null || !ui.isSellUIShowing) return; // contextuel : muet hors vente
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null || player.sellSlotsHandler == null) return;
+
+            var handler = player.sellSlotsHandler.sellSlotsInventoryHandler;
+            int total = handler.GetCoinValueAll(player, false);
+            if (total <= 0)
+            {
+                TtsText.Say(Strings.L("merchant.sellNothing"), true);
+                return;
+            }
+            handler.SellAll(player, player.RenderPosition);
+            TtsText.Say(Strings.L("merchant.sold") + " " + total + " " + Strings.L("merchant.coins"), true);
+        }
+
         // Volet "station" du combo details (Triangle + haut) : cout de reparation de
         // l'objet selectionne (meme source que l'infobulle native du mode reparation)
         // + gain de recyclage estime. Null si pas de station ouverte / pas d'objet.
