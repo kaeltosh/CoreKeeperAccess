@@ -45,6 +45,11 @@ namespace CoreKeeperAccess.Patches
         public static bool Blocks(PlayerInput.InputType t)
         {
             if (InventoryNavState.SuppressNativeInput && Set.Contains(t)) return true;
+            // Croix sur un slot de bourse masque : l'action native taperait sur la barre
+            // rapide (le curseur ne tient pas le slot) -> on l'etouffe, InventoryNavigator
+            // route prendre/poser sur le bon slot lui-meme.
+            if (InventoryNavState.SuppressNativeInput && InventoryNavState.OnMaskedSlot
+                && t == PlayerInput.InputType.PICK_UP_ALL_ITEMS) return true;
             if (BuildModeNavigator.StealsDpad && DpadInGame.Contains(t)) return true;
             // Curseur detache : on vole Croix pour que l'interaction passe par la case
             // visee, pas l'objet adjacent natif (sinon impossible d'agir pres d'un coffre).

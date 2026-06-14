@@ -8,6 +8,13 @@ namespace CoreKeeperAccess.Navigation
         public static bool SuppressNativeInput;     // vrai tant que notre nav inventaire tient la main
         public static bool SuppressPassiveAnnounce;  // vrai le temps d'une selection forcee
 
+        // Vrai quand l'emplacement courant est un slot de CONTENU de bourse : ces slots
+        // sont sous un masque de defilement, le curseur manette virtuel (UIMouse) ne les
+        // "tient" pas (son raycast les manque) -> l'action native Croix taperait sur la
+        // barre rapide. On etouffe alors le Croix natif (NativeInputSuppressionPatch) et
+        // on route prendre/poser nous-memes sur le bon slot (InventoryNavigator).
+        public static bool OnMaskedSlot;
+
         // Action "armee" par la roue : notre patch fera croire au jeu que ce bouton
         // vient d'etre presse (1 fois), pour declencher l'action native. Ttl = filet
         // si le jeu ne lit pas l'input dans la frame.

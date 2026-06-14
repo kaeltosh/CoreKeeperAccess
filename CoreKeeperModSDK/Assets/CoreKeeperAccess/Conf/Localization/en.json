@@ -10,6 +10,8 @@
   "section.chest": "Chest",
   "section.trash": "Trash",
   "section.pouch": "Pouch",
+  "pouch.equip": "Pouch slots",
+  "pouch.bag": "Pouch",
   "section.buy": "Buy",
   "section.sell": "Sell",
   "section.other": "Other",

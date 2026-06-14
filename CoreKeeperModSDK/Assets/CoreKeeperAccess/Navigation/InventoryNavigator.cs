@@ -17,6 +17,7 @@ namespace CoreKeeperAccess.Navigation
         // Ids physiques (template Rewired Gamepad, confirmes en jeu).
         private const int DpadUp = 16, DpadRight = 17, DpadDown = 18, DpadLeft = 19;
         private const int Lb = 10, Rb = 11;
+        private const int Cross = 6; // A / Croix (prendre-poser), id physique confirme
 
         private static bool _active;
         private static List<SlotSection> _sections = new List<SlotSection>();
@@ -42,9 +43,19 @@ namespace CoreKeeperAccess.Navigation
         // qu'au changement de section). Remis a null a chaque changement de section.
         private static string _lastStatTitle;
 
+        // Derniere ligne (= bourse) annoncee dans la section pochette, pour ne prefixer le
+        // repere de bourse qu'au changement de ligne. Remis a -1 a chaque changement de section.
+        private static int _lastPouchRow = -1;
+
         // Etat precedent de l'overlay de la fiche de stats, pour detecter son
         // ouverture (front montant) et sauter dessus automatiquement.
         private static bool _statsOverlayOpen;
+
+        // Signature de la structure des bourses (nb de cases actives par bourse), pour
+        // reconstruire des qu'elle change : ouverture progressive du panneau (les bourses
+        // s'activent sur quelques frames) ou deséquipement (une bourse disparait). -1 = a
+        // recalculer (entree/sortie de nav).
+        private static int _pouchSig = -1;
 
         public static void Update()
         {
@@ -62,6 +73,10 @@ namespace CoreKeeperAccess.Navigation
 
             if (!_active) return;
 
+            // Panneau des bourses maintenu deploye : sinon ses 4 emplacements d'equipement
+            // (Pouch1-4) restent inactifs et inatteignables -> impossible de deséquiper.
+            EnsurePouchPanelOpen();
+
             // Si les emplacements n'etaient pas prets a l'ouverture, on retente.
             if (_sections.Count == 0)
             {
@@ -71,8 +86,12 @@ namespace CoreKeeperAccess.Navigation
                 return;
             }
 
+            RefreshIfPouchChanged();
             HandleStatsOverlay();
             SyncWithGameSelection();
+            // Slot de contenu de bourse sous masque : on l'expose au patch d'input AVANT
+            // de lire les boutons, pour qu'il etouffe le Croix natif cette frame.
+            InventoryNavState.OnMaskedSlot = IsMaskedSlot(_current);
             HandleInput();
             ActionWheel.Tick();
             WatchSlotChange();
@@ -177,6 +196,8 @@ namespace CoreKeeperAccess.Navigation
         {
             _active = true;
             InventoryNavState.SuppressNativeInput = true;
+            _pouchSig = -1;
+            EnsurePouchPanelOpen(); // emplacements de bourse actifs avant le 1er scan
             Rebuild();
             if (_sections.Count > 0)
                 SelectSection(0, announceSectionName: true);
@@ -186,6 +207,7 @@ namespace CoreKeeperAccess.Navigation
         {
             _active = false;
             InventoryNavState.SuppressNativeInput = false;
+            InventoryNavState.OnMaskedSlot = false;
             _sections = new List<SlotSection>();
             _sectionIndex = 0;
             _current = null;
@@ -197,6 +219,7 @@ namespace CoreKeeperAccess.Navigation
             _lastSyncTarget = null;
             _lastStatTitle = null;
             _statsOverlayOpen = false;
+            _pouchSig = -1;
         }
 
         private static void Rebuild()
@@ -245,6 +268,7 @@ namespace CoreKeeperAccess.Navigation
 
             // Boutons presses durant cette frame (front montant).
             int pressed = -1;
+            bool crossPressed = false;
             for (int i = 0; i < joy.buttonCount; i++)
             {
                 if (!joy.GetButtonDown(i)) continue;
@@ -254,6 +278,15 @@ namespace CoreKeeperAccess.Navigation
                     pressed = id;
                     break;
                 }
+                if (id == Cross) crossPressed = true;
+            }
+
+            // Croix sur un slot de bourse masque : l'action native taperait a cote (cf.
+            // OnMaskedSlot), on route prendre/poser directement sur notre slot.
+            if (crossPressed && InventoryNavState.OnMaskedSlot)
+            {
+                PickPlaceMaskedSlot();
+                return;
             }
             if (pressed < 0) return;
 
@@ -266,6 +299,98 @@ namespace CoreKeeperAccess.Navigation
                 case DpadLeft: Move(NavDir.Left); break;
                 case DpadRight: Move(NavDir.Right); break;
             }
+        }
+
+        // Deploie le panneau des bourses (PouchesWindow) s'il est replie. Replie, ses 4
+        // emplacements d'equipement (Pouch1-4) sont inactifs -> ni captes par le scan, ni
+        // manipulables, donc pas de deséquipement possible. On agit sur root directement
+        // (ce que fait ShowPouches du jeu) pour eviter le son de TogglePouchWindow.
+        private static void EnsurePouchPanelOpen()
+        {
+            var eq = Manager.ui != null ? Manager.ui.equipmentInventoryUI : null;
+            var pw = eq != null ? eq.pouchesWindow : null;
+            if (pw != null && pw.root != null && !pw.root.activeSelf)
+                pw.root.SetActive(true);
+        }
+
+        // Reconstruit la nav si la structure des bourses a change (cf. _pouchSig) :
+        // ouverture progressive du panneau (les bourses s'activent sur quelques frames) ou
+        // deséquipement (une bourse disparait). Silencieux tant que l'emplacement courant
+        // survit (on garde la selection) ; sinon on recale sur le 1er slot de la section.
+        private static void RefreshIfPouchChanged()
+        {
+            int sig = ComputePouchSig();
+            if (sig == _pouchSig) return;
+            _pouchSig = sig;
+            if (_sections.Count == 0) return; // le rebuild initial s'en charge
+
+            string kind = _sectionIndex < _sections.Count ? _sections[_sectionIndex].Kind : null;
+            var keep = _current;
+            Rebuild();
+            if (kind != null)
+            {
+                int idx = _sections.FindIndex(s => s.Kind == kind);
+                if (idx >= 0) _sectionIndex = idx;
+            }
+            if (_sectionIndex >= _sections.Count) _sectionIndex = 0;
+            if (_sections.Count == 0) { _current = null; return; }
+
+            var section = _sections[_sectionIndex];
+            if (keep != null && section.Slots.Contains(keep))
+            {
+                _current = keep; // selection intacte : aucune annonce
+            }
+            else
+            {
+                _current = section.Slots.Count > 0 ? section.Slots[0] : null;
+                if (_current != null)
+                {
+                    ForceSelect(_current);
+                    Announce(section, _current, announceSectionName: false);
+                }
+            }
+        }
+
+        // Empreinte de la structure des bourses : nombre de cases actives par bourse.
+        // Change a l'ouverture (peuplement progressif) et au deséquipement (bourse en moins).
+        private static int ComputePouchSig()
+        {
+            var player = Manager.main != null ? Manager.main.player : null;
+            var eh = player != null ? player.equipmentHandler : null;
+            if (eh == null || eh.pouchInventorySlotsHandlers == null) return 0;
+            // Source de verite des bourses equipees : la taille de chaque handler de bourse
+            // (0 = non equipee). Ne bouge qu'a l'equipement / deséquipement, jamais a la
+            // navigation -> pas de rebuild ni de re-annonce parasite. (Le conteneur UI peut
+            // persister apres deséquipement, d'ou le besoin de cette source-ci.)
+            int sig = 17;
+            foreach (var h in eh.pouchInventorySlotsHandlers)
+                sig = sig * 31 + (h != null ? h.size : 0);
+            return sig;
+        }
+
+        // Slots sous masque de defilement (panneau des bourses) : le curseur manette
+        // virtuel ne les tient pas. Concerne le CONTENU (PouchInventorySlot) et les 4
+        // emplacements d'equipement (Pouch1-4). Voir OnMaskedSlot.
+        private static bool IsMaskedSlot(UIelement e)
+        {
+            var s = e as InventorySlotUI;
+            if (s == null) return false;
+            var t = s.slotType;
+            return t == ItemSlotsUIType.PouchInventorySlot
+                || t == ItemSlotsUIType.Pouch1 || t == ItemSlotsUIType.Pouch2
+                || t == ItemSlotsUIType.Pouch3 || t == ItemSlotsUIType.Pouch4;
+        }
+
+        // Prendre/poser sur le slot de bourse courant en appelant directement la methode
+        // du jeu qui agit sur le slot PASSE (DoMove), au lieu de l'action native qui passe
+        // par le raycast du curseur (lequel manque le slot masque). Le contenu de la main
+        // est ensuite reannonce par WatchHandChange / WatchSlotChange.
+        private static void PickPlaceMaskedSlot()
+        {
+            var slot = _current as InventorySlotUI;
+            var mouse = Manager.ui != null ? Manager.ui.mouse : null;
+            if (slot == null || mouse == null) return;
+            mouse.OnInventorySlotLeftClicked(slot, false, true, -1, false);
         }
 
         private static void ChangeSection(int delta)
@@ -289,9 +414,11 @@ namespace CoreKeeperAccess.Navigation
         {
             if (_sectionIndex >= _sections.Count) return;
             var section = _sections[_sectionIndex];
-            var target = section.IsList
-                ? ListNeighbour(section, dir)
-                : SlotSections.BestNeighbour(section, _current, dir);
+            var target = section.Rows != null
+                ? RowNeighbour(section, _current, dir)
+                : section.IsList
+                    ? ListNeighbour(section, dir)
+                    : SlotSections.BestNeighbour(section, _current, dir);
             if (target == null)
             {
                 // Bord de section : on ne sort pas, on re-annonce la position courante.
@@ -315,9 +442,42 @@ namespace CoreKeeperAccess.Navigation
             return section.Slots[(idx + step + count) % count];
         }
 
+        // Navigation en grille LOGIQUE par lignes (section pochette) : gauche/droite =
+        // item dans la ligne (= la bourse), haut/bas = ligne (= bourse, ligne 0 = la barre
+        // des emplacements d'equipement). Bornee : null au bord -> Move reannonce sur place.
+        // En changeant de ligne, on garde la colonne, clampee a la taille de la cible.
+        private static UIelement RowNeighbour(SlotSection section, UIelement current, NavDir dir)
+        {
+            var rows = section.Rows;
+            if (rows == null || rows.Count == 0) return null;
+
+            int r = -1, c = -1;
+            for (int i = 0; i < rows.Count && r < 0; i++)
+            {
+                int j = rows[i].IndexOf(current);
+                if (j >= 0) { r = i; c = j; }
+            }
+            if (r < 0) return rows[0].Count > 0 ? rows[0][0] : null;
+
+            if (dir == NavDir.Left || dir == NavDir.Right)
+            {
+                c += dir == NavDir.Left ? -1 : 1;
+                var row = rows[r];
+                return (c >= 0 && c < row.Count) ? row[c] : null;
+            }
+            // Haut / bas : on change de ligne (de bourse).
+            r += dir == NavDir.Up ? -1 : 1;
+            if (r < 0 || r >= rows.Count) return null;
+            var target = rows[r];
+            if (target.Count == 0) return null;
+            c = Mathf.Clamp(c, 0, target.Count - 1);
+            return target[c];
+        }
+
         private static void SelectSection(int index, bool announceSectionName)
         {
             _lastStatTitle = null; // tout changement de section reamorce le prefixe de titre
+            _lastPouchRow = -1;    // idem pour le repere de bourse (pochette en lignes)
             _sectionIndex = index;
             var section = _sections[index];
             _current = section.Slots.Count > 0 ? section.Slots[0] : null;
@@ -333,6 +493,15 @@ namespace CoreKeeperAccess.Navigation
         {
             var sel = Manager.ui != null ? Manager.ui.currentSelectedUIElement : null;
             if (sel == null || sel == _current) return;
+
+            // Sur un slot de bourse (sous masque), le curseur manette virtuel raccroche en
+            // permanence un slot visible : on ne le suit jamais, on reste sur notre
+            // selection logique (sinon _current devie et l'annonce se repete en boucle).
+            if (IsMaskedSlot(_current))
+            {
+                ForceSelect(_current);
+                return;
+            }
 
             // Overlay stats ouvert mais pas encore bascule dessus (ses lignes ne sont
             // peuplees qu'une frame apres l'ouverture) : on ignore les derapages du
@@ -439,6 +608,20 @@ namespace CoreKeeperAccess.Navigation
                     if (!string.IsNullOrEmpty(title) && title != _lastStatTitle)
                         body = title + ". " + body;
                     _lastStatTitle = title;
+                }
+
+                // Pochette en lignes : on prefixe la bourse (ou la barre d'equipement) au
+                // changement de ligne, pour savoir sur quelle bourse on arrive apres un
+                // haut/bas. Inchange en gauche/droite (meme ligne).
+                if (section.Kind == "pouch" && section.Rows != null)
+                {
+                    int row = SlotSections.RowOf(section, slot);
+                    if (row != _lastPouchRow)
+                    {
+                        string label = SlotSections.RowLabel(section, row);
+                        if (!string.IsNullOrEmpty(label)) body = label + ". " + body;
+                    }
+                    _lastPouchRow = row;
                 }
             }
 
