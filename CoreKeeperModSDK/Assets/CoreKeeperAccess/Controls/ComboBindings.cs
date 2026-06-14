@@ -20,17 +20,27 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.InGameFree && BuildModeNavigator.CursorDetached,
                 BuildModeNavigator.AnnounceCursorDetails);
 
-            // Triangle + bas = transferer (nav inventaire) / vitals (ailleurs, carte comprise).
+            // Onglet "Mes balises" de la carte : Triangle+bas = supprimer, Triangle+droite =
+            // renommer la balise selectionnee. Enregistres AVANT vitals/position pour primer
+            // dans ce contexte ; hors de l'onglet, ces combos gardent leur role habituel.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Down,
+                () => TeleportNavigator.BeaconCategoryActive, TeleportNavigator.DeleteSelectedBeacon);
+            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
+                () => TeleportNavigator.BeaconCategoryActive, TeleportNavigator.RenameSelectedBeacon);
+
+            // Triangle + bas = transferer (nav inventaire) / vitals (jeu normal). Pas sur la
+            // carte : Triangle+bas y supprime une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.TransferSelected);
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
-                () => !UiBusy() && Player() != null, () => VitalsReadout.AnnounceVitals(Player()));
+                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => VitalsReadout.AnnounceVitals(Player()));
 
-            // Triangle + droite = reparer (nav inventaire) / position (ailleurs).
+            // Triangle + droite = reparer (nav inventaire) / position (jeu normal). Pas sur la
+            // carte : Triangle+droite y renomme une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.RepairSelected);
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
-                () => !UiBusy() && Player() != null, () => VitalsReadout.AnnouncePosition(Player()));
+                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => VitalsReadout.AnnouncePosition(Player()));
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
             // recycler (station) / prospection minerai (ailleurs). Coherent avec la station
@@ -42,7 +52,7 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.SalvageStation);
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
-                () => !UiBusy() && Player() != null, () => GameplayInput.RequestProspect(Player()));
+                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => GameplayInput.RequestProspect(Player()));
 
             // Triangle + L1 = ping sonar (jeu normal seulement : pas en inventaire /
             // fiche perso / carte - sur la carte, les bumpers naviguent les categories).

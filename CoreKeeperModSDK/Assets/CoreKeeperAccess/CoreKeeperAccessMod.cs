@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 78";
+    private const string BuildTag = "build 85";
 
     public void Init()
     {
@@ -133,6 +133,7 @@ public class CoreKeeperAccessMod : IMod
         TriangleModifier.Tick();
         InfoKey.Tick();
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
+        CoreKeeperAccess.Navigation.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();

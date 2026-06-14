@@ -71,6 +71,8 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
+            // Saisie d'un nom de balise en cours : tout l'input gameplay est gele.
+            if (TextEntry.Active) { __result = false; return false; }
             // Action gameplay armee (pose / mine / interagir) : on simule l'appui SANS
             // consommer. SendClientInputSystem lit ce bouton plusieurs fois dans la meme
             // passe (ex. INTERACT) ; consommer a la 1re lecture casserait la 2e (celle
@@ -99,6 +101,7 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
+            if (TextEntry.Active) { __result = false; return false; }
             // Bouton "maintenu" arme par une action gameplay (ex. SECOND_INTERACT pour
             // poser, qui exige le held). Non consomme : desarme par PlayerMoveToSystem.
             if (GameplayAction.Held.HasValue && GameplayAction.Held.Value == inputType)
@@ -124,6 +127,8 @@ namespace CoreKeeperAccess.Patches
         public static bool Prefix(PlayerInput.InputAxisType horizontalAxisType,
             PlayerInput.InputAxisType verticalAxisType, ref Vector2 __result)
         {
+            // Saisie en cours : axes a deux canaux geles (mouvement perso + visee).
+            if (TextEntry.Active) { __result = Vector2.zero; return false; }
             if (GameplayAction.AimActive
                 && horizontalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_HORIZONTAL
                 && verticalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_VERTICAL)
@@ -132,6 +137,23 @@ namespace CoreKeeperAccess.Patches
                 return false;
             }
             return true;
+        }
+    }
+
+    // Pendant la saisie d'un nom de balise : on coupe aussi les axes a un seul canal
+    // (le mouvement perso passe par CHARACTER_MOVEMENT_HORIZONTAL/VERTICAL). Combine au
+    // gel des boutons et de l'axe de visee, le clavier ne pilote plus rien en jeu pendant
+    // qu'on tape (le mod lit Input.inputString de son cote, canal independant).
+    [HarmonyPatch(typeof(PlayerInput), nameof(PlayerInput.GetInputAxisValue),
+        new[] { typeof(PlayerInput.InputAxisType) })]
+    internal static class PlayerInputAxisSilencePatch
+    {
+        [HarmonyPrefix]
+        public static bool Prefix(ref float __result)
+        {
+            if (!TextEntry.Active) return true;
+            __result = 0f;
+            return false;
         }
     }
 }
