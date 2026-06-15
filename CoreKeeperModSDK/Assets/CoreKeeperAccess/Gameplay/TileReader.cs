@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Pug.Automation;
+using Pug.Properties;
 using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
@@ -8,6 +10,15 @@ using Unity.Transforms;
 
 namespace CoreKeeperAccess.Gameplay
 {
+    // Etat de croissance d'une plante posee sur la case (agriculture). None = pas une
+    // plante. Lu depuis l'ObjectIndex (qui balaye deja toutes les entites) : GrowingCD =
+    // plante en croissance, + tag HasFinishedGrowingCD a maturite = recoltable.
+    public enum PlantState : byte { None = 0, Growing = 1, Ready = 2 }
+
+    // Etat d'alimentation electrique d'un objet d'automation (cable, machine).
+    // None = pas un objet electrique. On = energie suffisante pour alimenter (ElectricityCD).
+    public enum PowerState : byte { None = 0, Off = 1, On = 2 }
+
     // Contenu remarquable d'une case, decouple de tout systeme : se passe en parametre.
     // Rempli par TileScan.Read et consomme par la sonification partagee
     // (BuildModeNavigator.SonifyTile), utilisee par le curseur ET la canne laser.
@@ -21,6 +32,13 @@ namespace CoreKeeperAccess.Gameplay
         public bool IsImmune;          // couche immune (Grande Muraille...) : mur INVULNERABLE
         public ObjectID ObjectId;      // objet/construction pose sur la case (ou None)
         public bool ObjectInteractable; // l'entite porte InteractableObjectReferenceCD (vrai interactible)
+        public PlantState Plant;       // si une plante est posee la : etat de croissance
+        public bool Conveyor;          // l'objet est un convoyeur (MoverCD)
+        public int2 ConveyorDir;       // sens de transport (signe de stop - start), si convoyeur
+        public PowerState Power;       // alimentation electrique (cable / machine), None si pas electrique
+        public int Connections;        // cotes connectes au reseau electrique (ElectricityDirectionMask brut), 0 = aucun
+        public bool HasStorage;        // l'objet est un stockage d'automation (StorageCD)
+        public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -43,6 +61,13 @@ namespace CoreKeeperAccess.Gameplay
         public static bool IsImmune;
         public static ObjectID ObjectId;
         public static bool ObjectInteractable;
+        public static PlantState Plant;
+        public static bool Conveyor;
+        public static int2 ConveyorDir;
+        public static PowerState Power;
+        public static int Connections;
+        public static bool HasStorage;
+        public static int StorageCount;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -55,6 +80,13 @@ namespace CoreKeeperAccess.Gameplay
             IsImmune = IsImmune,
             ObjectId = ObjectId,
             ObjectInteractable = ObjectInteractable,
+            Plant = Plant,
+            Conveyor = Conveyor,
+            ConveyorDir = ConveyorDir,
+            Power = Power,
+            Connections = Connections,
+            HasStorage = HasStorage,
+            StorageCount = StorageCount,
         };
     }
 
@@ -110,6 +142,14 @@ namespace CoreKeeperAccess.Gameplay
         {
             public ObjectID Id;
             public bool Interactable;
+            public PlantState Plant; // si l'entite est une plante : son etat de croissance
+            public bool Conveyor;    // automation : convoyeur (MoverCD)
+            public int2 ConveyorDir; // sens de transport
+            public PowerState Power; // automation : alimentation electrique
+            public int Connections;  // automation : cotes connectes (ElectricityDirectionMask brut)
+            public bool HasStorage;  // automation : stockage (StorageCD)
+            public int StorageCount; // nombre d'objets dans le stockage
+            public Entity Ent;       // entite source (pour le diagnostic automation dev)
         }
 
         public static float2 Center; // position joueur, publiee par le mod (GameplayInput)
@@ -128,6 +168,18 @@ namespace CoreKeeperAccess.Gameplay
     {
         public static bool Found;
         public static float2 Pos;
+    }
+
+    // Pont diagnostic AUTOMATION (mode dev seulement). Pose par le combo details
+    // (Triangle+haut de BuildModeNavigator) quand le curseur est sur une machine
+    // industrielle : le systeme dumpe dans Player.log TOUS les composants de l'entite
+    // + les valeurs des composants automation connus. Sert a finaliser l'a11y industrie
+    // sur du concret (le contenu d'automation n'est atteignable en jeu qu'avec l'ecarlate
+    // - impossible a tester autrement). Cf. methode gravee : log = seule verite.
+    internal static class AutomationDiag
+    {
+        public static bool Requested;
+        public static int2 Tile;
     }
 
     // Lecture d'une case (sol / mur / minerai / objet pose), partagee par les systemes
@@ -157,6 +209,19 @@ namespace CoreKeeperAccess.Gameplay
             info.IsImmune = ta.HasType(t, TileType.immune);
             info.ObjectId = ObjectAt(t, world, out bool interactable);
             info.ObjectInteractable = interactable;
+            // Etats portes par l'index (l'index voit toutes les entites, avec ou sans
+            // collider) : plante (agriculture) + automation (convoyeur, electricite). Lus
+            // pour la case, independamment de la sonde physique.
+            if (ObjectIndex.TryGet(t, out var pe))
+            {
+                info.Plant = pe.Plant;
+                info.Conveyor = pe.Conveyor;
+                info.ConveyorDir = pe.ConveyorDir;
+                info.Power = pe.Power;
+                info.Connections = pe.Connections;
+                info.HasStorage = pe.HasStorage;
+                info.StorageCount = pe.StorageCount;
+            }
             return info;
         }
 
@@ -288,6 +353,14 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
+            // Diagnostic automation a la demande (dev) : independant du curseur actif.
+            if (AutomationDiag.Requested)
+            {
+                AutomationDiag.Requested = false;
+                try { DumpAutomation(); }
+                catch (System.Exception ex) { Diag.Error("A11yAutoDiag", ex); }
+            }
+
             if (!TileQuery.Active) return;
             try
             {
@@ -302,6 +375,13 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.IsImmune = info.IsImmune;
                 TileQuery.ObjectId = info.ObjectId;
                 TileQuery.ObjectInteractable = info.ObjectInteractable;
+                TileQuery.Plant = info.Plant;
+                TileQuery.Conveyor = info.Conveyor;
+                TileQuery.ConveyorDir = info.ConveyorDir;
+                TileQuery.Power = info.Power;
+                TileQuery.Connections = info.Connections;
+                TileQuery.HasStorage = info.HasStorage;
+                TileQuery.StorageCount = info.StorageCount;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -374,10 +454,75 @@ namespace CoreKeeperAccess.Gameplay
                     }
                     catch { size = new int2(1, 1); corner = int2.zero; }
 
+                    // Plante (agriculture) : GrowingCD = en croissance ; le tag
+                    // HasFinishedGrowingCD apparait a maturite (PlantsGrowingSystem) =
+                    // recoltable. Lu une fois ici, porte par l'entree d'index.
+                    // Maturite = la MEME condition que la recolte du jeu
+                    // (HoeSlot.EntityIsPlantReadyForHarvest) : GrowingCD.HasFinishedGrowing
+                    // (currentStage >= nb de stades, lu dans ObjectPropertiesCD). PAS le tag
+                    // HasFinishedGrowingCD : il n'est pas pose sur les plantes qui repoussent
+                    // (ex. baie en coeur -> annoncee "a soif" a tort une fois mure).
+                    PlantState plant = PlantState.None;
+                    if (EntityUtility.HasComponentData<GrowingCD>(e, World))
+                    {
+                        bool ready = false;
+                        if (EntityUtility.HasComponentData<ObjectPropertiesCD>(e, World))
+                        {
+                            try
+                            {
+                                ready = EntityUtility.GetComponentData<GrowingCD>(e, World)
+                                    .HasFinishedGrowing(EntityUtility.GetComponentData<ObjectPropertiesCD>(e, World));
+                            }
+                            catch { ready = false; }
+                        }
+                        plant = ready ? PlantState.Ready : PlantState.Growing;
+                    }
+
+                    // Automation : convoyeur (sens = stop - start, ramene au cardinal) +
+                    // electricite (ElectricityCD.hasEnoughElectricityToPowerStuff = sous
+                    // tension ; ElectricityConnectionCD.direction = cotes connectes).
+                    bool conveyor = false; int2 convDir = default;
+                    if (EntityUtility.HasComponentData<MoverCD>(e, World))
+                    {
+                        var m = EntityUtility.GetComponentData<MoverCD>(e, World);
+                        int2 d = m.stop - m.start;
+                        convDir = new int2(math.clamp(d.x, -1, 1), math.clamp(d.y, -1, 1));
+                        conveyor = true;
+                    }
+                    PowerState power = PowerState.None; int conns = 0;
+                    if (EntityUtility.HasComponentData<ElectricityCD>(e, World))
+                        power = EntityUtility.GetComponentData<ElectricityCD>(e, World).hasEnoughElectricityToPowerStuff
+                            ? PowerState.On : PowerState.Off;
+                    if (EntityUtility.HasComponentData<ElectricityConnectionCD>(e, World))
+                        conns = (int)EntityUtility.GetComponentData<ElectricityConnectionCD>(e, World).direction;
+
+                    // Stockage d'automation : remplissage. L'inventaire vit sur une entite
+                    // separee (StorageCD.inventoryEntity) -> on compte ses slots occupes.
+                    bool hasStorage = false; int storageCount = 0;
+                    if (EntityUtility.HasComponentData<StorageCD>(e, World))
+                    {
+                        hasStorage = true;
+                        Entity inv = EntityUtility.GetComponentData<StorageCD>(e, World).inventoryEntity;
+                        if (inv != Entity.Null && EntityManager.HasBuffer<ContainedObjectsBuffer>(inv))
+                        {
+                            var buf = EntityManager.GetBuffer<ContainedObjectsBuffer>(inv, true);
+                            for (int i = 0; i < buf.Length; i++)
+                                if (buf[i].objectID != ObjectID.None) storageCount++;
+                        }
+                    }
+
                     var entry = new ObjectIndex.Entry
                     {
                         Id = od.objectID,
                         Interactable = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(e, World),
+                        Plant = plant,
+                        Conveyor = conveyor,
+                        ConveyorDir = convDir,
+                        Power = power,
+                        Connections = conns,
+                        HasStorage = hasStorage,
+                        StorageCount = storageCount,
+                        Ent = e,
                     };
                     // Emprise : on ne lit pas la rotation de l'objet -> pour un prefab
                     // RECTANGULAIRE on marque l'UNION des deux orientations (xy et yx,
@@ -485,6 +630,55 @@ namespace CoreKeeperAccess.Gameplay
 
             PingScan.Count = count;
             PingScan.ResultValid = true;
+        }
+
+        // Dump dev : liste TOUS les composants de l'entite sous le curseur + les valeurs
+        // des composants automation connus. But : capturer la verite terrain d'une machine
+        // (atteignable seulement avec l'ecarlate) pour finaliser l'a11y industrie sans
+        // deviner. Sortie dans Player.log, prefixe [A11yAutoDiag].
+        private void DumpAutomation()
+        {
+            if (!ObjectIndex.TryGet(AutomationDiag.Tile, out var e)
+                || e.Ent == Entity.Null || !EntityManager.Exists(e.Ent))
+            {
+                Diag.Log("A11yAutoDiag", "case " + AutomationDiag.Tile.x + "," + AutomationDiag.Tile.y
+                    + " : aucune entite indexee");
+                return;
+            }
+
+            Entity ent = e.Ent;
+            var types = EntityManager.GetComponentTypes(ent, Allocator.Temp);
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < types.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                var mt = types[i].GetManagedType();
+                sb.Append(mt != null ? mt.Name : types[i].ToString());
+            }
+            types.Dispose();
+            Diag.Log("A11yAutoDiag", e.Id + " @ " + AutomationDiag.Tile.x + "," + AutomationDiag.Tile.y
+                + " : " + sb);
+
+            if (EntityManager.HasComponent<MoverCD>(ent))
+            {
+                var m = EntityManager.GetComponentData<MoverCD>(ent);
+                Diag.Log("A11yAutoDiag", "  MoverCD start=" + m.start + " stop=" + m.stop
+                    + " moveTime=" + m.moveTime);
+            }
+            if (EntityManager.HasComponent<ElectricityCD>(ent))
+            {
+                var el = EntityManager.GetComponentData<ElectricityCD>(ent);
+                Diag.Log("A11yAutoDiag", "  ElectricityCD L=" + el.electricityAmountLeft
+                    + " R=" + el.electricityAmountRight + " U=" + el.electricityAmountUp
+                    + " D=" + el.electricityAmountDown + " src=" + el.sourceEnergy
+                    + " blocks=" + el.blocksElectricity);
+            }
+            if (EntityManager.HasComponent<ElectricityConnectionCD>(ent))
+                Diag.Log("A11yAutoDiag", "  ElectricityConnectionCD dir="
+                    + EntityManager.GetComponentData<ElectricityConnectionCD>(ent).direction);
+            if (EntityManager.HasComponent<StorageCD>(ent))
+                Diag.Log("A11yAutoDiag", "  StorageCD inv="
+                    + EntityManager.GetComponentData<StorageCD>(ent).inventoryEntity.Index);
         }
     }
 }

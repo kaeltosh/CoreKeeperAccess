@@ -335,6 +335,13 @@ namespace CoreKeeperAccess.Navigation
         // (le nom de la recette tient lieu de libelle).
         public static string RoleLabel(SlotSection section, UIelement element, int indexInSection)
         {
+            // Station de transformation (four / fonderie / chaudron) : etiqueter le slot
+            // entree / sortie (+ etat de transformation sur la sortie), independamment de
+            // la section. Le role s'affiche MEME si le slot est vide -> on sait ou deposer
+            // le minerai et ou recuperer le resultat.
+            string craftRole = CraftStationRole(element);
+            if (craftRole != null) return craftRole;
+
             if (section.Kind == "equipment")
             {
                 // Slot d'equipement -> nom du role ; onglet de preset -> rien (son
@@ -353,6 +360,76 @@ namespace CoreKeeperAccess.Navigation
                 || section.Kind == "souls" || section.Kind == "stats")
                 return null;
             return (indexInSection + 1).ToString();
+        }
+
+        private static System.Reflection.FieldInfo _outIdxField;
+
+        // Role "entree" / "sortie" d'un slot de station de transformation (four, fonderie,
+        // chaudron). La sortie porte en plus l'etat ("en cours 60%" / "en pause") lu sur le
+        // CraftingHandler actif. Renvoie null pour tout slot qui n'est pas un I/O de station
+        // (sac, recettes d'un etabli simple, equipement...). Defensif : aucune exception ne
+        // doit casser l'annonce d'un slot ordinaire.
+        private static string CraftStationRole(UIelement element)
+        {
+            var slot = element as InventorySlotUI;
+            if (slot == null) return null;
+            var player = Manager.main != null ? Manager.main.player : null;
+            var handler = player != null ? player.activeCraftingHandler : null;
+            if (handler == null) return null;
+
+            // Slot de SORTIE : OutputSlotUI (resultat) ou InventoryProgressSlotUI (timer).
+            if (slot is OutputSlotUI || slot is InventoryProgressSlotUI)
+            {
+                string outp = Strings.L("craft.output");
+                try
+                {
+                    int ci = CraftSlotIndex(slot);
+                    if (handler.HasStartedCrafting(ci))
+                    {
+                        if (handler.IsCrafting(ci))
+                        {
+                            int pct = Mathf.Clamp(Mathf.RoundToInt(handler.GetNormalizedElapsedCraftingTime(ci) * 100f), 0, 100);
+                            return outp + ", " + Strings.L("craft.processing") + " " + pct + "%";
+                        }
+                        return outp + ", " + Strings.L("craft.paused");
+                    }
+                }
+                catch { }
+                return outp;
+            }
+
+            // Slot d'ENTREE : appartient a l'inventaire PROPRE de la station (distinct du sac
+            // du joueur -> exclut l'etabli simple, qui pioche dans le sac), et n'est pas une
+            // recette.
+            try
+            {
+                if (!(slot is RecipeSlotUI)
+                    && handler.inventoryHandler != null
+                    && player.playerInventoryHandler != handler.inventoryHandler
+                    && slot.GetInventoryHandler() == handler.inventoryHandler)
+                    return Strings.L("craft.input");
+            }
+            catch { }
+            return null;
+        }
+
+        // Index de craft a interroger sur le CraftingHandler. InventoryProgressSlotUI suit
+        // son inventorySlotIndex (public) ; OutputSlotUI a un champ prive dedie
+        // (outputForCraftingSlotIndex) -> reflection, fallback sur l'index public.
+        private static int CraftSlotIndex(InventorySlotUI slot)
+        {
+            if (slot is OutputSlotUI)
+            {
+                try
+                {
+                    if (_outIdxField == null)
+                        _outIdxField = typeof(OutputSlotUI).GetField("outputForCraftingSlotIndex",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (_outIdxField != null) return (int)_outIdxField.GetValue(slot);
+                }
+                catch { }
+            }
+            return slot.inventorySlotIndex;
         }
 
         // Indice de ligne (= bourse) de l'element dans une section a Rows, ou -1.

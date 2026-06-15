@@ -261,14 +261,14 @@ namespace CoreKeeperAccess.Gameplay
                     PlayObjectSfx(tile, in info, dx, dy);
                 else
                     PlayMoveTick(dx, dy);
-                if (speak) text = InGameTtsCore.ResolveObjectName(info.ObjectId);
+                if (speak) text = AppendIndustry(AppendPlant(InGameTtsCore.ResolveObjectName(info.ObjectId), in info), in info, false);
             }
             else
             {
                 // Sol : tick de position. Sol notable annonce (le sol de base reste muet).
                 PlayMoveTick(dx, dy);
                 if (speak && info.Ground != TileType.ground)
-                    text = info.Ground.ToString(); // nom brut, table i18n a venir
+                    text = GroundLabel(info.Ground);
             }
 
             if (speak && !string.IsNullOrEmpty(text)) TtsText.Say(text, true);
@@ -428,9 +428,12 @@ namespace CoreKeeperAccess.Gameplay
                         : Strings.L("cursor.immune") + ", " + text;
             }
             else if (TileQuery.ObjectId != ObjectID.None)
-                text = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+            {
+                var snap = TileQuery.Snapshot();
+                text = AppendIndustry(AppendPlant(InGameTtsCore.ResolveObjectName(TileQuery.ObjectId), in snap), in snap, true);
+            }
             else
-                text = TileQuery.Ground.ToString(); // sol brut, i18n a venir
+                text = GroundLabel(TileQuery.Ground);
 
             // Coordonnees monde de la case pointee, en queue de l'annonce (demande
             // utilisateur : repere absolu pour noter/retrouver un endroit).
@@ -438,6 +441,16 @@ namespace CoreKeeperAccess.Gameplay
             text = string.IsNullOrEmpty(text) ? pos : text + ", " + pos;
 
             TtsText.Say(text, true);
+
+            // Dev : sur une machine industrielle, dumper ses composants reels dans le log
+            // (le contenu d'automation n'est atteignable qu'avec l'ecarlate -> seul moyen
+            // de finaliser l'a11y industrie sur du concret). Silencieux pour les testeurs.
+            if (CoreKeeperAccessMod.DevMode
+                && (TileQuery.Conveyor || TileQuery.Power != PowerState.None || TileQuery.HasStorage))
+            {
+                AutomationDiag.Tile = _cursor;
+                AutomationDiag.Requested = true;
+            }
         }
 
         // Nom du materiau du mur pointe (ObjectInfo de la tuile -> nom localise), pour la
@@ -454,6 +467,92 @@ namespace CoreKeeperAccess.Gameplay
             }
             catch { }
             return null;
+        }
+
+        // Libelle d'un sol notable. Sols agricoles traduits (labour/arrosage = info clef
+        // pour cultiver a l'aveugle) ; tout autre sol notable garde son nom brut (dette
+        // i18n mineure existante, rarement declenchee).
+        private static string GroundLabel(TileType g)
+        {
+            if (g == TileType.dugUpGround) return Strings.L("cursor.tilled");
+            if (g == TileType.wateredGround) return Strings.L("cursor.watered");
+            return g.ToString();
+        }
+
+        // Ajoute l'etat d'une plante au libelle de l'objet survole : "en croissance" /
+        // "prete a recolter". Une plante en croissance sur sol NON arrose "a soif" (elle
+        // ne pousse pas tant que le sol n'est pas arrose, cf. PlantsGrowingSystem).
+        // Etat d'une plante, en UN seul mot, exclusif (pas de numero de stade) :
+        //  - mure              -> "prete a recolter"
+        //  - en croissance NON arrosee -> "a soif" (elle ne pousse pas tant qu'on n'arrose pas)
+        //  - en croissance arrosee     -> "en croissance"
+        private static string AppendPlant(string name, in TileInfo info)
+        {
+            if (info.Plant == PlantState.None) return name;
+            string st;
+            if (info.Plant == PlantState.Ready)
+                st = Strings.L("cursor.plant_ready");
+            else if (info.Ground != TileType.wateredGround)
+                st = Strings.L("cursor.plant_thirsty");
+            else
+                st = Strings.L("cursor.plant_growing");
+            return string.IsNullOrEmpty(name) ? st : name + ", " + st;
+        }
+
+        // Ajoute l'etat d'automation au libelle de l'objet survole : sens d'un convoyeur
+        // (« vers Nord ») et alimentation electrique (« sous tension » / « hors tension »).
+        // Les connexions du reseau (vers quels cotes un cable propage) ne sont ajoutees que
+        // dans les details (Triangle+haut, includeConnections=true) pour ne pas saturer le
+        // survol case par case.
+        private static string AppendIndustry(string name, in TileInfo info, bool includeConnections)
+        {
+            if (info.Conveyor)
+            {
+                string dir = CardinalLabel(info.ConveyorDir);
+                if (!string.IsNullOrEmpty(dir))
+                    name = Join(name, Strings.L("cursor.toward") + " " + dir);
+            }
+            if (info.Power != PowerState.None)
+            {
+                name = Join(name, Strings.L(info.Power == PowerState.On ? "cursor.powered" : "cursor.unpowered"));
+                if (includeConnections && info.Connections != 0)
+                {
+                    string c = ConnectionLabel(info.Connections);
+                    if (!string.IsNullOrEmpty(c)) name = Join(name, Strings.L("cursor.connected") + " " + c);
+                }
+            }
+            // Stockage : vide, ou nombre d'objets dedans (surveiller un stock sans l'ouvrir).
+            if (info.HasStorage)
+                name = Join(name, info.StorageCount == 0
+                    ? Strings.L("cursor.storage_empty")
+                    : info.StorageCount + " " + Strings.L("cursor.items"));
+            return name;
+        }
+
+        private static string Join(string a, string b)
+            => string.IsNullOrEmpty(a) ? b : a + ", " + b;
+
+        // Sens cardinal d'un vecteur case (convoyeur). Convoyeurs cardinaux purs : une
+        // seule composante non nulle ; priorite a l'axe nord-sud si jamais les deux.
+        private static string CardinalLabel(int2 d)
+        {
+            if (d.y > 0) return Strings.L("dir.n");
+            if (d.y < 0) return Strings.L("dir.s");
+            if (d.x > 0) return Strings.L("dir.e");
+            if (d.x < 0) return Strings.L("dir.w");
+            return null;
+        }
+
+        // Liste des cotes connectes au reseau electrique (ElectricityDirectionMask brut :
+        // East=1, North=2, South=4, West=8), ordonnee N, E, S, O.
+        private static string ConnectionLabel(int mask)
+        {
+            var parts = new System.Collections.Generic.List<string>(4);
+            if ((mask & 2) != 0) parts.Add(Strings.L("dir.n"));
+            if ((mask & 1) != 0) parts.Add(Strings.L("dir.e"));
+            if ((mask & 4) != 0) parts.Add(Strings.L("dir.s"));
+            if ((mask & 8) != 0) parts.Add(Strings.L("dir.w"));
+            return string.Join(", ", parts);
         }
 
         private static void Reset()

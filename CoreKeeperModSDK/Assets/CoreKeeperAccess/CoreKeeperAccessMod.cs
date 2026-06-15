@@ -20,6 +20,7 @@ public class CoreKeeperAccessMod : IMod
     // menu ET l'intro narrative — et coupe les logos studio. fast-build.ps1 pose le
     // fichier d'office (le supprime avec -NoDev).
     private static bool _devMode;
+    public static bool DevMode => _devMode; // expose pour les diagnostics reserves au dev
     private bool _autoLoadDone;
     private float _autoLoadStable;
 

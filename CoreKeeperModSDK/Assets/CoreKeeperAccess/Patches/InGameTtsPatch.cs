@@ -37,6 +37,7 @@ namespace CoreKeeperAccess.Patches
                 if (!string.IsNullOrEmpty(s) && seen.Add(s)) parts.Add(s);
             }
 
+            Add(FillLevelLabel(element.GetContainedObject().objectData));
             Add(BuildCraftInfo(element));
             Add(BuildMerchantInfo(element));
             Add(BuildSizeInfo(element));
@@ -91,7 +92,29 @@ namespace CoreKeeperAccess.Patches
                 }
                 return 1;
             }
-            return element.GetContainedObject().objectData.amount;
+            var od = element.GetContainedObject().objectData;
+            // Objet "a jauge" (seau/arrosoir = remplissage, outil = durabilite, familier =
+            // xp) : l'amount n'est PAS une quantite empilee -> ne pas l'annoncer comme un
+            // nombre d'objets. Le remplissage est dit a part (FillLevelLabel).
+            if (od.objectID != ObjectID.None
+                && PugDatabase.AmountIsDurabilityOrFullnessOrXp(od.objectID, od.variation))
+                return 1;
+            return od.amount;
+        }
+
+        // Niveau de remplissage d'un objet a jauge de type FULLNESS (seau, arrosoir) :
+        // "vide" / "plein" / "N/M" si la jauge a plusieurs crans. Renvoie null pour tout
+        // objet sans FullnessCD (durabilite et xp ne sont pas concernes ici). Centralise
+        // pour l'inventaire ET l'objet en main.
+        public static string FillLevelLabel(ObjectDataCD od)
+        {
+            if (od.objectID == ObjectID.None) return null;
+            if (!PugDatabase.HasComponent<FullnessCD>(od)) return null;
+            int max = PugDatabase.GetComponent<FullnessCD>(od).maxFullness;
+            int cur = od.amount;
+            if (cur <= 0) return Strings.L("fill.empty");
+            if (max > 1 && cur < max) return cur + "/" + max;
+            return Strings.L("fill.full");
         }
 
         // Pour une recette d'artisanat : "fabricable" si on a tout, sinon la liste
@@ -283,16 +306,42 @@ namespace CoreKeeperAccess.Patches
         public static string ResolveObjectName(ObjectID objectID)
         {
             if (objectID == ObjectID.None) return null;
+            // Surcharge i18n du mod EN PRIORITE. Certains objets ne sont PAS traduits par
+            // le jeu dans la langue courante (ex. les plantes en croissance *Plant comme
+            // HeartBerryPlant -> le jeu renvoie l'ANGLAIS en repli, donc l'ancienne logique
+            // "surcharge seulement si nom vide" ne s'activait jamais). Notre table
+            // obj.<NomEnum> prime donc pour les cles qu'on declare ; tout objet NON declare
+            // (TryL renvoie false) passe par le jeu normalement -> zero regression.
+            if (Strings.TryL("obj." + objectID, out string custom)) return custom;
+            // Plante en croissance "<Fruit>Plant" non traduite par le jeu -> nom derive du
+            // FRUIT (lui traduit). Couvre TOUTES les cultures sans table manuelle.
+            string plant = ResolvePlantName(objectID);
+            if (plant != null) return plant;
             var taf = PlayerController.GetObjectName(new ContainedObjectsBuffer
             {
                 objectData = new ObjectDataCD { objectID = objectID }
             }, false);
             string name = TtsText.ResolveTextAndFormatFields(taf);
             if (!string.IsNullOrEmpty(name)) return name;
-            // Surcharge i18n du mod pour les orphelins connus (obj.<NomEnum> dans nos
-            // JSON : Core, cable ancien, statues de boss...), sinon nom d'enum decoupe.
-            if (Strings.TryL("obj." + objectID, out string custom)) return custom;
             return SplitEnumName(objectID.ToString());
+        }
+
+        // Nom d'une plante en croissance dont l'ObjectID finit par "Plant" (HeartBerryPlant,
+        // LunacornPlant...). Le jeu ne traduit PAS ces ObjectID (repli anglais) ; on construit
+        // "<prefixe> <fruit>" a partir du FRUIT correspondant (nom d'enum sans "Plant"), lui
+        // traduit par le jeu. Ne s'active QUE si la langue fournit le prefixe obj.plant_of (le
+        // francais) -> l'anglais garde le nom natif du jeu. Repli propre (null) si le fruit
+        // n'est pas un ObjectID connu (ex. SnarePlant) -> on retombe sur le nom du jeu.
+        private static string ResolvePlantName(ObjectID objectID)
+        {
+            if (!Strings.TryL("obj.plant_of", out string prefix)) return null;
+            string s = objectID.ToString();
+            if (s.Length <= 5 || !s.EndsWith("Plant")) return null;
+            string fruit = s.Substring(0, s.Length - 5);
+            if (!System.Enum.TryParse(fruit, out ObjectID fruitId) || fruitId == ObjectID.None) return null;
+            string fruitName = ResolveObjectName(fruitId);
+            if (string.IsNullOrEmpty(fruitName)) return null;
+            return prefix + " " + char.ToLower(fruitName[0]) + fruitName.Substring(1);
         }
 
         // "LarvaHiveBossStatue" -> "Larva Hive Boss Statue" (espaces aux frontieres de
