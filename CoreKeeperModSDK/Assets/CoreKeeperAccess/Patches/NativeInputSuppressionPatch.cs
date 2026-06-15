@@ -3,6 +3,7 @@ using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Navigation;
 using HarmonyLib;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Patches
@@ -154,6 +155,47 @@ namespace CoreKeeperAccess.Patches
             if (!TextEntry.Active) return true;
             __result = 0f;
             return false;
+        }
+    }
+
+    // === Focus mortier (canne laser) ===
+    // Quand un mortier est equipe et que la canne laser vise un ennemi (LaserCane publie
+    // l'intention ici), on bascule le viseur du mortier en "mode souris" et on pose son
+    // point d'impact DIRECTEMENT sur l'ennemi. Le mode souris pose la cible instantanement ;
+    // le viseur manette, lui, rampe a vitesse finie (offset integre dans le temps) -> pas
+    // reactif. Actif uniquement en combat ; relache des que le laser lache l'ennemi.
+    internal static class MortarFocus
+    {
+        public static bool Active;
+        public static float2 TargetWorld; // position monde (xz) de l'ennemi a viser
+    }
+
+    // Point d'impact "souris" du joueur. En mode souris, le mortier (cercle ET tir, client
+    // + serveur via l'input replique) vise ce point -> on l'ecrase sur l'ennemi. Postfix
+    // sur la methode privee qui calcule ce point dans SendClientInputSystem.
+    [HarmonyPatch(typeof(SendClientInputSystem), "CalculateMouseOrJoystickWorldPoint")]
+    internal static class MortarMousePointPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(ref float2 __result)
+        {
+            if (MortarFocus.Active) __result = MortarFocus.TargetWorld;
+        }
+    }
+
+    // Bascule "mode souris" : sans ce flag, le calcul de cible du mortier prend la branche
+    // manette (offset accumule, integre dans le temps -> rampe, pas reactif) et ignore notre
+    // point. On ne le force QUE pendant le focus (en combat). VALIDE en jeu : hors menu, les
+    // seuls autres lecteurs sont le rendu du ghost (qu'on veut en souris) et le curseur souris,
+    // qui ne s'est PAS manifeste en combat -> aucun effet de bord observe. La quasi-totalite
+    // des autres lecteurs du flag sont des ecrans de menu, inactifs quand on tire au mortier.
+    [HarmonyPatch(typeof(InputManager), nameof(InputManager.SystemPrefersKeyboardAndMouse))]
+    internal static class MortarPrefersMousePatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(ref bool __result)
+        {
+            if (MortarFocus.Active) __result = true;
         }
     }
 }

@@ -188,11 +188,50 @@ namespace CoreKeeperAccess.Gameplay
                     _lastPassiveKey = 0;
                 }
             }
+
+            // Focus mortier : si un mortier est equipe et qu'un ennemi est dans le
+            // faisceau, on cale le viseur du jeu dessus (placement instantane cote patch).
+            UpdateMortarFocus(player);
+        }
+
+        // Cale le viseur du mortier sur l'ennemi vise par le laser. N'a de sens que si un
+        // mortier est equipe ; sinon (autre arme / pas d'ennemi) on relache et le jeu reprend
+        // sa visee normale. Le placement INSTANTANE se fait cote patch (mode souris + point
+        // pose sur l'ennemi) : la visee manette classique rampe a vitesse finie (offset
+        // integre dans le temps) -> pas reactive, d'ou le mode souris. Ici on ne fait que
+        // publier l'intention (MortarFocus), les patches d'input s'occupent du reste.
+        private static bool _mortarFocusWas;
+        private static void UpdateMortarFocus(PlayerController player)
+        {
+            bool want = LaserScan.HasEnemy && IsMortarEquipped(player);
+            if (want) MortarFocus.TargetWorld = LaserScan.EnemyPos;
+            MortarFocus.Active = want;
+            if (want != _mortarFocusWas)
+            {
+                _mortarFocusWas = want;
+                Diag.Log("A11yMortarFocus", want
+                    ? "ON cible=" + LaserScan.EnemyPos.x + "," + LaserScan.EnemyPos.y
+                    : "OFF");
+            }
+        }
+
+        // Un mortier est equipe ? Lu sur l'entite joueur via AimIndicatorCachedStatesCD.isMortar
+        // (le jeu y met en cache le type d'arme en main pour son indicateur de visee).
+        private static bool IsMortarEquipped(PlayerController player)
+        {
+            try
+            {
+                if (player == null) return false;
+                return EntityUtility.HasComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world)
+                    && EntityUtility.GetComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world).isMortar;
+            }
+            catch { return false; }
         }
 
         private static void Reset()
         {
             Active = false;
+            MortarFocus.Active = false; // pas de laser -> pas de focus mortier
             LaserScan.Active = false;
             LaserScan.ResultValid = false; // ne pas agir sur un resultat perime a la reactivation
             _lastImpact = NoImpact;
