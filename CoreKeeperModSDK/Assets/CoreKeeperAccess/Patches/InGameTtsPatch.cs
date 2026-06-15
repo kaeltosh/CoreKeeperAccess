@@ -471,4 +471,79 @@ namespace CoreKeeperAccess.Patches
             TtsText.Say(Strings.L("equip.preset") + " " + (presetIndex + 1), true);
         }
     }
+
+    // Dialogue scenarise du Core (TheCore). A chaque interaction, le Core choisit une
+    // replique (indices vers les boss, deblocage des ames, revelation puis deblocage du
+    // boss final, indices du grand mur, phrase finale, outro...) et la REND dans son
+    // PugText coreSpeechText, avec un effet de syllabes sonores facon charabia
+    // (PugTextEffectEnunciateSyllables) -> AUCUN texte n'atteint le lecteur d'ecran.
+    // On capte la reference de chaque coreSpeechText vivant (OnOccupied/OnFree) puis on
+    // relit le texte rendu au postfix de PugText.Render.
+    // Pourquoi hooker Render et pas OnUse : certaines repliques sont rendues en DIFFERE
+    // par des coroutines (ScanArea, LookAround, EmpowerPlayer) hors du frame de OnUse ->
+    // un postfix sur OnUse les raterait. Render les capte toutes, immediates comme
+    // differees, et part AVANT le charabia (le texte est connu des le rendu).
+    internal static class CoreSpeechState
+    {
+        // coreSpeechText actuellement vivants (un seul Core en pratique ; HashSet par
+        // surete vis-a-vis du pooling d'entites). Les CONTOURS (coreSpeechTextOutlines)
+        // n'y sont PAS : ils rendent le meme terme mais ne declenchent aucune lecture,
+        // donc zero doublon.
+        public static readonly HashSet<PugText> SpeechTexts = new HashSet<PugText>();
+    }
+
+    [HarmonyPatch(typeof(TheCore), nameof(TheCore.OnOccupied))]
+    internal static class TheCoreOnOccupiedPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(TheCore __instance)
+        {
+            if (__instance.coreSpeechText != null)
+                CoreSpeechState.SpeechTexts.Add(__instance.coreSpeechText);
+        }
+    }
+
+    [HarmonyPatch(typeof(TheCore), nameof(TheCore.OnFree))]
+    internal static class TheCoreOnFreePatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(TheCore __instance)
+        {
+            if (__instance.coreSpeechText != null)
+                CoreSpeechState.SpeechTexts.Remove(__instance.coreSpeechText);
+        }
+    }
+
+    // Render(string text, bool rewindEffectAnims, bool force, bool activate) : la
+    // surcharge que TheCore appelle (toujours avec rewindEffectAnims=true, ce qui force
+    // un vrai rendu a chaque replique). Le check Count==0 en tete rend le cout nul tant
+    // qu'aucun Core n'est charge (cas general) ; sinon un Contains sur un HashSet de 1.
+    [HarmonyPatch(typeof(PugText), nameof(PugText.Render),
+        new[] { typeof(string), typeof(bool), typeof(bool), typeof(bool) })]
+    internal static class PugTextRenderCoreSpeechPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(PugText __instance)
+        {
+            if (CoreSpeechState.SpeechTexts.Count == 0) return;
+            if (!CoreSpeechState.SpeechTexts.Contains(__instance)) return;
+
+            var announcement = TtsText.ResolvePugText(__instance);
+            if (string.IsNullOrEmpty(announcement)) return;
+
+            // Marqueurs de pause/emphase de l'effet syllabes ('*' = starDelay,
+            // '`' = backtickDelay) : structurels, pas du texte -> retires pour que NVDA
+            // ne les epelle pas, puis espaces compactes.
+            if (announcement.IndexOf('*') >= 0 || announcement.IndexOf('`') >= 0)
+            {
+                announcement = announcement.Replace("*", "").Replace("`", "");
+                announcement = System.Text.RegularExpressions.Regex.Replace(announcement, @"\s+", " ").Trim();
+                if (announcement.Length == 0) return;
+            }
+
+            // interrupt=true : une nouvelle replique remplace la precedente (le joueur
+            // avance dans le dialogue a son rythme, pas de file qui s'accumule).
+            TtsText.Say(announcement, true);
+        }
+    }
 }
