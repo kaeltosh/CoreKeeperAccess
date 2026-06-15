@@ -93,11 +93,11 @@ namespace CoreKeeperAccess.Patches
                 return 1;
             }
             var od = element.GetContainedObject().objectData;
-            // Objet "a jauge" (seau/arrosoir = remplissage, outil = durabilite, familier =
-            // xp) : l'amount n'est PAS une quantite empilee -> ne pas l'annoncer comme un
-            // nombre d'objets. Le remplissage est dit a part (FillLevelLabel).
-            if (od.objectID != ObjectID.None
-                && PugDatabase.AmountIsDurabilityOrFullnessOrXp(od.objectID, od.variation))
+            // Seau / arrosoir (FullnessCD) UNIQUEMENT : leur amount = niveau de remplissage,
+            // pas une quantite empilee -> on ne l'annonce pas comme un nombre d'objets (c'est
+            // FillLevelLabel qui dit vide/plein). NB : ne PAS elargir a la durabilite ni a
+            // l'xp (l'amount EST l'info utile pour eux, regression vecue le 15 juin).
+            if (od.objectID != ObjectID.None && PugDatabase.HasComponent<FullnessCD>(od))
                 return 1;
             return od.amount;
         }
