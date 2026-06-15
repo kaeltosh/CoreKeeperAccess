@@ -87,6 +87,8 @@ namespace CoreKeeperAccess.Gameplay
         // Gain de normalisation, et substitution eventuelle du clip par sa version RAM.
         private static float NormalizeGain(int idx, ref AudioClip clip)
         {
+            // Normalisation desactivee par l'utilisateur : son brut (gain 1, clip d'origine).
+            if (!A11ySettings.NormalizeAudio) return 1f;
             AudioClip ram;
             if (_rebuilt.TryGetValue(idx, out ram))
             {
@@ -103,6 +105,7 @@ namespace CoreKeeperAccess.Gameplay
         // possible (le jeu joue les siens), donc attenuation seule.
         private static float NativeGain(SfxID id)
         {
+            if (!A11ySettings.NormalizeAudio) return 1f;
             int idx = (int)id;
             float g;
             if (_gain.TryGetValue(idx, out g)) return g;
@@ -479,49 +482,6 @@ namespace CoreKeeperAccess.Gameplay
                 var f = typeof(AudioManager).GetField("audioFieldMap",
                     BindingFlags.NonPublic | BindingFlags.Instance);
                 _fields = f != null ? f.GetValue(audio) as AudioField[] : null;
-            }
-        }
-    }
-
-    // Reglages utilisateur du mod : fichier "a11y-settings.json" a la racine du dossier
-    // d'install du mod (a cote de dev.flag), CREE avec ses valeurs par defaut au premier
-    // boot s'il est absent -> l'utilisateur sait ou il est et a quoi il ressemble.
-    // Relu au lancement uniquement. Pas de declaration au ModManifest necessaire (on le
-    // lit/ecrit en File IO direct, jamais via LoadedMod.GetFile) -> fast-build suffit.
-    // Extensible : les categories de sons (sentinelle, curseur, laser, sonar...)
-    // viendront s'ajouter a cote du master sans casser les fichiers existants.
-    // A extraire dans son propre fichier source au prochain build Unity (dette notee).
-    internal static class A11ySettings
-    {
-        [System.Serializable]
-        private class Data
-        {
-            // Volume maitre des SONS du mod (bips, marqueurs, sonar...), 0..1.
-            // Le TTS n'est pas concerne (NVDA a son propre volume).
-            public float masterVolume = 1f;
-        }
-
-        public static float MasterVolume { get; private set; } = 1f;
-
-        public static void Load()
-        {
-            try
-            {
-                string path = System.IO.Path.Combine(
-                    Application.streamingAssetsPath, "Mods", "CoreKeeperAccess", "a11y-settings.json");
-                if (!System.IO.File.Exists(path))
-                {
-                    System.IO.File.WriteAllText(path, JsonUtility.ToJson(new Data(), true));
-                    return; // defauts en memoire = defauts du fichier
-                }
-                var d = JsonUtility.FromJson<Data>(System.IO.File.ReadAllText(path));
-                if (d != null) MasterVolume = Mathf.Clamp01(d.masterVolume);
-            }
-            catch (System.Exception ex)
-            {
-                // Fichier illisible/corrompu : defauts + trace, le son ne doit jamais
-                // dependre de la sante d'un JSON.
-                Diag.Error("A11ySettings", ex);
             }
         }
     }

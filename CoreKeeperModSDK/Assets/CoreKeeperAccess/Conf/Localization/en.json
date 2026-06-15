@@ -161,5 +161,16 @@
   "edit.cancelled": "Cancelled",
   "cinematic.start": "Cinematic. Hold Cross to skip",
   "cinematic.skipped": "Cinematic skipped",
-  "chartype.help": "left or right to change mode, then the Done button to confirm"
+  "chartype.help": "left or right to change mode, then the Done button to confirm",
+  "settings.title": "Accessibility settings",
+  "settings.closed": "Settings closed",
+  "settings.submenu": "submenu",
+  "settings.on": "on",
+  "settings.off": "off",
+  "settings.percent": "percent",
+  "settings.mastervolume": "Master volume",
+  "settings.directiontick": "Directional tick volume",
+  "settings.snap": "Assisted direction",
+  "settings.slowmo": "Combat slow motion",
+  "settings.normalize": "Volume normalization"
 }

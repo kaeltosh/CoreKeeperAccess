@@ -491,11 +491,16 @@ namespace CoreKeeperAccess.Gameplay
     // nord-sud, langage du curseur) -> confirme le cap ET compte les cases a l'oreille.
     internal static class DirectionAssist
     {
-        public static bool Active;
+        // Etat persiste dans A11ySettings : Triangle+L3 ET le panneau de reglages pilotent
+        // la meme source de verite (l'aide est donc reactivee telle quelle au relancement).
+        public static bool Active
+        {
+            get => A11ySettings.SnapDirectional;
+            set => A11ySettings.SnapDirectional = value;
+        }
 
-        // "tout petit bip" (demande utilisateur), baisse de 50 % le 13 juin -> a exposer
-        // comme parametre mod (categorie de volume dediee dans a11y-settings.json).
-        private const float TickVolume = 0.125f;
+        // Volume du "tout petit bip" directionnel : desormais reglable a l'oreille via le
+        // panneau (A11ySettings.DirectionTickVolume), defaut 0.125 (baisse 13 juin).
         private const float NorthPitch = 1.5f;   // nord = plus aigu
         private const float SouthPitch = 0.67f;  // sud = plus grave (est/ouest = neutre 1.0)
 
@@ -525,7 +530,7 @@ namespace CoreKeeperAccess.Gameplay
             float pan, pitch;
             if (Mathf.Abs(dx) >= Mathf.Abs(dz)) { pan = dx >= 0 ? 1f : -1f; pitch = 1f; }   // est / ouest
             else { pan = 0f; pitch = dz > 0 ? NorthPitch : SouthPitch; }                    // nord / sud
-            GameplayAudio.PlayTone(pan, pitch, TickVolume);
+            GameplayAudio.PlayTone(pan, pitch, A11ySettings.DirectionTickVolume);
         }
     }
 

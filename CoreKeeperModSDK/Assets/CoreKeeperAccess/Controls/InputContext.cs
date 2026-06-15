@@ -16,6 +16,7 @@ namespace CoreKeeperAccess.Controls
         internal enum PadOwner
         {
             None,       // pas en jeu (pas de joueur / UI pas prete)
+            Settings,   // panneau de reglages a11y ouvert : modal, prime sur tout
             AccessKey,  // Triangle tenu : D-pad reserve aux combos
             Menu,       // menu (pause, options...) : le jeu navigue, on ne touche a rien
             Map,        // carte ouverte : TeleportNavigator
@@ -32,6 +33,7 @@ namespace CoreKeeperAccess.Controls
         public static bool CharacterWindowOpen { get; private set; }
         public static bool StationOpen { get; private set; }         // station de reparation/recyclage
         public static bool InventoryNavActive { get; private set; }  // notre nav inventaire tient la main
+        public static bool SettingsOpen { get; private set; }        // panneau de reglages a11y ouvert
 
         // Composites des anciennes gardes.
         public static bool UiBusy { get; private set; }     // nav inventaire OU menu : combos gameplay muets
@@ -47,14 +49,18 @@ namespace CoreKeeperAccess.Controls
             CharacterWindowOpen = InWorld && ui.characterWindow != null && ui.characterWindow.isShowing;
             StationOpen = InWorld && ui.isSalvageAndRepairUIShowing;
             InventoryNavActive = Navigation.InventoryNavState.SuppressNativeInput;
+            SettingsOpen = Settings.SettingsMenu.Active;
 
-            UiBusy = InventoryNavActive || MenuOpen;
-            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen;
+            // Panneau de reglages ouvert : modal. On le compte dans UiBusy ET on retire
+            // InGameFree -> laser, curseur, sentinelle... se taisent pendant le reglage.
+            UiBusy = InventoryNavActive || MenuOpen || SettingsOpen;
+            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen && !SettingsOpen;
         }
 
         // Proprietaire COURANT du D-pad (vif, voir note de classe sur l'ordre de lecture).
         public static PadOwner Owner =>
             !InWorld ? PadOwner.None
+            : Settings.SettingsMenu.Active ? PadOwner.Settings
             : InfoKey.ModifierHeld ? PadOwner.AccessKey
             : MenuOpen ? PadOwner.Menu
             : MapOpen ? PadOwner.Map

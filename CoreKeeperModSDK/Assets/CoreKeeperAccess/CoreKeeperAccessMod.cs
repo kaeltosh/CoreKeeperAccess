@@ -134,7 +134,8 @@ public class CoreKeeperAccessMod : IMod
         TriangleModifier.Tick();
         InfoKey.Tick();
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
-        CoreKeeperAccess.Navigation.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
+        CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
+        CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();

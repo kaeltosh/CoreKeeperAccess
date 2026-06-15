@@ -23,6 +23,7 @@ namespace CoreKeeperAccess.Controls
             BumperR,   // Triangle + R1 (pivoter / changer taille de zone)
             DoubleTap, // double-tap bref de Triangle
             LeftStick, // Triangle + L3 (toggle direction assistee)
+            Back,      // Triangle + Back (ouvrir le panneau de reglages)
         }
 
         private struct Entry
@@ -35,7 +36,7 @@ namespace CoreKeeperAccess.Controls
 
         private static List<Entry>[] BuildTable()
         {
-            var t = new List<Entry>[8];
+            var t = new List<Entry>[9];
             for (int i = 0; i < t.Length; i++) t[i] = new List<Entry>(4);
             return t;
         }
@@ -49,6 +50,9 @@ namespace CoreKeeperAccess.Controls
         // gardes lisent alors des etats frais (curseur detache, nav inventaire...).
         public static void Tick()
         {
+            // Panneau de reglages ouvert : il a pris la main sur le D-pad (Triangle relache),
+            // aucun combo touche access ne doit partir.
+            if (Settings.SettingsMenu.Active) return;
             if (InfoKey.DetailRequested) Fire(Combo.Detail);
             if (InfoKey.ComboRight) Fire(Combo.Right);
             if (InfoKey.ComboDown) Fire(Combo.Down);
@@ -56,6 +60,7 @@ namespace CoreKeeperAccess.Controls
             if (InfoKey.ComboLB) Fire(Combo.BumperL);
             if (InfoKey.ComboR1) Fire(Combo.BumperR);
             if (InfoKey.ComboL3) Fire(Combo.LeftStick);
+            if (InfoKey.ComboBack) Fire(Combo.Back);
             if (InfoKey.DoubleTapped) Fire(Combo.DoubleTap);
         }
 

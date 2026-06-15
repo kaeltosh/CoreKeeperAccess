@@ -162,5 +162,16 @@
   "edit.cancelled": "Annulé",
   "cinematic.start": "Cinématique. Maintenir Croix pour passer",
   "cinematic.skipped": "Cinématique passée",
-  "chartype.help": "gauche ou droite pour changer de mode, puis le bouton Terminé pour valider"
+  "chartype.help": "gauche ou droite pour changer de mode, puis le bouton Terminé pour valider",
+  "settings.title": "Réglages d'accessibilité",
+  "settings.closed": "Réglages fermés",
+  "settings.submenu": "sous-menu",
+  "settings.on": "activé",
+  "settings.off": "désactivé",
+  "settings.percent": "pour cent",
+  "settings.mastervolume": "Volume général",
+  "settings.directiontick": "Volume du tic directionnel",
+  "settings.snap": "Aide à la direction",
+  "settings.slowmo": "Ralenti de combat",
+  "settings.normalize": "Normalisation du volume"
 }

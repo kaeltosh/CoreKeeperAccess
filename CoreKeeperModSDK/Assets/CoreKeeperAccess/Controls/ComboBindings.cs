@@ -77,6 +77,13 @@ namespace CoreKeeperAccess.Controls
                     InventoryNavState.ArmedTtl = 2;
                 });
 
+            // Triangle + Back = ouvrir le panneau de reglages a11y (maison, TTS). Dispo en
+            // jeu (hors menu de pause natif) ; le panneau gele ensuite l'input et navigue au
+            // D-pad. Re-fermeture par Rond/Back depuis le panneau lui-meme.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Back,
+                () => InputContext.InWorld && !InputContext.MenuOpen,
+                CoreKeeperAccess.Settings.SettingsMenu.Open);
+
             // Double-tap Triangle = ouvrir/fermer la carte : on rejoue l'action native
             // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
             // jeu fait le reste (toggle, fermeture au B aussi).
