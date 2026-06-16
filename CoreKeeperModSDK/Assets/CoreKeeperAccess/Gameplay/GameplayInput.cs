@@ -53,6 +53,11 @@ namespace CoreKeeperAccess.Gameplay
             // Centre de l'index d'objets (TileReaderSystem le reconstruit autour).
             ObjectIndex.Center = new float2(player.WorldPosition.x, player.WorldPosition.z);
 
+            // Tisse le reseau de navigation (torches -> noeuds, trajets -> aretes). Apres la
+            // publication du centre : l'index est alimente pour la meme position de joueur.
+            BeaconTracker.Tick(player);
+            BeaconGuide.Tick(player); // guidage a l'oreille vers un noeud (si le mode est actif)
+
             // Les combos (prospection, ping sonar, double-tap carte) sont routes par
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);

@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "alpha 1";
-    private const string BuildTag = "build 85";
+    private const string BuildTag = "build 90";
 
     public void Init()
     {
@@ -97,6 +97,7 @@ public class CoreKeeperAccessMod : IMod
 
     public void Shutdown()
     {
+        CoreKeeperAccess.Navigation.BeaconGraph.Flush(); // sauve les dernieres aretes non ecrites (debounce)
         Strings.Unload();
         Tolk.Unload();
     }
@@ -130,6 +131,8 @@ public class CoreKeeperAccessMod : IMod
         TryAutoLoad();
         TryDevGodMode();
         TryDevInvincible();
+        TryDevBeaconGraphDiag();
+        TryDevBeaconGuide();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
@@ -186,6 +189,28 @@ public class CoreKeeperAccessMod : IMod
         bool on = CoreKeeperAccess.Gameplay.DevInvincibility.Active;
         TtsText.Say(on ? "Invincible active" : "Invincible desactive", true);
         Diag.Log("A11yDevGodMode", "invincibilite pure -> " + on);
+    }
+
+    // Diagnostic dev du reseau de navigation (tranche A) : Triangle (touche access)
+    // MAINTENU + F6 -> annonce nombre de noeuds / aretes + noeud courant. Sert a valider
+    // le tissage des torches AU TTS, sans audio ni combo manette dedie (le guidage sonore
+    // viendra en tranche B). Cache aux testeurs comme F7/F8.
+    private void TryDevBeaconGraphDiag()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F6)) return;
+        CoreKeeperAccess.Gameplay.BeaconTracker.AnnounceDiag();
+    }
+
+    // Bascule du guidage de navigation (tranche B) : Triangle (touche access) MAINTENU +
+    // F5 -> active/désactive l'earcon de guidage. Sans cible sélectionnée, il pointe la
+    // torche la plus proche. Au clavier dev pour valider le calcul + le son ; le vrai
+    // déclencheur manette + la sélection de cible viendront avec le câblage TeleportNavigator.
+    private void TryDevBeaconGuide()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F5)) return;
+        CoreKeeperAccess.Gameplay.BeaconGuide.Toggle();
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

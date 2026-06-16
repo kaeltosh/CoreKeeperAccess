@@ -50,6 +50,30 @@ namespace CoreKeeperAccess.Gameplay
             src.PlayOneShot(clip, volume * gain * A11ySettings.MasterVolume);
         }
 
+        private static AudioSource _beaconSource;
+
+        // Earcon de guidage REPETE (beacon de navigation) : source DEDIEE qu'on COUPE et
+        // relance a chaque ping. Ainsi la CADENCE de repetition gouverne le rythme percu -
+        // la duree / la traine du clip ne deborde JAMAIS sur le ping suivant (demande
+        // utilisateur : la duree du son ne doit pas affecter la frequence de repetition).
+        // Un seul beacon a la fois -> une source unique suffit, pitch/pan libres a chaque ping.
+        public static void PlayBeacon(SfxID id, float pan, float pitch, float volume = 1f)
+        {
+            EnsureInit();
+            if (_beaconSource == null || _fields == null) return;
+            int idx = (int)id;
+            if (idx < 0 || idx >= _fields.Length || _fields[idx] == null) return;
+            var clip = _fields[idx].GetNextAudioClip();
+            if (clip == null) return;
+            float gain = NormalizeGain(idx, ref clip);
+            _beaconSource.Stop(); // coupe le ping precedent : la cadence decoupe le son
+            _beaconSource.clip = clip;
+            _beaconSource.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            _beaconSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            _beaconSource.volume = Mathf.Clamp01(volume * gain * A11ySettings.MasterVolume);
+            _beaconSource.Play();
+        }
+
         // Pan commun a tous les sons positionnels du mod (12 juin, choix utilisateur) :
         // BAREME FIXE EN CASES, lineaire - 1/PanRangeTiles par case d'ecart, 100 %
         // (= extinction totale de l'oreille opposee, vrai hard pan Unity sur clip
@@ -479,6 +503,10 @@ namespace CoreKeeperAccess.Gameplay
 
             _toneSource = go.AddComponent<AudioSource>();
             ConfigureSource(_toneSource);
+
+            // Source dediee du beacon de navigation (coupee/relancee a chaque ping).
+            _beaconSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_beaconSource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.
