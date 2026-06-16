@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$ModSource = "C:\Users\flame\Documents\core keeper\CoreKeeperModSDK\Assets\CoreKeeperAccess",
+    # Auto-localise : deduit le ModSource depuis l'emplacement du script.
+    # Dans chaque worktree, deploie SA propre feature sans -ModSource a la main.
+    [string]$ModSource = (Join-Path (Split-Path $PSScriptRoot -Parent) "CoreKeeperModSDK\Assets\CoreKeeperAccess"),
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\Core Keeper",
     [string]$ModName   = "CoreKeeperAccess",
     [switch]$NoLaunch,
