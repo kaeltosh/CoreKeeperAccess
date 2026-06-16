@@ -130,6 +130,22 @@ namespace CoreKeeperAccess.Gameplay
         public static readonly Target[] Targets = new Target[MaxTargets];
     }
 
+    // Pont du sonar de proximite. Le mod pose une demande (case du joueur) ; le systeme lit
+    // les 8 directions (cardinales + diagonales) jusqu'a 2 cases et publie, par direction, la
+    // texture du 1er obstacle (0=libre, 1=mur, 2=trou/eau) et sa distance (1 ou 2). Ordre des
+    // directions = horaire depuis le nord, identique a ProximitySonar (Dx/Dy).
+    internal static class SonarScan
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static bool ResultValid;
+        public static readonly int[] Tex = new int[4];
+        public static readonly int[] Dist = new int[4];
+        // Couche v2 : objet pose detecte dans la direction (<= 2 cases) + sa distance (1 ou 2).
+        public static readonly bool[] Obj = new bool[4];
+        public static readonly int[] ObjDist = new int[4];
+    }
+
     // Index case -> objet pose, reconstruit periodiquement depuis les ENTITES
     // (position + emprise prefab lue dans PugDatabase). Capte les objets SANS
     // collider physique - etabli en fer, generateur, Core, torches... - que les
@@ -350,6 +366,22 @@ namespace CoreKeeperAccess.Gameplay
                     OreScan.Found = false;
                     OreScan.ResultValid = true;
                     Diag.Error("A11yOreDiag", ex);
+                }
+            }
+
+            // Sonar de proximite : balaye les 8 directions a la demande (independant du curseur).
+            if (SonarScan.Requested)
+            {
+                SonarScan.Requested = false;
+                try
+                {
+                    var taSonar = new TileAccessor(ref CheckedStateRef, true);
+                    ScanSonar(ref taSonar);
+                }
+                catch (System.Exception ex)
+                {
+                    SonarScan.ResultValid = true;
+                    Diag.Error("A11ySonarDiag", ex);
                 }
             }
 
@@ -585,6 +617,42 @@ namespace CoreKeeperAccess.Gameplay
             OreScan.Found = found;
             OreScan.Tile = bestTile;
             OreScan.ResultValid = true;
+        }
+
+        // 4 directions cardinales (x=est, y=nord), identiques a ProximitySonar.
+        private static readonly int[] SonarDx = { 0, 1, 0, -1 };
+        private static readonly int[] SonarDy = { 1, 0, -1, 0 };
+
+        // Scan du sonar de proximite (v1, couche TUILE) : pour chaque direction, retient le
+        // PREMIER obstacle a <= 2 cases. Tuile bloquante pit/eau -> type 2 (clapotis) ; tout
+        // autre mur bloquant -> type 1 (mat) ; rien -> libre (silence). Les objets poses et
+        // les portes fermees (sonde de collision physique) viendront en v2.
+        private static void ScanSonar(ref TileAccessor ta)
+        {
+            int2 c = SonarScan.Center;
+            for (int d = 0; d < 4; d++)
+            {
+                int tex = 0, dist = 0;              // mur (couche tuile)
+                bool obj = false; int objDist = 0;  // objet pose (index d'objets)
+                for (int step = 1; step <= 2; step++)
+                {
+                    int2 t = new int2(c.x + SonarDx[d] * step, c.y + SonarDy[d] * step);
+                    if (ta.TryGetBlockingTile(t, out TileCD wall, true))
+                    {
+                        tex = (wall.tileType == TileType.pit || wall.tileType == TileType.water) ? 2 : 1;
+                        dist = step;
+                        break;   // un mur stoppe la perception au-dela
+                    }
+                    // Objet pose (torche, champignon, etabli...) capte par l'index d'objets,
+                    // tant qu'aucun mur ne le precede. On retient le plus proche.
+                    if (!obj && ObjectIndex.TryGet(t, out _)) { obj = true; objDist = step; }
+                }
+                SonarScan.Tex[d] = tex;
+                SonarScan.Dist[d] = dist;
+                SonarScan.Obj[d] = obj;
+                SonarScan.ObjDist[d] = objDist;
+            }
+            SonarScan.ResultValid = true;
         }
 
         // Balaye les creatures dans le rayon du ping et publie position + bord.

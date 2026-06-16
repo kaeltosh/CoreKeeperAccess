@@ -174,5 +174,10 @@
   "settings.directiontick": "Step beep volume",
   "settings.snap": "Assisted direction",
   "settings.slowmo": "Combat slow motion",
-  "settings.normalize": "Volume normalization"
+  "settings.normalize": "Volume normalization",
+  "settings.sonar": "Proximity sonar",
+  "settings.sonarvolume": "Sonar volume",
+  "settings.sonarmedium": "Sonar medium volume",
+  "settings.sonargrave": "Sonar bass volume",
+  "settings.objectding": "Object ding"
 }

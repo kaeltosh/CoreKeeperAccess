@@ -57,6 +57,7 @@ namespace CoreKeeperAccess.Gameplay
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);
             StepEngine.Tick(player);
+            ProximitySonar.Tick(player);
             PlacementReader.Tick(player);
 
             // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur

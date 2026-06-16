@@ -175,5 +175,10 @@
   "settings.directiontick": "Volume du bip de pas",
   "settings.snap": "Aide à la direction",
   "settings.slowmo": "Ralenti de combat",
-  "settings.normalize": "Normalisation du volume"
+  "settings.normalize": "Normalisation du volume",
+  "settings.sonar": "Sonar de proximité",
+  "settings.sonarvolume": "Volume du sonar",
+  "settings.sonarmedium": "Volume sonar medium",
+  "settings.sonargrave": "Volume sonar grave",
+  "settings.objectding": "Ding des objets"
 }

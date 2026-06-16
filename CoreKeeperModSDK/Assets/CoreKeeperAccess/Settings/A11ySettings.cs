@@ -43,6 +43,17 @@ namespace CoreKeeperAccess.Gameplay
             // Normalisation RMS des sons natifs du jeu (egalise des masterisations tres
             // inegales). Off = sons bruts.
             public bool normalizeAudio = true;
+            // Sonar de proximite : nappes de bruit filtre sur les obstacles a <= 2 cases.
+            public bool proximitySonar = false;
+            // Volume GENERAL du sonar de proximite, 0..2. Defaut = equilibre valide en jeu (16 juin).
+            public float sonarVolume = 0.9f;
+            // Volumes INDEPENDANTS des 2 timbres du sonar (v1), pour equilibrer a l'oreille : le
+            // grave est percu plus faible que le medium a niveau egal (equi-sonie). 0..2. Defauts
+            // = equilibre VALIDE en jeu par l'utilisateur (16 juin).
+            public float sonarVolMedium = 0.7f;  // medium (neutre) : nord, est, ouest
+            public float sonarVolGrave = 2f;     // grave (sombre) : sud (pousse au max a l'oreille)
+            // Couche OBJETS du sonar (le ding sur les objets poses), togglable a part du bruit.
+            public bool objectDing = true;
         }
 
         private static Data _d = new Data();
@@ -62,6 +73,11 @@ namespace CoreKeeperAccess.Gameplay
 
         public static bool CombatSlowMo => _d.combatSlowMo;
         public static bool NormalizeAudio => _d.normalizeAudio;
+        public static bool ProximitySonar => _d.proximitySonar;
+        public static float SonarVolume => _d.sonarVolume;
+        public static float SonarVolMedium => _d.sonarVolMedium;
+        public static float SonarVolGrave => _d.sonarVolGrave;
+        public static bool ObjectDing => _d.objectDing;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -71,6 +87,11 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetSnapDirectional(bool v) { _d.snapDirectional = v; Save(); }
         public static void SetCombatSlowMo(bool v) { _d.combatSlowMo = v; Save(); }
         public static void SetNormalizeAudio(bool v) { _d.normalizeAudio = v; Save(); }
+        public static void SetProximitySonar(bool v) { _d.proximitySonar = v; Save(); }
+        public static void SetSonarVolume(float v) { _d.sonarVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetSonarVolMedium(float v) { _d.sonarVolMedium = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetSonarVolGrave(float v) { _d.sonarVolGrave = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetObjectDing(bool v) { _d.objectDing = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et
@@ -115,6 +136,9 @@ namespace CoreKeeperAccess.Gameplay
             d.masterVolume = Mathf.Clamp(d.masterVolume, 0f, 2f);
             d.directionTickVolume = Mathf.Clamp(d.directionTickVolume, 0f, 2f);
             d.navigationVolume = Mathf.Clamp(d.navigationVolume, 0f, 2f);
+            d.sonarVolume = Mathf.Clamp(d.sonarVolume, 0f, 2f);
+            d.sonarVolMedium = Mathf.Clamp(d.sonarVolMedium, 0f, 2f);
+            d.sonarVolGrave = Mathf.Clamp(d.sonarVolGrave, 0f, 2f);
             _d = d;
         }
 
