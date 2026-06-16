@@ -77,6 +77,11 @@ namespace CoreKeeperAccess.Settings
                 LabelKey = "settings.mastervolume",
                 Get = () => A11ySettings.MasterVolume, Set = A11ySettings.SetMasterVolume, Step = 0.05f,
             });
+            _root.Children.Add(new Toggle
+            {
+                LabelKey = "settings.stepbeep",
+                Get = () => A11ySettings.StepBeep, Set = A11ySettings.SetStepBeep,
+            });
             _root.Children.Add(new Slider
             {
                 LabelKey = "settings.directiontick",

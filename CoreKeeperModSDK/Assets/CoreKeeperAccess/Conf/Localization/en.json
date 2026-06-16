@@ -169,7 +169,8 @@
   "settings.off": "off",
   "settings.percent": "percent",
   "settings.mastervolume": "Master volume",
-  "settings.directiontick": "Directional tick volume",
+  "settings.stepbeep": "Step beep",
+  "settings.directiontick": "Step beep volume",
   "settings.snap": "Assisted direction",
   "settings.slowmo": "Combat slow motion",
   "settings.normalize": "Volume normalization"

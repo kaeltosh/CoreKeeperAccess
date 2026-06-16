@@ -22,10 +22,15 @@ namespace CoreKeeperAccess.Gameplay
             // Volume maitre des SONS du mod (bips, marqueurs, tons...), 0..1. Le TTS n'est
             // pas concerne (NVDA a son propre volume).
             public float masterVolume = 1f;
-            // Volume du tic directionnel de l'aide a la direction (ex-TickVolume, 13 juin).
+            // Volume du bip de pas (la boussole de locomotion, ex-tic directionnel).
             public float directionTickVolume = 0.125f;
-            // Aide a la direction (snap cardinal du deplacement + tic par case). Aussi
-            // basculee par Triangle+L3 : meme source de verite, donc persistee.
+            // Bip de pas : boussole de locomotion permanente (un bip par case franchie,
+            // direction encodee en pan/pitch). DECOUPLE du snap le 16 juin -> actif par
+            // defaut (c'est devenu la boussole de l'utilisateur), regle au panneau.
+            public bool stepBeep = true;
+            // Snap directionnel (marche forcee au cardinal pour poser en rangs). Aussi
+            // basculee par Triangle+L3 : meme source de verite, donc persistee. PONCTUEL,
+            // donc inactif par defaut.
             public bool snapDirectional = false;
             // Ralenti automatique quand des ennemis chassent (CombatSlowMotion).
             public bool combatSlowMo = true;
@@ -38,6 +43,7 @@ namespace CoreKeeperAccess.Gameplay
 
         public static float MasterVolume => _d.masterVolume;
         public static float DirectionTickVolume => _d.directionTickVolume;
+        public static bool StepBeep => _d.stepBeep;
 
         // Snap : source de verite partagee entre Triangle+L3 (DirectionAssist) et le
         // panneau. Le set persiste -> l'etat survit au relancement.
@@ -53,6 +59,7 @@ namespace CoreKeeperAccess.Gameplay
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp01(v); Save(); }
         public static void SetDirectionTickVolume(float v) { _d.directionTickVolume = Mathf.Clamp01(v); Save(); }
+        public static void SetStepBeep(bool v) { _d.stepBeep = v; Save(); }
         public static void SetSnapDirectional(bool v) { _d.snapDirectional = v; Save(); }
         public static void SetCombatSlowMo(bool v) { _d.combatSlowMo = v; Save(); }
         public static void SetNormalizeAudio(bool v) { _d.normalizeAudio = v; Save(); }

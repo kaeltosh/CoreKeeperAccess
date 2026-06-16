@@ -170,7 +170,8 @@
   "settings.off": "désactivé",
   "settings.percent": "pour cent",
   "settings.mastervolume": "Volume général",
-  "settings.directiontick": "Volume du tic directionnel",
+  "settings.stepbeep": "Bip de pas",
+  "settings.directiontick": "Volume du bip de pas",
   "settings.snap": "Aide à la direction",
   "settings.slowmo": "Ralenti de combat",
   "settings.normalize": "Normalisation du volume"
