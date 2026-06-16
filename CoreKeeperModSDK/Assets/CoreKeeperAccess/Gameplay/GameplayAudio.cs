@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.Audio;
 
 namespace CoreKeeperAccess.Gameplay
 {
@@ -16,6 +17,7 @@ namespace CoreKeeperAccess.Gameplay
         private static AudioSource[] _pool;
         private static int _poolIdx;
         private static AudioField[] _fields;
+        private static AudioMixerGroup _mixerGroup;
         private static bool _init;
 
         // Joue le son a la hauteur (pitch) et au panoramique (pan, -1..+1) donnes.
@@ -65,21 +67,23 @@ namespace CoreKeeperAccess.Gameplay
         public static float DistanceTrim(float distTiles)
             => Mathf.Clamp(1f - distTiles / 30f, 0.15f, 1f);
 
-        // --- Normalisation de volume (12 juin 2026) ---
-        // Les sons du jeu sont masterises tres inegalement (jusqu'a 40 dB d'ecart
-        // releves sur le dump). On ramene chaque SfxID vers une reference RMS par
-        // ATTENUATION (gain <= 1, choix utilisateur) ; seuls les cas extremes (quasi
-        // inaudibles sous BoostFloor) et les VRAIS stereo (image G/D qui fausserait
-        // notre pan) sont reconstruits en RAM (mono, gain cuit dans les echantillons,
-        // crete bornee). Mesure a la PREMIERE lecture puis cache. Les tons generes
-        // (PlayTone/PlayBossTone) ne sont PAS normalises : amplitude maitrisee par
-        // construction. Limite assumee : le gain d'un SfxID est mesure sur la
-        // premiere variante servie (les variantes d'un meme son sont masterisees
-        // ensemble), et un clip reconstruit fige cette variante-la.
-        private const float TargetRms = 0.15f;   // ~-16,5 dBFS sur la fenetre d'attaque : reference, on attenue vers elle
-        private const float BoostFloor = 0.012f; // -38 dBFS : en-dessous, inaudible -> boost RAM
-        private const float BoostPeak = 0.9f;    // plafond de crete apres amplification
-        private const float RetryDelay = 3f;     // GetData peut refuser un clip pas encore charge : on retente
+        // --- Normalisation de volume (peak SYMETRIQUE, 16 juin 2026) ---
+        // On amene chaque SfxID joue par le mod a une meme cible de CRETE (peak) : on ATTENUE
+        // les sons au-dessus, on AMPLIFIE (make-up gain) ceux en dessous. Resultat : tout son
+        // sort a "volume_de_base x TargetPeak" quel que soit son mastering d'origine -> les
+        // volumes de base deviennent un vrai mix fiable, plus tributaire de comment Pugstorm a
+        // masterise tel son. On juge a la CRETE (pas a un RMS) car c'est le claquement que
+        // l'oreille percoit : un "plouf" d'eau claque a -0,6 dB mais son RMS sur 100 ms tombe
+        // a -16,9 dB -> avec un trim RMS il echappait au rabotage et dominait tout (ancien
+        // bug). Le make-up est PLAFONNE (MakeupMax) pour ne pas remonter a l'infini le souffle
+        // d'un son masterise tres bas. Les VRAIS stereo (image G/D qui fausserait notre pan)
+        // sont replies en mono en RAM (gain cuit dans les echantillons). Mesure a la PREMIERE
+        // lecture puis cache. Les tons generes (PlayTone/PlayBossTone) ne sont PAS normalises
+        // (amplitude maitrisee par construction). Limites assumees : le peak ignore la DUREE
+        // (un son long reste un poil plus present a peak egal) ; gain mesure sur la 1re variante.
+        private const float TargetPeak = 0.5f;   // -6 dBFS : cible de CRETE commune a tous les sons normalises
+        private const float MakeupMax = 4f;       // +12 dB max : plafond d'amplification (anti-souffle)
+        private const float RetryDelay = 3f;      // GetData peut refuser un clip pas encore charge : on retente
         private static readonly Dictionary<int, float> _gain = new Dictionary<int, float>();
         private static readonly Dictionary<int, AudioClip> _rebuilt = new Dictionary<int, AudioClip>();
         private static readonly Dictionary<int, float> _retryAt = new Dictionary<int, float>();
@@ -101,8 +105,10 @@ namespace CoreKeeperAccess.Gameplay
             return Measure(idx, ref clip);
         }
 
-        // Variante pour la voie NATIVE (sons de table) : pas de substitution de clip
-        // possible (le jeu joue les siens), donc attenuation seule.
+        // Variante pour la voie NATIVE (sons de table) : pas de substitution de clip possible
+        // (le jeu joue les siens), donc gain de lecture seul. NB : le jeu clampe le volume
+        // natif a 1, donc un make-up > 1 sur un son natif tres faible est partiellement ecrete
+        // (sans incidence : les materiaux de mur claquent deja a ~0 dBFS -> ils sont attenues).
         private static float NativeGain(SfxID id)
         {
             if (!A11ySettings.NormalizeAudio) return 1f;
@@ -152,26 +158,20 @@ namespace CoreKeeperAccess.Gameplay
                 }
                 _retryAt.Remove(idx);
 
-                // RMS sur la FENETRE de 100 ms la plus forte (l'attaque), pas sur tout
-                // le fichier : un impact a longue traine a une moyenne basse mais une
-                // attaque forte, c'est l'attaque que l'oreille juge. Sans ca, les sons
-                // de materiaux passaient intouches pendant que les bips courts et
-                // denses se faisaient raboter (constate en jeu, build 60).
-                int win = Mathf.Max(1, clip.frequency / 10 * ch);
-                double sumWin = 0, maxWin = 0, sumL = 0, sumR = 0;
+                // On mesure la CRETE (peak) qui pilote le gain, plus un RMS global (log
+                // seulement) et l'energie par canal (detection vrai stereo).
+                double sumSq = 0, sumL = 0, sumR = 0;
                 float peak = 0f;
                 for (int i = 0; i < data.Length; i++)
                 {
                     float v = data[i];
-                    sumWin += v * v;
-                    if (i >= win) { float o = data[i - win]; sumWin -= o * o; }
-                    if (sumWin > maxWin) maxWin = sumWin;
+                    sumSq += v * v;
                     float a = v < 0f ? -v : v;
                     if (a > peak) peak = a;
                     if (ch == 2) { if ((i & 1) == 0) sumL += v * v; else sumR += v * v; }
                 }
-                float rms = (float)System.Math.Sqrt(maxWin / System.Math.Min(win, data.Length));
-                if (rms < 1e-6f || peak < 1e-6f) { _gain[idx] = 1f; return 1f; }
+                if (peak < 1e-6f) { _gain[idx] = 1f; return 1f; }
+                float rms = (float)System.Math.Sqrt(sumSq / data.Length);
 
                 // Vrai stereo = plus de 1 dB d'ecart d'energie entre canaux (les
                 // "faux stereo" du jeu, canaux identiques, passent sans reconstruction).
@@ -181,30 +181,32 @@ namespace CoreKeeperAccess.Gameplay
                     double balDb = 10.0 * System.Math.Log10(sumL / sumR);
                     trueStereo = balDb > 1.0 || balDb < -1.0;
                 }
-                bool boost = rms < BoostFloor;
-                float g = rms > TargetRms ? TargetRms / rms : 1f;
 
-                if (boost || trueStereo)
+                // Gain peak SYMETRIQUE : attenue (peak > cible) OU amplifie (peak < cible)
+                // vers TargetPeak, make-up plafonne a MakeupMax. peak x g <= TargetPeak (< 1)
+                // -> jamais de clipping, ni a la lecture ni dans un clip reconstruit.
+                float g = Mathf.Min(TargetPeak / peak, MakeupMax);
+
+                if (trueStereo)
                 {
-                    float baked = boost ? Mathf.Min(TargetRms / rms, BoostPeak / peak) : g;
                     int frames = clip.samples;
                     var mono = new float[frames];
                     for (int f = 0; f < frames; f++)
                     {
                         float v = 0f;
                         for (int c = 0; c < ch; c++) v += data[f * ch + c];
-                        mono[f] = Mathf.Clamp(v / ch * baked, -1f, 1f);
+                        mono[f] = Mathf.Clamp(v / ch * g, -1f, 1f);
                     }
                     var ram = AudioClip.Create(clip.name + "_a11yNorm", frames, 1, clip.frequency, false);
                     ram.SetData(mono, 0);
                     _rebuilt[idx] = ram;
                     _gain.Remove(idx);
-                    Diag.Log("A11yAudioNorm", "rebuilt " + clip.name + " rms=" + Fmt(rms)
-                        + (boost ? " BOOST x" + baked.ToString("0.0") : "") + (trueStereo ? " STEREO->mono" : ""));
+                    Diag.Log("A11yAudioNorm", "rebuilt " + clip.name + " peak=" + Fmt(peak)
+                        + " rms=" + Fmt(rms) + " gain=" + g.ToString("0.00") + " STEREO->mono");
                     clip = ram;
                     return 1f;
                 }
-                Diag.Log("A11yAudioNorm", "mesure " + clip.name + " rms=" + Fmt(rms) + " gain=" + g.ToString("0.00"));
+                Diag.Log("A11yAudioNorm", "mesure " + clip.name + " peak=" + Fmt(peak) + " rms=" + Fmt(rms) + " gain=" + g.ToString("0.00"));
                 _gain[idx] = g;
                 return g;
             }
@@ -431,24 +433,39 @@ namespace CoreKeeperAccess.Gameplay
             AudioManager.Sfx(sfxTableID, pos, volume * A11ySettings.MasterVolume, pitchMul);
         }
 
-        // Sources du mod : 2D (pan/pitch geres par nous) et SECHES - on contourne la
-        // reverb de caverne et les effets listener du jeu. Sans ca, meme un pan a
-        // 100 % laisse le RETOUR de reverb (stereo large) dans l'oreille opposee
-        // (constate en jeu build 64 : fuite residuelle a pan plein).
+        // Sources du mod : 2D (on gere pan/pitch nous-memes via clips pre-pannes), routees
+        // sur le mixer du jeu. On ne bypasse PLUS reverb/effets/listener : la "fuite
+        // d'oreille opposee" du build 64 venait en realite du SON SURROUND Windows (Dolby
+        // Atmos casque), pas de la reverb de caverne -> le bypass etait une rustine invasive
+        // contre un faux coupable. Nos sons se comportent donc comme les sons natifs.
         private static void ConfigureSource(AudioSource s)
         {
             s.playOnAwake = false;
             s.spatialBlend = 0f;
-            s.bypassReverbZones = true;
-            s.bypassListenerEffects = true;
-            s.bypassEffects = true;
-            s.reverbZoneMix = 0f;
+            // Router via le MEME groupe de mixer que les sons natifs du jeu (EFFECTS).
+            // Sinon nos PlayOneShot court-circuitent le mixer du jeu (-> master Unity
+            // direct) et sortent a un autre niveau que les sons qu'on delegue a
+            // AudioManager.Sfx (les materiaux de mur passent, eux, par ce groupe). C'est
+            // l'etage de gain qui manquait a l'eau/trou/tons generes face aux sons de mur.
+            if (_mixerGroup != null) s.outputAudioMixerGroup = _mixerGroup;
         }
 
         private static void EnsureInit()
         {
             if (_init) return;
             _init = true;
+
+            // A recuperer AVANT de configurer nos sources : le audioFieldMap (SfxID -> clip)
+            // et le groupe de mixer EFFECTS du jeu, sur lequel ConfigureSource route nos
+            // sources pour qu'elles subissent le meme etage de gain que les sons natifs.
+            var audio = Manager.audio;
+            if (audio != null)
+            {
+                var f = typeof(AudioManager).GetField("audioFieldMap",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                _fields = f != null ? f.GetValue(audio) as AudioField[] : null;
+                _mixerGroup = audio.EnumToMixerGroup(AudioManager.MixerGroupEnum.EFFECTS);
+            }
 
             var go = new GameObject("A11yGameplayAudio");
             Object.DontDestroyOnLoad(go);
@@ -474,15 +491,6 @@ namespace CoreKeeperAccess.Gameplay
             var droneSine = BuildLoopSine(220.0);
             _droneL.clip = BakeHardPan(droneSine, true);
             _droneR.clip = BakeHardPan(droneSine, false);
-
-            // audioFieldMap : SfxID -> AudioField (champ prive de l'AudioManager).
-            var audio = Manager.audio;
-            if (audio != null)
-            {
-                var f = typeof(AudioManager).GetField("audioFieldMap",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                _fields = f != null ? f.GetValue(audio) as AudioField[] : null;
-            }
         }
     }
 }
