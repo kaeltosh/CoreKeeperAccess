@@ -7,7 +7,11 @@ param(
     [string]$ModName   = "CoreKeeperAccess",
     [switch]$NoLaunch,
     [switch]$NoCheck,
-    [switch]$NoDev
+    [switch]$NoDev,
+    # Par defaut, l'install est mis en MIROIR des sources de la branche courante
+    # (orphelins supprimes + manifest resynchronise). -NoMirror revient au comportement
+    # historique (copie seule + avertissement si fichier non declare, sans rien supprimer).
+    [switch]$NoMirror
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,8 +52,21 @@ $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
 $declaredPaths = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($f in $manifest.files) { [void]$declaredPaths.Add($f.path) }
 
-$script:copied     = 0
-$script:undeclared = New-Object System.Collections.Generic.List[string]
+$script:copied        = 0
+$script:removed       = 0
+$script:deployed      = New-Object System.Collections.Generic.List[object]   # {path; guid} reellement deployes
+$script:deployedPaths = [System.Collections.Generic.HashSet[string]]::new()
+
+# Guid Unity d'un fichier source (lu dans son .meta voisin). "" si pas de .meta (fichier
+# pas encore importe par Unity) - tolere, comme les entrees Generated/Bundles du manifest.
+function Get-MetaGuid($srcFile) {
+    $meta = "$srcFile.meta"
+    if (Test-Path $meta) {
+        $raw = Get-Content $meta -Raw
+        if ($raw -match 'guid:\s*([0-9a-fA-F]+)') { return $matches[1] }
+    }
+    return ""
+}
 
 function Copy-One($srcFile, $destFile, $relForManifest) {
     $destDir = Split-Path $destFile -Parent
@@ -58,9 +75,50 @@ function Copy-One($srcFile, $destFile, $relForManifest) {
     }
     Copy-Item -Path $srcFile -Destination $destFile -Force
     $script:copied++
-    if (-not $declaredPaths.Contains($relForManifest)) {
-        $script:undeclared.Add($relForManifest)
+    [void]$script:deployedPaths.Add($relForManifest)
+    $script:deployed.Add([pscustomobject]@{ path = $relForManifest; guid = (Get-MetaGuid $srcFile) })
+}
+
+# MIROIR (1/2) : supprime de l'install les .cs/.json deployes par un build precedent mais
+# absents des sources courantes (residus d'une autre branche). On ne touche PAS a
+# Scripts/Generated/ (les .g.cs sont produits par Unity, pas par fast-build).
+function Remove-Orphans {
+    $scriptsDir = Join-Path $installDir "Scripts"
+    if (Test-Path $scriptsDir) {
+        Get-ChildItem $scriptsDir -Filter *.cs -Recurse -File | ForEach-Object {
+            $rel = "Scripts/" + (($_.FullName.Substring($scriptsDir.Length).TrimStart('\','/')) -replace '\\','/')
+            if ($rel -match '(^|/)Generated/') { return }
+            if (-not $script:deployedPaths.Contains($rel)) { Remove-Item $_.FullName -Force; $script:removed++ }
+        }
     }
+    $confDir = Join-Path $installDir "Conf"
+    if (Test-Path $confDir) {
+        Get-ChildItem $confDir -Filter *.json -Recurse -File | ForEach-Object {
+            $rel = "Conf/" + (($_.FullName.Substring($confDir.Length).TrimStart('\','/')) -replace '\\','/')
+            if (-not $script:deployedPaths.Contains($rel)) { Remove-Item $_.FullName -Force; $script:removed++ }
+        }
+    }
+}
+
+# MIROIR (2/2) : reecrit le champ "files" du ModManifest.json sur les fichiers REELLEMENT
+# presents. On regenere les entrees gerees par fast-build (Scripts/ hors Generated, Conf/)
+# depuis les sources, et on PRESERVE telles quelles les entrees qu'il ne gere pas
+# (Scripts/Generated/*.g.cs et Bundles/* : produits par Unity). Backup .bak avant ecriture.
+function Sync-Manifest {
+    $m = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    $newFiles = New-Object System.Collections.Generic.List[object]
+    foreach ($d in $script:deployed) {
+        $newFiles.Add([pscustomobject]@{ path = $d.path; guid = $d.guid })
+    }
+    foreach ($f in $m.files) {
+        $p = $f.path
+        $managed = ($p -like 'Conf/*') -or (($p -like 'Scripts/*') -and ($p -notmatch '(^|/)Generated/'))
+        if (-not $managed) { $newFiles.Add([pscustomobject]@{ path = $f.path; guid = $f.guid }) }
+    }
+    $m.files = $newFiles
+    Copy-Item $manifestPath "$manifestPath.bak" -Force
+    $out = $m | ConvertTo-Json -Depth 8
+    [System.IO.File]::WriteAllText($manifestPath, $out, (New-Object System.Text.UTF8Encoding $false))
 }
 
 # Scripts: tous les .cs sauf ceux sous un dossier Editor/
@@ -96,13 +154,29 @@ if (Test-Path $locSrc) {
 
 Write-Host "Copies: $($script:copied) fichier(s)"
 
-if ($script:undeclared.Count -gt 0) {
-    Write-Host ""
-    Write-Host "ATTENTION: fichier(s) non declare(s) dans ModManifest.json :"
-    foreach ($p in $script:undeclared) { Write-Host "  - $p" }
-    Write-Host "Refaire un build Unity au moins une fois pour les declarer."
-    Beep-Fail
-    exit 2
+if (-not $NoMirror) {
+    # Mode MIROIR (defaut) : l'install reflete EXACTEMENT les sources de la branche
+    # courante -> alternance entre branches sure SANS rebuild Unity, tant que les branches
+    # ne different pas par un fichier GENERE (nouveau systeme ECS) ou un asset (la, build
+    # Unity obligatoire : fast-build ne produit ni les .g.cs ni les Bundles).
+    Remove-Orphans
+    Sync-Manifest
+    Write-Host "Miroir: $($script:removed) orphelin(s) supprime(s), ModManifest resynchronise."
+} else {
+    # Mode -NoMirror : on ne supprime rien et on ne touche pas au manifest ; on AVERTIT
+    # juste si un fichier source n'est pas declare (comportement historique).
+    $undeclared = New-Object System.Collections.Generic.List[string]
+    foreach ($p in $script:deployedPaths) {
+        if (-not $declaredPaths.Contains($p)) { $undeclared.Add($p) }
+    }
+    if ($undeclared.Count -gt 0) {
+        Write-Host ""
+        Write-Host "ATTENTION: fichier(s) non declare(s) dans ModManifest.json :"
+        foreach ($p in $undeclared) { Write-Host "  - $p" }
+        Write-Host "Refaire un build Unity, ou laisser le mode miroir (defaut) gerer."
+        Beep-Fail
+        exit 2
+    }
 }
 
 # Mode dev du mod : fichier-temoin dev.flag dans le dossier d'install (auto-load
