@@ -457,6 +457,10 @@ namespace CoreKeeperAccess.Patches
             // fiche de stats) ; il n'a jamais de titre lisible et le curseur manette
             // tend a deraper dessus -> on l'ignore pour ne pas lire un "Vide" parasite.
             if (uiElement == null || uiElement.isMenuOption || uiElement is BlockingUIElement) return;
+            // Boutons par joueur de l'ecran "gerer les joueurs" : annonces par notre
+            // patch dedie (PlayerListEntryButton.OnSelected). Sans ce skip, ce patch
+            // in-game ne sait pas les lire et ecrase l'annonce utile par un "Vide".
+            if (uiElement is PlayerListEntryButton) return;
 
             int id = uiElement.GetInstanceID();
             if (id == InGameTtsState.LastSelectedInstanceId) return;

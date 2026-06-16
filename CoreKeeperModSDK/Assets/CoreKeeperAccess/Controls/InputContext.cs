@@ -37,7 +37,7 @@ namespace CoreKeeperAccess.Controls
 
         // Composites des anciennes gardes.
         public static bool UiBusy { get; private set; }     // nav inventaire OU menu : combos gameplay muets
-        public static bool InGameFree { get; private set; } // gameplay nu : ni fenetre, ni fiche perso, ni carte
+        public static bool InGameFree { get; private set; } // gameplay nu : ni fenetre, ni fiche perso, ni carte, ni menu
 
         public static void Refresh()
         {
@@ -54,7 +54,10 @@ namespace CoreKeeperAccess.Controls
             // Panneau de reglages ouvert : modal. On le compte dans UiBusy ET on retire
             // InGameFree -> laser, curseur, sentinelle... se taisent pendant le reglage.
             UiBusy = InventoryNavActive || MenuOpen || SettingsOpen;
-            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen && !SettingsOpen;
+            // !MenuOpen : un menu overlay qui ne gele pas le jeu (ex. "gerer les
+            // joueurs", pousse par-dessus le monde) laissait laser/curseur/feu tourner
+            // par-dessus. Un menu pause normal gelait le jeu -> trou masque jusqu'ici.
+            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen && !SettingsOpen && !MenuOpen;
         }
 
         // Proprietaire COURANT du D-pad (vif, voir note de classe sur l'ordre de lecture).

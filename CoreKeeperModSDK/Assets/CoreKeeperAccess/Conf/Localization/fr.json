@@ -181,5 +181,14 @@
   "settings.directiontick": "Volume du tic directionnel",
   "settings.snap": "Aide à la direction",
   "settings.slowmo": "Ralenti de combat",
-  "settings.normalize": "Normalisation du volume"
+  "settings.normalize": "Normalisation du volume",
+  "worldinfo.icon": "Icône du monde",
+  "worldinfo.export": "Exporter le monde",
+  "manageplayers.admin.make": "rendre administrateur",
+  "manageplayers.admin.remove": "retirer administrateur",
+  "manageplayers.ban": "bannir",
+  "manageplayers.unban": "débannir",
+  "manageplayers.invite": "inviter",
+  "manageplayers.profile": "voir le profil",
+  "manageplayers.pvpteam": "changer d'équipe JcJ"
 }

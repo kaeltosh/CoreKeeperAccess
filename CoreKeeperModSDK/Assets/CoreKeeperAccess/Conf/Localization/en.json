@@ -180,5 +180,14 @@
   "settings.directiontick": "Directional tick volume",
   "settings.snap": "Assisted direction",
   "settings.slowmo": "Combat slow motion",
-  "settings.normalize": "Volume normalization"
+  "settings.normalize": "Volume normalization",
+  "worldinfo.icon": "World icon",
+  "worldinfo.export": "Export world",
+  "manageplayers.admin.make": "make admin",
+  "manageplayers.admin.remove": "remove admin",
+  "manageplayers.ban": "ban",
+  "manageplayers.unban": "unban",
+  "manageplayers.invite": "invite",
+  "manageplayers.profile": "view profile",
+  "manageplayers.pvpteam": "change PvP team"
 }
