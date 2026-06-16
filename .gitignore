@@ -9,6 +9,8 @@
 # 2) Docs et artefacts à la racine
 !/.gitignore
 !/*.md
+# Brouillon perso (concept de navigation GPS par grille) — pas versionné
+/beacon-navigation-design.md
 !/mapping_manette.html
 !/LICENSE
 !/install.ps1
