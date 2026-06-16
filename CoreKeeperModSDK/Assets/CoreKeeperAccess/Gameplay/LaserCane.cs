@@ -252,7 +252,7 @@ namespace CoreKeeperAccess.Gameplay
             float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
             float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Pow(2f, d.y / 12f);
-            GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume);
+            GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume * A11ySettings.NavigationVolume);
         }
 
         // Bip passif positionnel (meme grammaire pan/pitch que l'ennemi), timbre par
@@ -269,9 +269,9 @@ namespace CoreKeeperAccess.Gameplay
             float trim = GameplayAudio.DistanceTrim(math.length(d));
             GameplayAudio.PlaySpatial(
                 isCreature ? PassiveCreatureSfxPlaceholder : PassiveObjectSfxPlaceholder,
-                pan, pitch, PassiveVolume * trim);
+                pan, pitch, PassiveVolume * A11ySettings.NavigationVolume * trim);
             if (interactable)
-                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f * trim);
+                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f * A11ySettings.NavigationVolume * trim);
         }
 
         // Demi-largeur visible en cases (range pour normaliser le pan -1..+1), comme le curseur.

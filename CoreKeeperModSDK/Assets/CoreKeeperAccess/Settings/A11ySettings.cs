@@ -19,11 +19,17 @@ namespace CoreKeeperAccess.Gameplay
         [System.Serializable]
         private class Data
         {
-            // Volume maitre des SONS du mod (bips, marqueurs, tons...), 0..1. Le TTS n'est
-            // pas concerne (NVDA a son propre volume).
+            // Volume maitre des SONS du mod (bips, marqueurs, tons...), 0..2 (defaut 1 = niveau
+            // de reference, jusqu'a 2 = +6 dB). Le TTS n'est pas concerne (NVDA a son volume).
             public float masterVolume = 1f;
             // Volume du tic directionnel de l'aide a la direction (ex-TickVolume, 13 juin).
             public float directionTickVolume = 0.125f;
+            // Volume du bloc NAVIGATION (canne laser + curseur de tuile : tick, surfaces,
+            // materiaux, marqueurs, bips de cibles). 0..2 (defaut 1 = niveau de reference, deja
+            // bon grace a la cible de normalisation TargetPeak ; jusqu'a 2 = +6 dB pour qui veut
+            // la nav plus forte). Sans risque de clip : a 200 %, le pic d'un son reste
+            // <= base x TargetPeak x 2 < 1. S'applique en plus du volume maitre.
+            public float navigationVolume = 1f;
             // Aide a la direction (snap cardinal du deplacement + tic par case). Aussi
             // basculee par Triangle+L3 : meme source de verite, donc persistee.
             public bool snapDirectional = false;
@@ -38,6 +44,7 @@ namespace CoreKeeperAccess.Gameplay
 
         public static float MasterVolume => _d.masterVolume;
         public static float DirectionTickVolume => _d.directionTickVolume;
+        public static float NavigationVolume => _d.navigationVolume;
 
         // Snap : source de verite partagee entre Triangle+L3 (DirectionAssist) et le
         // panneau. Le set persiste -> l'etat survit au relancement.
@@ -51,8 +58,9 @@ namespace CoreKeeperAccess.Gameplay
         public static bool NormalizeAudio => _d.normalizeAudio;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
-        public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp01(v); Save(); }
-        public static void SetDirectionTickVolume(float v) { _d.directionTickVolume = Mathf.Clamp01(v); Save(); }
+        public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetDirectionTickVolume(float v) { _d.directionTickVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetNavigationVolume(float v) { _d.navigationVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetSnapDirectional(bool v) { _d.snapDirectional = v; Save(); }
         public static void SetCombatSlowMo(bool v) { _d.combatSlowMo = v; Save(); }
         public static void SetNormalizeAudio(bool v) { _d.normalizeAudio = v; Save(); }
@@ -97,8 +105,9 @@ namespace CoreKeeperAccess.Gameplay
         {
             var d = JsonUtility.FromJson<Data>(json);
             if (d == null) return;
-            d.masterVolume = Mathf.Clamp01(d.masterVolume);
-            d.directionTickVolume = Mathf.Clamp01(d.directionTickVolume);
+            d.masterVolume = Mathf.Clamp(d.masterVolume, 0f, 2f);
+            d.directionTickVolume = Mathf.Clamp(d.directionTickVolume, 0f, 2f);
+            d.navigationVolume = Mathf.Clamp(d.navigationVolume, 0f, 2f);
             _d = d;
         }
 

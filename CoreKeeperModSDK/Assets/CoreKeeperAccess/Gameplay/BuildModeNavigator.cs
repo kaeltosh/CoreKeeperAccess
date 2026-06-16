@@ -286,7 +286,7 @@ namespace CoreKeeperAccess.Gameplay
             float pan = GameplayAudio.PanFromTiles(dx);
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
             GameplayAudio.PlaySpatial(SfxID.inventory_select, pan, pitch,
-                MoveTickVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
+                MoveTickVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Distance joueur->case en cases, pour le trim de volume commun.
@@ -302,7 +302,7 @@ namespace CoreKeeperAccess.Gameplay
             float pan = GameplayAudio.PanFromTiles(dx);
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
             GameplayAudio.PlaySpatial(id, pan, pitch,
-                SpecialSurfaceVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
+                SpecialSurfaceVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Volume du son de materiau au survol d'un mur (a regler a l'oreille).
@@ -327,7 +327,7 @@ namespace CoreKeeperAccess.Gameplay
                 int2 r = EntityMonoBehaviour.ToRenderFromWorld(tile);
                 var pos = new Vector3(r.x, 0f, r.y);
                 float pitchV = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-                GameplayAudio.PlayTableSpatialNoPitchDev(matSfx, pos, WallSfxVolume, pitchV);
+                GameplayAudio.PlayTableSpatialNoPitchDev(matSfx, pos, WallSfxVolume * A11ySettings.NavigationVolume, pitchV);
             }
             else
             {
@@ -337,7 +337,7 @@ namespace CoreKeeperAccess.Gameplay
             // Marqueur interactible en supplement : hauteur fixe (1f), juste pan gauche-droite.
             float pan = GameplayAudio.PanFromTiles(dx);
             GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f,
-                ObjectMarkerVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
+                ObjectMarkerVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Son du materiau que le jeu attribue a l'objet pose : ObjectDataCD (objectID +
@@ -371,7 +371,7 @@ namespace CoreKeeperAccess.Gameplay
             int2 r = EntityMonoBehaviour.ToRenderFromWorld(tile);
             var pos = new Vector3(r.x, 0f, r.y);
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
-            GameplayAudio.PlayTableSpatialNoPitchDev(sfx, pos, WallSfxVolume, pitch);
+            GameplayAudio.PlayTableSpatialNoPitchDev(sfx, pos, WallSfxVolume * A11ySettings.NavigationVolume, pitch);
 
             // Minerai (couche ore / ancientCrystal, detectee independamment du mur bloquant :
             // un filon peut etre superpose a un mur de terre sans etre LA tuile bloquante)
@@ -380,7 +380,7 @@ namespace CoreKeeperAccess.Gameplay
             // sonnent pareil). Pitch constant (signal "minerai" stable et reconnaissable) ;
             // le son de materiau, lui, porte deja l'axe vertical.
             if (info.HasOre && !info.IsImmune)
-                GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit, pos, WallSfxVolume, 1f);
+                GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit, pos, WallSfxVolume * A11ySettings.NavigationVolume, 1f);
         }
 
         // Le son que le jeu attribue a la tuile : ObjectInfo de la tuile (type + tileset)

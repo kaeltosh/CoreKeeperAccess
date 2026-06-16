@@ -169,6 +169,7 @@
   "settings.off": "off",
   "settings.percent": "percent",
   "settings.mastervolume": "Master volume",
+  "settings.navvolume": "Navigation volume",
   "settings.directiontick": "Directional tick volume",
   "settings.snap": "Assisted direction",
   "settings.slowmo": "Combat slow motion",

@@ -44,7 +44,8 @@ namespace CoreKeeperAccess.Settings
         {
             public Func<float> Get;
             public Action<float> Set;
-            public float Step;  // increment 0..1 (0.1 = 10 %)
+            public float Step;        // increment (0.1 = 10 %)
+            public float Max = 1f;    // borne haute : 1 = volume normal ; > 1 = amplification (ex. 2 = +6 dB)
         }
 
         // --- Etat ---
@@ -75,12 +76,17 @@ namespace CoreKeeperAccess.Settings
             _root.Children.Add(new Slider
             {
                 LabelKey = "settings.mastervolume",
-                Get = () => A11ySettings.MasterVolume, Set = A11ySettings.SetMasterVolume, Step = 0.05f,
+                Get = () => A11ySettings.MasterVolume, Set = A11ySettings.SetMasterVolume, Step = 0.05f, Max = 2f,
+            });
+            _root.Children.Add(new Slider
+            {
+                LabelKey = "settings.navvolume",
+                Get = () => A11ySettings.NavigationVolume, Set = A11ySettings.SetNavigationVolume, Step = 0.1f, Max = 2f,
             });
             _root.Children.Add(new Slider
             {
                 LabelKey = "settings.directiontick",
-                Get = () => A11ySettings.DirectionTickVolume, Set = A11ySettings.SetDirectionTickVolume, Step = 0.05f,
+                Get = () => A11ySettings.DirectionTickVolume, Set = A11ySettings.SetDirectionTickVolume, Step = 0.05f, Max = 2f,
             });
             _root.Children.Add(new Toggle
             {
@@ -154,7 +160,7 @@ namespace CoreKeeperAccess.Settings
         private static void OnRight()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp01(s.Get() + s.Step)); Tone(1.1f); SayValue(s); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, 0f, s.Max)); Tone(1.1f); SayValue(s); }
             else if (n is Toggle t) { if (!t.Get()) t.Set(true); Tone(1.5f); SayValue(t); }
             else if (n is Category c) Enter(c);
         }
@@ -162,7 +168,7 @@ namespace CoreKeeperAccess.Settings
         private static void OnLeft()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp01(s.Get() - s.Step)); Tone(1.1f); SayValue(s); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, 0f, s.Max)); Tone(1.1f); SayValue(s); }
             else if (n is Toggle t) { if (t.Get()) t.Set(false); Tone(1.5f); SayValue(t); }
             else Back(); // categorie focalisee : gauche = remonter
         }
@@ -209,7 +215,8 @@ namespace CoreKeeperAccess.Settings
             return "";
         }
 
-        private static string Pct(float v) => Mathf.RoundToInt(Mathf.Clamp01(v) * 100f).ToString();
+        // Pas de Clamp01 : un slider d'amplification peut afficher au-dela de 100 % (ex. 150 %).
+        private static string Pct(float v) => Mathf.RoundToInt(Mathf.Max(0f, v) * 100f).ToString();
 
         // --- Earcons (placeholders : tons generes, l'utilisateur choisira) ---
         private const float EarVol = 0.3f;
