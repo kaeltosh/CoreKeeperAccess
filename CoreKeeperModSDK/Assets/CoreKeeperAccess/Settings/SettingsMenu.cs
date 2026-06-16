@@ -48,6 +48,7 @@ namespace CoreKeeperAccess.Settings
             public float Max = 1f;    // borne haute : 1 = volume normal ; > 1 = amplification (ex. 2 = +6 dB)
         }
 
+
         // --- Etat ---
         public static bool Active { get; private set; }
 
@@ -83,6 +84,11 @@ namespace CoreKeeperAccess.Settings
                 LabelKey = "settings.navvolume",
                 Get = () => A11ySettings.NavigationVolume, Set = A11ySettings.SetNavigationVolume, Step = 0.1f, Max = 2f,
             });
+            _root.Children.Add(new Toggle
+            {
+                LabelKey = "settings.stepbeep",
+                Get = () => A11ySettings.StepBeep, Set = A11ySettings.SetStepBeep,
+            });
             _root.Children.Add(new Slider
             {
                 LabelKey = "settings.directiontick",
@@ -102,6 +108,31 @@ namespace CoreKeeperAccess.Settings
             {
                 LabelKey = "settings.normalize",
                 Get = () => A11ySettings.NormalizeAudio, Set = A11ySettings.SetNormalizeAudio,
+            });
+            _root.Children.Add(new Toggle
+            {
+                LabelKey = "settings.sonar",
+                Get = () => A11ySettings.ProximitySonar, Set = A11ySettings.SetProximitySonar,
+            });
+            _root.Children.Add(new Slider
+            {
+                LabelKey = "settings.sonarvolume",
+                Get = () => A11ySettings.SonarVolume, Set = A11ySettings.SetSonarVolume, Step = 0.05f, Max = 2f,
+            });
+            _root.Children.Add(new Slider
+            {
+                LabelKey = "settings.sonarmedium",
+                Get = () => A11ySettings.SonarVolMedium, Set = A11ySettings.SetSonarVolMedium, Step = 0.05f, Max = 2f,
+            });
+            _root.Children.Add(new Slider
+            {
+                LabelKey = "settings.sonargrave",
+                Get = () => A11ySettings.SonarVolGrave, Set = A11ySettings.SetSonarVolGrave, Step = 0.05f, Max = 2f,
+            });
+            _root.Children.Add(new Toggle
+            {
+                LabelKey = "settings.objectding",
+                Get = () => A11ySettings.ObjectDing, Set = A11ySettings.SetObjectDing,
             });
         }
 

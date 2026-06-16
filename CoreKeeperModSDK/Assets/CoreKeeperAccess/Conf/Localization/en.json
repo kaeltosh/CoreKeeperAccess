@@ -177,7 +177,8 @@
   "settings.percent": "percent",
   "settings.mastervolume": "Master volume",
   "settings.navvolume": "Navigation volume",
-  "settings.directiontick": "Directional tick volume",
+  "settings.stepbeep": "Step beep",
+  "settings.directiontick": "Step beep volume",
   "settings.snap": "Assisted direction",
   "settings.slowmo": "Combat slow motion",
   "settings.normalize": "Volume normalization",
@@ -189,5 +190,10 @@
   "manageplayers.unban": "unban",
   "manageplayers.invite": "invite",
   "manageplayers.profile": "view profile",
-  "manageplayers.pvpteam": "change PvP team"
+  "manageplayers.pvpteam": "change PvP team",
+  "settings.sonar": "Proximity sonar",
+  "settings.sonarvolume": "Sonar volume",
+  "settings.sonarmedium": "Sonar medium volume",
+  "settings.sonargrave": "Sonar bass volume",
+  "settings.objectding": "Object ding"
 }

@@ -178,7 +178,8 @@
   "settings.percent": "pour cent",
   "settings.mastervolume": "Volume général",
   "settings.navvolume": "Volume de la navigation",
-  "settings.directiontick": "Volume du tic directionnel",
+  "settings.stepbeep": "Bip de pas",
+  "settings.directiontick": "Volume du bip de pas",
   "settings.snap": "Aide à la direction",
   "settings.slowmo": "Ralenti de combat",
   "settings.normalize": "Normalisation du volume",
@@ -190,5 +191,10 @@
   "manageplayers.unban": "débannir",
   "manageplayers.invite": "inviter",
   "manageplayers.profile": "voir le profil",
-  "manageplayers.pvpteam": "changer d'équipe JcJ"
+  "manageplayers.pvpteam": "changer d'équipe JcJ",
+  "settings.sonar": "Sonar de proximité",
+  "settings.sonarvolume": "Volume du sonar",
+  "settings.sonarmedium": "Volume sonar medium",
+  "settings.sonargrave": "Volume sonar grave",
+  "settings.objectding": "Ding des objets"
 }

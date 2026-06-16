@@ -56,7 +56,8 @@ namespace CoreKeeperAccess.Gameplay
             // Les combos (prospection, ping sonar, double-tap carte) sont routes par
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);
-            DirectionAssist.Tick(player);
+            StepEngine.Tick(player);
+            ProximitySonar.Tick(player);
             PlacementReader.Tick(player);
 
             // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
@@ -482,43 +483,21 @@ namespace CoreKeeperAccess.Gameplay
             || id == ObjectID.DiggingSpotExcavation;
     }
 
-    // Mode "direction assistee" (toggle Triangle + L3). Tant qu'il est actif, le
-    // deplacement au stick gauche est SNAPPE au cardinal dominant (la composante
-    // perpendiculaire est annulee) -> lignes droites franches sans deviation, pour
-    // poser des murs / labourer / semer en rangs. On ne touche NI a la pose NI a la
-    // vitesse : le joueur tient LT et marche, le jeu pose ; on rectifie juste le cap.
-    // Un petit bip par CASE franchie encode la direction (pan est-ouest, pitch
-    // nord-sud, langage du curseur) -> confirme le cap ET compte les cases a l'oreille.
-    internal static class DirectionAssist
+    // Moteur de pas PARTAGE : une seule horloge de locomotion. Detecte le franchissement
+    // de case (RoundToInt sur la position monde) et dispatche aux COUCHES de feedback
+    // activees independamment dans A11ySettings. Aujourd'hui une couche (le bip de pas) ;
+    // le sonar d'interstices viendra se brancher ici (etage 2). Appele chaque frame depuis
+    // GameplayInput.Tick - il tourne en PERMANENCE (meme couches eteintes) pour garder la
+    // case courante fraiche : rallumer une couche en pleine marche ne rejoue pas un delta
+    // perime.
+    internal static class StepEngine
     {
-        // Etat persiste dans A11ySettings : Triangle+L3 ET le panneau de reglages pilotent
-        // la meme source de verite (l'aide est donc reactivee telle quelle au relancement).
-        public static bool Active
-        {
-            get => A11ySettings.SnapDirectional;
-            set => A11ySettings.SnapDirectional = value;
-        }
-
-        // Volume du "tout petit bip" directionnel : desormais reglable a l'oreille via le
-        // panneau (A11ySettings.DirectionTickVolume), defaut 0.125 (baisse 13 juin).
-        private const float NorthPitch = 1.5f;   // nord = plus aigu
-        private const float SouthPitch = 0.67f;  // sud = plus grave (est/ouest = neutre 1.0)
-
         private static int _cx, _cz;
         private static bool _hasCell;
 
-        // Bascule le mode + annonce l'etat. Reset du suivi de case pour repartir propre.
-        public static void Toggle()
-        {
-            Active = !Active;
-            _hasCell = false;
-            TtsText.Say(Strings.L(Active ? "direction.assist.on" : "direction.assist.off"), true);
-        }
-
-        // Bip directionnel a chaque case franchie (appele depuis GameplayInput.Tick).
         public static void Tick(PlayerController player)
         {
-            if (!Active || player == null) return;
+            if (player == null) { _hasCell = false; return; }
             Vector3 pos = player.WorldPosition;
             int cx = Mathf.RoundToInt(pos.x), cz = Mathf.RoundToInt(pos.z);
             if (!_hasCell) { _cx = cx; _cz = cz; _hasCell = true; return; }
@@ -527,10 +506,53 @@ namespace CoreKeeperAccess.Gameplay
             int dx = cx - _cx, dz = cz - _cz;
             _cx = cx; _cz = cz;
 
+            // Couches togglables, allumees separement (cf. A11ySettings).
+            if (A11ySettings.StepBeep) StepBeep.OnStep(dx, dz);
+            // (Etage 2 : le sonar d'interstices se branchera ici.)
+        }
+    }
+
+    // Couche 0 : bip de pas (la "boussole de locomotion"). Un petit bip par case franchie
+    // encode la direction du deplacement - pan est/ouest, pitch nord/sud (langage du
+    // curseur) -> confirme le cap ET compte les cases a l'oreille. DECOUPLE du snap
+    // construction (DirectionAssist) le 16 juin : c'est un feedback PERMANENT (actif par
+    // defaut, regle au panneau), la ou le snap est un outil PONCTUEL. Diagonale en marche
+    // libre : arrondie au cardinal dominant (comme avant, ou le snap forcait le cardinal).
+    internal static class StepBeep
+    {
+        private const float NorthPitch = 1.5f;   // nord = plus aigu
+        private const float SouthPitch = 0.67f;  // sud = plus grave (est/ouest = neutre 1.0)
+
+        public static void OnStep(int dx, int dz)
+        {
             float pan, pitch;
             if (Mathf.Abs(dx) >= Mathf.Abs(dz)) { pan = dx >= 0 ? 1f : -1f; pitch = 1f; }   // est / ouest
             else { pan = 0f; pitch = dz > 0 ? NorthPitch : SouthPitch; }                    // nord / sud
             GameplayAudio.PlayTone(pan, pitch, A11ySettings.DirectionTickVolume);
+        }
+    }
+
+    // Snap directionnel (toggle Triangle + L3). Tant qu'il est actif, le deplacement au
+    // stick gauche est SNAPPE au cardinal dominant (la composante perpendiculaire est
+    // annulee, cf. DirectionSnapSystem) -> lignes droites franches sans deviation, pour
+    // poser des murs / labourer / semer en rangs. On ne touche NI a la pose NI a la
+    // vitesse : le joueur tient LT et marche, le jeu pose ; on rectifie juste le cap.
+    // DECOUPLE du bip de pas (StepBeep) le 16 juin : deux toggles independants.
+    internal static class DirectionAssist
+    {
+        // Etat persiste dans A11ySettings : Triangle+L3 ET le panneau de reglages pilotent
+        // la meme source de verite (le snap est donc reactive tel quel au relancement).
+        public static bool Active
+        {
+            get => A11ySettings.SnapDirectional;
+            set => A11ySettings.SnapDirectional = value;
+        }
+
+        // Bascule le snap + annonce l'etat.
+        public static void Toggle()
+        {
+            Active = !Active;
+            TtsText.Say(Strings.L(Active ? "direction.assist.on" : "direction.assist.off"), true);
         }
     }
 

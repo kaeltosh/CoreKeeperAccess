@@ -18,6 +18,7 @@ namespace CoreKeeperAccess.Gameplay
         private static int _poolIdx;
         private static AudioField[] _fields;
         private static AudioMixerGroup _mixerGroup;
+        private static GameObject _audioGo;
         private static bool _init;
 
         // Joue le son a la hauteur (pitch) et au panoramique (pan, -1..+1) donnes.
@@ -256,7 +257,7 @@ namespace CoreKeeperAccess.Gameplay
         // (PanSteps = 2 x PanRangeTiles + 1), construite a la demande.
         private const int PanSteps = 25;
 
-        private static AudioClip BakePan(string name, float[] mono, float pan)
+        public static AudioClip BakePan(string name, float[] mono, float pan)
         {
             float ang = (Mathf.Clamp(pan, -1f, 1f) + 1f) * Mathf.PI * 0.25f;
             float l = Mathf.Cos(ang), r = Mathf.Sin(ang);
@@ -450,6 +451,19 @@ namespace CoreKeeperAccess.Gameplay
             if (_mixerGroup != null) s.outputAudioMixerGroup = _mixerGroup;
         }
 
+        // Cree une AudioSource du mod sur notre GameObject audio, routee sur le mixer EFFECTS
+        // (via ConfigureSource). loop=true pour les nappes continues. Utilisee par
+        // ProximitySonar (sonar de proximite) pour ses 8 sources directionnelles.
+        public static AudioSource CreateModSource(bool loop = false)
+        {
+            EnsureInit();
+            if (_audioGo == null) return null;
+            var s = _audioGo.AddComponent<AudioSource>();
+            ConfigureSource(s);
+            s.loop = loop;
+            return s;
+        }
+
         private static void EnsureInit()
         {
             if (_init) return;
@@ -469,6 +483,7 @@ namespace CoreKeeperAccess.Gameplay
 
             var go = new GameObject("A11yGameplayAudio");
             Object.DontDestroyOnLoad(go);
+            _audioGo = go;
             _pool = new AudioSource[PoolSize];
             for (int i = 0; i < PoolSize; i++)
             {
