@@ -37,6 +37,7 @@ namespace CoreKeeperAccess.Patches
                 if (!string.IsNullOrEmpty(s) && seen.Add(s)) parts.Add(s);
             }
 
+            Add(BuildSkillTalentInfo(element));
             Add(FillLevelLabel(element.GetContainedObject().objectData));
             Add(BuildCraftInfo(element));
             Add(BuildMerchantInfo(element));
@@ -139,6 +140,83 @@ namespace CoreKeeperAccess.Patches
             return missing.Count == 0
                 ? Strings.L("craft.craftable")
                 : Strings.L("craft.missing") + " " + string.Join(", ", missing);
+        }
+
+        // Reflection vers les membres prives de SkillTalentUIElement (onglet talents),
+        // resolus une fois. Si une maj du jeu les renomme, ils valent null -> le helper
+        // ci-dessous retombe sur null sans casser l'annonce (try/catch).
+        private static readonly System.Reflection.MethodInfo _talentPointsMethod =
+            typeof(SkillTalentUIElement).GetMethod("GetCurrentPoints",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private static readonly System.Reflection.PropertyInfo _talentAllowedProp =
+            typeof(SkillTalentUIElement).GetProperty("allowedToPlacePoints",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private static readonly System.Reflection.FieldInfo _talentTreeField =
+            typeof(SkillTalentUIElement).GetField("activeSkillTree",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        // Etat d'une competence ou d'un talent (onglet talents de la fenetre perso),
+        // suffixe au titre dans l'annonce. Aucune des methodes de survol natives ne
+        // l'expose, d'ou ce calcul. Null pour tout autre element.
+        //  - Competence (SkillUIElement) : points de talent EN ATTENTE sur cette
+        //    competence ("N a depenser"), pour reperer ou investir sans ouvrir l'arbre.
+        //  - Talent (SkillTalentUIElement), etat exclusif : "au maximum" (5/5) ;
+        //    "verrouille, requiert X" (prerequis non rempli, X = parent(s) a completer) ;
+        //    "disponible" (eligible ET des points en banque) ; rien sinon (le titre dit
+        //    deja les points poses).
+        private static string BuildSkillTalentInfo(UIelement element)
+        {
+            var saves = Manager.saves;
+            if (saves == null) return null;
+
+            var skill = element as SkillUIElement;
+            if (skill != null)
+            {
+                int avail = saves.GetAvailableTalentPoints(skill.skillID);
+                return avail > 0 ? avail + " " + Strings.L("skill.spendable") : null;
+            }
+
+            var talent = element as SkillTalentUIElement;
+            if (talent == null) return null;
+            try
+            {
+                int points = (int)_talentPointsMethod.Invoke(talent, null);
+                if (points >= 5) return Strings.L("talent.maxed");
+
+                bool allowed = (bool)_talentAllowedProp.GetValue(talent);
+                if (!allowed)
+                    return Strings.L("talent.locked") + ", " + Strings.L("talent.prereq")
+                        + " " + TalentPrereqNames(talent);
+
+                var tree = (SkillID)_talentTreeField.GetValue(talent);
+                if (saves.GetAvailableTalentPoints(tree) > 0) return Strings.L("talent.available");
+            }
+            catch { }
+            return null;
+        }
+
+        // Nom(s) du ou des talents prerequis d'un talent verrouille : les talents qui le
+        // designent comme enfant (leftSkillTalent / rightSkillTalent) et ne sont pas
+        // encore completes a 5 points (completer un seul suffit a debloquer). Joints par
+        // "ou". Repli generique si on n'en identifie aucun.
+        private static string TalentPrereqNames(SkillTalentUIElement talent)
+        {
+            var all = UnityEngine.Object.FindObjectsByType<SkillTalentUIElement>(
+                UnityEngine.FindObjectsSortMode.None);
+            var names = new List<string>();
+            foreach (var t in all)
+            {
+                if (t == null || (t.leftSkillTalent != talent && t.rightSkillTalent != talent)) continue;
+                try { if ((int)_talentPointsMethod.Invoke(t, null) >= 5) continue; } // parent deja complete
+                catch { }
+                var title = t.GetHoverTitle();
+                string name = title.formatFields != null && title.formatFields.Length > 0
+                    ? title.formatFields[0] : null;
+                if (!string.IsNullOrEmpty(name) && !names.Contains(name)) names.Add(name);
+            }
+            return names.Count > 0
+                ? string.Join(" " + Strings.L("talent.or") + " ", names)
+                : Strings.L("talent.prereqGeneric");
         }
 
         // Prix marchand. Pour un emplacement d'achat (BuySlot) : cout d'achat + verdict
