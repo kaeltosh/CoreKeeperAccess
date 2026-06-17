@@ -58,6 +58,15 @@ namespace CoreKeeperAccess.Gameplay
             BeaconTracker.Tick(player);
             BeaconGuide.Tick(player); // guidage a l'oreille vers un noeud (si le mode est actif)
 
+            // Recalcul local du reseau (tranche C) : reponse du systeme -> on annonce le
+            // nombre d'aretes ajoutees par le tissage en ligne de vue.
+            if (NetworkRecalc.ResultValid)
+            {
+                NetworkRecalc.ResultValid = false;
+                TtsText.Say(Strings.L("netrecalc.done") + ", " + NetworkRecalc.AddedEdges
+                    + " " + Strings.L("netrecalc.links"), true);
+            }
+
             // Les combos (prospection, ping sonar, double-tap carte) sont routes par
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
             PingSonar.Tick(player);

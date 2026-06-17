@@ -50,9 +50,9 @@ namespace CoreKeeperAccess.Controls
         // gardes lisent alors des etats frais (curseur detache, nav inventaire...).
         public static void Tick()
         {
-            // Panneau de reglages ouvert : il a pris la main sur le D-pad (Triangle relache),
-            // aucun combo touche access ne doit partir.
-            if (Settings.SettingsMenu.Active) return;
+            // Panneau de reglages OU menu contextuel ouvert : ils ont pris la main sur le
+            // D-pad (Triangle relache), aucun combo touche access ne doit partir.
+            if (Settings.SettingsMenu.Active || ActionMenu.Active) return;
             if (InfoKey.DetailRequested) Fire(Combo.Detail);
             if (InfoKey.ComboRight) Fire(Combo.Right);
             if (InfoKey.ComboDown) Fire(Combo.Down);

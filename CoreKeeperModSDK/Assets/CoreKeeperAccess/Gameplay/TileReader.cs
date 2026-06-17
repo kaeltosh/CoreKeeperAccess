@@ -107,6 +107,20 @@ namespace CoreKeeperAccess.Gameplay
         public static int2 Tile;        // tuile de minerai la plus proche
     }
 
+    // Pont recalcul local du reseau de navigation (tranche C, "mise a jour du reseau"). Le
+    // mod pose une demande (centre = case joueur, rayon de revision) ; le systeme la traite
+    // avec son TileAccessor (NetworkWeaver tisse les aretes manquantes par LIGNE DE VUE
+    // franchissable) et publie le nombre d'aretes ajoutees. Le mod l'annonce. AJOUT seulement.
+    internal static class NetworkRecalc
+    {
+        public static bool Requested;   // demande posee par le mod (consommee par le systeme)
+        public static int2 Center;      // case du joueur
+        public static float Radius;     // rayon de revision en cases
+
+        public static bool ResultValid; // reponse publiee (consommee par le mod)
+        public static int AddedEdges;   // nombre d'aretes ajoutees
+    }
+
     // Pont ping sonar (Triangle + L1). Le mod pose une demande (centre, rayon) ; le
     // systeme balaye les CREATURES en query ECS (EnemyCD / CritterCD) et publie
     // position + bord (hostile ou paisible). Les trouvailles (objets type zone de
@@ -350,6 +364,26 @@ namespace CoreKeeperAccess.Gameplay
                     OreScan.Found = false;
                     OreScan.ResultValid = true;
                     Diag.Error("A11yOreDiag", ex);
+                }
+            }
+
+            // Recalcul local du reseau de navigation (tranche C) : tisse les aretes manquantes
+            // par ligne de vue dans le rayon de revision. Independant du curseur.
+            if (NetworkRecalc.Requested)
+            {
+                NetworkRecalc.Requested = false;
+                try
+                {
+                    var taNet = new TileAccessor(ref CheckedStateRef, true);
+                    NetworkRecalc.AddedEdges = CoreKeeperAccess.Navigation.NetworkWeaver.Weave(
+                        ref taNet, NetworkRecalc.Center, NetworkRecalc.Radius);
+                    NetworkRecalc.ResultValid = true;
+                }
+                catch (System.Exception ex)
+                {
+                    NetworkRecalc.AddedEdges = 0;
+                    NetworkRecalc.ResultValid = true;
+                    Diag.Error("A11yNetRecalc", ex);
                 }
             }
 

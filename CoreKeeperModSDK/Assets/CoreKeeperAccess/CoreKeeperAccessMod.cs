@@ -132,13 +132,14 @@ public class CoreKeeperAccessMod : IMod
         TryDevGodMode();
         TryDevInvincible();
         TryDevBeaconGraphDiag();
-        TryDevBeaconGuide();
+        TryDevNetworkRecalc();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
+        CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
@@ -202,15 +203,21 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.BeaconTracker.AnnounceDiag();
     }
 
-    // Bascule du guidage de navigation (tranche B) : Triangle (touche access) MAINTENU +
-    // F5 -> active/désactive l'earcon de guidage. Sans cible sélectionnée, il pointe la
-    // torche la plus proche. Au clavier dev pour valider le calcul + le son ; le vrai
-    // déclencheur manette + la sélection de cible viendront avec le câblage TeleportNavigator.
-    private void TryDevBeaconGuide()
+    // Recalcul local du reseau (tranche C) : Triangle (touche access) MAINTENU + F5 -> tisse
+    // les aretes manquantes par ligne de vue dans un rayon autour du joueur (mise a jour de la
+    // base). Au clavier dev pour valider l'algo ; le vrai declencheur manette viendra apres.
+    private void TryDevNetworkRecalc()
     {
         if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
         if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F5)) return;
-        CoreKeeperAccess.Gameplay.BeaconGuide.Toggle();
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        var wp = player.WorldPosition;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Center = new Unity.Mathematics.int2(
+            UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Radius = 16f;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.ResultValid = false;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Requested = true;
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

@@ -20,13 +20,9 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.InGameFree && BuildModeNavigator.CursorDetached,
                 BuildModeNavigator.AnnounceCursorDetails);
 
-            // Onglet "Mes balises" de la carte : Triangle+bas = supprimer, Triangle+droite =
-            // renommer la balise selectionnee. Enregistres AVANT vitals/position pour primer
-            // dans ce contexte ; hors de l'onglet, ces combos gardent leur role habituel.
-            ComboDispatcher.Register(ComboDispatcher.Combo.Down,
-                () => TeleportNavigator.BeaconCategoryActive, TeleportNavigator.DeleteSelectedBeacon);
-            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
-                () => TeleportNavigator.BeaconCategoryActive, TeleportNavigator.RenameSelectedBeacon);
+            // NB : renommer / supprimer une balise passent desormais par le MENU CONTEXTUEL
+            // (Croix sur une balise -> liste d'actions, cf. TeleportNavigator). Les combos
+            // Triangle+bas/droite de l'onglet balises ont donc ete retires : keymaps liberes.
 
             // Triangle + bas = transferer (nav inventaire) / vitals (jeu normal). Pas sur la
             // carte : Triangle+bas y supprime une balise (onglet balises), sinon rien.

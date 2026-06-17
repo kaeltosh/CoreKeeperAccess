@@ -164,6 +164,26 @@ namespace CoreKeeperAccess.Navigation
             return _nodes.TryGetValue(Key(pos), out var n) ? n.type : NodeType.Torch;
         }
 
+        // Nœuds dont la position tombe dans un rayon (cases) autour d'un centre monde (x,z).
+        // Sert au recalcul local de connectivité (tranche C) : on ne tisse qu'au cœur chargé.
+        public static void NodesInRadius(float2 center, float radius, List<int2> outList)
+        {
+            EnsureLoaded();
+            outList.Clear();
+            float r2 = radius * radius;
+            foreach (var n in _nodes.Values)
+                if (math.lengthsq(new float2(n.x, n.y) - center) <= r2)
+                    outList.Add(new int2(n.x, n.y));
+        }
+
+        // Vrai si une arête existe déjà entre ces deux nœuds (le recalcul n'ajoute que les
+        // liaisons manquantes — il ne touche jamais aux arêtes existantes).
+        public static bool HasEdge(int2 a, int2 b)
+        {
+            EnsureLoaded();
+            return _edges.ContainsKey(EdgeKey(a, b));
+        }
+
         // Plus court chemin de `from` à `to` SUR LE GRAPHE PARCOURU (Dijkstra). Retourne la
         // suite de positions de `from` (inclus) à `to` (inclus), ou liste VIDE si pas de
         // chemin connu (composantes disjointes — règle d'égalité : on ne route que sur du
