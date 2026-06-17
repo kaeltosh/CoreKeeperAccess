@@ -27,6 +27,11 @@ namespace CoreKeeperAccess.Controls
         public static bool ComboBack;       // Triangle + Back (ouvrir le panneau de reglages)
         public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
 
+        // Pose par la roue de stats (stick droit pousse pendant la tenue de Triangle) :
+        // empeche le relachement d'etre lu comme un tap -> pas de double-tap parasite quand
+        // on consulte une stat. Reset au front montant de la tenue.
+        public static bool StickEngagedDuringHold;
+
         // Double-tap : deux TAPS courts (< TapMaxDuration, sans combo D-pad pendant la
         // tenue) espaces de moins de DoubleTapWindow. Un appui long ou un combo n'est
         // jamais un tap -> aucun conflit avec le role de modificateur.
@@ -63,9 +68,11 @@ namespace CoreKeeperAccess.Controls
             }
 
             // Suivi tap / double-tap (fronts montant et descendant de Triangle).
-            if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; }
+            if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; StickEngagedDuringHold = false; }
             if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3 || ComboBack))
                 _comboDuringHold = true;
+            // Stick droit pousse pendant la tenue (roue de stats) : ce n'est pas un tap.
+            if (StickEngagedDuringHold) _comboDuringHold = true;
             if (!ModifierHeld && _wasHeld)
             {
                 bool tap = Time.unscaledTime - _holdStart <= TapMaxDuration && !_comboDuringHold;

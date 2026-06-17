@@ -31,15 +31,21 @@ namespace CoreKeeperAccess.Controls
         private static readonly int[] IndexToSector = { 0, 2, 4, 6, 1, 3, 5, 7 };
 
         private readonly int _axisXId, _axisYId, _confirmId;
+        private readonly bool _runOnHover;
         private readonly Entry?[] _bySector = new Entry?[8];
         private int _autoIndex;
         private int _lastSector = -1;
 
-        public CommandWheel(int axisXId, int axisYId, int confirmButtonId)
+        // runOnHover=false (defaut) : survol = annonce du LABEL, le bouton de validation
+        // EXECUTE (roue d'actions). runOnHover=true : survol = EXECUTION directe, pas de
+        // bouton (roue de lecture, ou Run() annonce lui-meme la valeur ; confirmButtonId
+        // ignore, passer -1).
+        public CommandWheel(int axisXId, int axisYId, int confirmButtonId, bool runOnHover = false)
         {
             _axisXId = axisXId;
             _axisYId = axisYId;
             _confirmId = confirmButtonId;
+            _runOnHover = runOnHover;
         }
 
         // Remplissage par priorite : le 1er Add prend le nord, le 2e l'est, etc.
@@ -62,11 +68,25 @@ namespace CoreKeeperAccess.Controls
         }
 
         // A appeler chaque frame ou la roue est active (contexte gere par l'appelant).
+        // Lit le stick et le bouton sur le Joystick physique (ids passes au constructeur).
         public void Tick(Joystick joy)
         {
             if (joy == null) { _lastSector = -1; return; }
+            bool confirm = _confirmId >= 0 && ButtonDownById(joy, _confirmId);
+            Process(AxisById(joy, _axisXId), AxisById(joy, _axisYId), confirm);
+        }
 
-            int sector = SectorOf(AxisById(joy, _axisXId), AxisById(joy, _axisYId));
+        // Surcharge : axes fournis directement (x=est/droite, y=nord/haut), pour les roues
+        // qui lisent leur stick via l'API du jeu (mapping monde) plutot que les ids
+        // physiques du Joystick. Stick au neutre (Vector2.zero) => repos + reset du secteur.
+        public void Tick(Vector2 stick, bool confirmDown)
+        {
+            Process(stick.x, stick.y, confirmDown);
+        }
+
+        private void Process(float x, float y, bool confirmDown)
+        {
+            int sector = SectorOf(x, y);
             if (sector != _lastSector)
             {
                 _lastSector = sector;
@@ -78,11 +98,17 @@ namespace CoreKeeperAccess.Controls
                     // sinon chaque cran sonne a une hauteur differente. Args : pitch, reuse, volume, pitchDev.
                     AudioManager.SfxUI(SfxID.FIXME_menu_select, 1f, true, 1f, 0f);
                     var e = _bySector[sector];
-                    if (e.HasValue) TtsText.Say(Strings.L(e.Value.LabelKey), true);
+                    if (e.HasValue)
+                    {
+                        // Roue de lecture : Run() annonce directement la valeur au survol.
+                        // Roue d'actions : on ne dit que le label, l'execution attend le bouton.
+                        if (_runOnHover) e.Value.Run();
+                        else TtsText.Say(Strings.L(e.Value.LabelKey), true);
+                    }
                 }
             }
 
-            if (sector >= 0 && ButtonDownById(joy, _confirmId) && _bySector[sector].HasValue)
+            if (!_runOnHover && sector >= 0 && confirmDown && _bySector[sector].HasValue)
             {
                 var e = _bySector[sector].Value;
                 e.Run();

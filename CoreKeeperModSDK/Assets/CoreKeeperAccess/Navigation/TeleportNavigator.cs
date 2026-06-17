@@ -470,6 +470,14 @@ namespace CoreKeeperAccess.Navigation
         // chargee). Le singleton vit sur une entite SYSTEME -> query IncludeSystems. BiomeLookup
         // construit depuis BiomeSamplesCD (mondes a samples) ou BiomeRangesCD (procedural), ce
         // dernier etant IDisposable -> on libere. Tout sous try/catch : pas de biome si echec.
+        // Biome courant a la position du joueur (suffixe de la localisation, D-pad haut) :
+        // nom localise via la meme table que la carte, ou null (ecran de chargement).
+        internal static string CurrentBiomeName(PlayerController player)
+        {
+            var w = player.WorldPosition;
+            return ResolveBiome(new float2(w.x, w.z));
+        }
+
         private static string ResolveBiome(float2 pos)
         {
             var world = Manager.ecs != null ? Manager.ecs.ClientWorld : null;

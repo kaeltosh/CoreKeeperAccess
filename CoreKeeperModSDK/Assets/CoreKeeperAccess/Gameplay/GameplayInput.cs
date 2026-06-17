@@ -59,6 +59,7 @@ namespace CoreKeeperAccess.Gameplay
             StepEngine.Tick(player);
             ProximitySonar.Tick(player);
             PlacementReader.Tick(player);
+            StatsWheel.Tick(player);
 
             // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
             // (BuildModeNavigator pose FootprintDueAt), annonce apres un petit delai - le
@@ -594,6 +595,45 @@ namespace CoreKeeperAccess.Gameplay
                     if (math.abs(m.x) >= math.abs(m.y)) m.y = 0f;   // est-ouest domine
                     else m.x = 0f;                                  // nord-sud domine
                     ci.movementDirection = m;
+                    data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
+                    EntityManager.SetComponentData(e, data);
+                }
+            }
+            finally { entities.Dispose(); }
+        }
+    }
+
+    // Gel de la marche pendant la touche access (Triangle tenu). Le stick gauche pilote
+    // alors la roue de stats (cf. StatsWheel) au lieu de deplacer le perso : on annule
+    // movementDirection tant que Triangle est tenu. Meme pont ECS que DirectionSnapSystem
+    // (apres SendClientInputSystem, qui vient d'ecrire le mouvement depuis le stick).
+    [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(RunSimulationSystemGroup), OrderLast = true)]
+    [UpdateAfter(typeof(SendClientInputSystem))]
+    public partial class AccessKeyMovementLockSystem : SystemBase
+    {
+        private EntityQuery _query;
+
+        protected override void OnCreate()
+        {
+            _query = GetEntityQuery(
+                ComponentType.ReadWrite<ClientInputData>(),
+                ComponentType.ReadOnly<GhostOwnerIsLocal>());
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+            var entities = _query.ToEntityArray(Allocator.Temp);
+            try
+            {
+                if (entities.Length == 0) return;
+                Entity e = entities[0];
+                ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
+                ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
+                if (math.lengthsq(ci.movementDirection) > 0f)
+                {
+                    ci.movementDirection = float2.zero;
                     data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
                     EntityManager.SetComponentData(e, data);
                 }

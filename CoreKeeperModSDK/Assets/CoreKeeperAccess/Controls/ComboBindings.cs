@@ -11,7 +11,12 @@ namespace CoreKeeperAccess.Controls
     {
         public static void RegisterAll()
         {
-            // Triangle + haut = details de l'element focalise, selon contexte.
+            // Triangle + haut = details de l'element focalise, selon contexte. En jeu, c'est
+            // la commande de LOCALISATION (info tuile + coordonnees fusionnees ici, le D-pad
+            // droite ne porte plus la position) : curseur detache -> details de la case
+            // pointee, qui finit deja par ses coordonnees (AnnounceCursorDetails) ; sinon ->
+            // ma position. Le fallback position est enregistre APRES le curseur detache pour
+            // ne primer que quand le curseur est attache.
             ComboDispatcher.Register(ComboDispatcher.Combo.Detail,
                 () => InventoryNavState.SuppressNativeInput, InventoryNavigator.AnnounceDetail);
             ComboDispatcher.Register(ComboDispatcher.Combo.Detail,
@@ -19,6 +24,8 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.Detail,
                 () => InputContext.InGameFree && BuildModeNavigator.CursorDetached,
                 BuildModeNavigator.AnnounceCursorDetails);
+            ComboDispatcher.Register(ComboDispatcher.Combo.Detail,
+                () => InputContext.InGameFree && Player() != null, () => VitalsReadout.AnnouncePosition(Player()));
 
             // Onglet "Mes balises" de la carte : Triangle+bas = supprimer, Triangle+droite =
             // renommer la balise selectionnee. Enregistres AVANT vitals/position pour primer
@@ -28,31 +35,27 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => TeleportNavigator.BeaconCategoryActive, TeleportNavigator.RenameSelectedBeacon);
 
-            // Triangle + bas = transferer (nav inventaire) / vitals (jeu normal). Pas sur la
-            // carte : Triangle+bas y supprime une balise (onglet balises), sinon rien.
+            // Triangle + bas = transferer (nav inventaire). En jeu, vitals est passe sur la
+            // roue de stats (stick droit) - le D-pad bas n'a plus de role gameplay. Sur la
+            // carte : supprime une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.TransferSelected);
-            ComboDispatcher.Register(ComboDispatcher.Combo.Down,
-                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => VitalsReadout.AnnounceVitals(Player()));
 
-            // Triangle + droite = reparer (nav inventaire) / position (jeu normal). Pas sur la
-            // carte : Triangle+droite y renomme une balise (onglet balises), sinon rien.
+            // Triangle + droite = reparer (nav inventaire). En jeu, la position est fusionnee
+            // sur le D-pad haut (localisation) - plus de role gameplay ici. Sur la carte :
+            // renomme une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.RepairSelected);
-            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
-                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => VitalsReadout.AnnouncePosition(Player()));
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
-            // recycler (station) / prospection minerai (ailleurs). Coherent avec la station
-            // ou gauche = recycler tout. Vente en premier : marchand et station jamais
-            // ouverts ensemble, l'ordre rend juste l'intention explicite.
+            // recycler (station). La prospection minerai est passee sur la roue de stats
+            // (stick droit) - plus de role gameplay ici. Vente en premier : marchand et
+            // station jamais ouverts ensemble, l'ordre rend juste l'intention explicite.
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput && Manager.ui != null && Manager.ui.isSellUIShowing,
                 GameplayInput.SellAllToMerchant);
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.SalvageStation);
-            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
-                () => !UiBusy() && !InputContext.MapOpen && Player() != null, () => GameplayInput.RequestProspect(Player()));
 
             // Triangle + L1 = ping sonar (jeu normal seulement : pas en inventaire /
             // fiche perso / carte - sur la carte, les bumpers naviguent les categories).

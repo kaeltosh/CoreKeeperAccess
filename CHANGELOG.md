@@ -28,6 +28,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 ### Character and progression
 
 - **Talents tab**: each talent's state is spoken (locked with its prerequisite, available, or maxed out), along with how many points you have left to spend.
+- **Controller stats wheel** (hold Triangle, then push the left stick in a direction): quick access to your information without opening a menu, with movement paused while you check. Each direction reads one piece of data — health and barrier, hunger, mana and active minions, active conditions (poisoned, burning, slowed by slime…), world progress, and ore prospecting around you. Health or mana regeneration is appended at the end (e.g. "+4.2/s"). The position command (Triangle + D-pad up) now also tells you your current biome.
 
 ### Multiplayer
 

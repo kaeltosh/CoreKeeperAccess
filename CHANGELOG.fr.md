@@ -28,6 +28,7 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 ### Personnage et progression
 
 - **Onglet talents** : l'état de chaque talent est lu (verrouillé avec son prérequis, disponible, ou au maximum), ainsi que le nombre de points qu'il te reste à dépenser.
+- **Roue de stats à la manette** (maintiens Triangle, puis pousse le stick gauche dans une direction) : un accès rapide à tes informations sans ouvrir de menu, la marche est mise en pause le temps de consulter. Chaque direction lit une donnée — vie et barrière, faim, mana et serviteurs invoqués, états actifs (empoisonné, en feu, ralenti par la bave…), avancement dans le monde, et prospection de minerai autour de toi. La régénération de vie ou de mana s'ajoute en fin d'annonce (par exemple « +4.2/s »). Au passage, la commande de position (Triangle + D-pad haut) indique maintenant aussi ton biome actuel.
 
 ### Multijoueur
 
