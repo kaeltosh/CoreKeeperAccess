@@ -368,10 +368,51 @@ namespace CoreKeeperAccess.Patches
                 var bank = player.querySystem.GetSingleton<PugDatabase.DatabaseBankCD>();
                 ref var info = ref PugDatabase.GetEntityObjectInfo(objectID, bank.databaseBankBlob, variation);
                 if (info.prefabTileSize.x <= 1 && info.prefabTileSize.y <= 1) return false;
+                // Outils a zone d'effet reglable (houe, arrosoir, pelle, semoir...) : leur
+                // prefabTileSize est la zone d'effet MAXIMALE, PAS l'emprise d'un meuble
+                // -> pas d'annonce de forme (la zone COURANTE est dite par ToolZoneLabel).
+                // Discriminant FIABLE = ObjectType : ResizableTileSizeCD est aussi porte par
+                // des meubles (le lit, PlaceablePrefab), donc faux positifs si on s'y fie.
+                if (IsZoneTool(info.objectType)) return false;
                 size = info.prefabTileSize; corner = info.prefabCornerOffset;
                 return true;
             }
             catch { return false; }
+        }
+
+        // Taille de la zone d'effet COURANTE d'un outil a zone reglable (houe, arrosoir,
+        // pelle, semoir...) tenu en main : "3x3". null si l'objet en main n'est pas un
+        // tel outil. Ces outils portent ResizableTileSizeCD ; leur prefabTileSize est la
+        // zone MAX et EquippedObjectVisualCD.sizeVariationToPlace (replique cote client)
+        // le cran courant cycle par le Rotate -> EquipmentSlot.GetTileSizeFromVariation
+        // combine les deux (zone carree NxN). Annonce a la selection ET au Rotate.
+        public static string ToolZoneLabel(PlayerController player)
+        {
+            try
+            {
+                if (player == null) return null;
+                var held = player.GetHeldObject();
+                if (held.objectID == ObjectID.None) return null;
+                var bank = player.querySystem.GetSingleton<PugDatabase.DatabaseBankCD>();
+                ref var info = ref PugDatabase.GetEntityObjectInfo(held.objectID, bank.databaseBankBlob, held.variation);
+                if (!IsZoneTool(info.objectType)) return null;
+                if (info.prefabTileSize.x <= 1) return null;
+                if (!EntityUtility.HasComponentData<EquippedObjectVisualCD>(player.entity, player.world)) return null;
+                var vis = EntityUtility.GetComponentData<EquippedObjectVisualCD>(player.entity, player.world);
+                int2 sz = EquipmentSlot.GetTileSizeFromVariation(vis.sizeVariationToPlace, info.prefabTileSize);
+                return Strings.L("place.zone") + " " + sz.x + "x" + sz.y;
+            }
+            catch { return null; }
+        }
+
+        // Outil a zone d'effet reglable au Rotate (houe, arrosoir, pelle, semoir, pinceau,
+        // toiture, seau). Leur prefabTileSize = zone MAX, a distinguer de l'emprise d'un
+        // meuble (ObjectType.PlaceablePrefab). ObjectType issu de la DB (EntityObjectInfo).
+        private static bool IsZoneTool(ObjectType t)
+        {
+            return t == ObjectType.Hoe || t == ObjectType.Shovel || t == ObjectType.WaterCan
+                || t == ObjectType.Seeder || t == ObjectType.PaintTool || t == ObjectType.RoofingTool
+                || t == ObjectType.Bucket;
         }
 
         // Nom localise d'un objet a partir de son ObjectID (materiaux, resultat de craft).

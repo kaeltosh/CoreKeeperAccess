@@ -31,10 +31,13 @@ Cycle de dev typique : edit code → fast-build -Launch → naviguer en jeu → 
 
 **Pré-requis** : un build Unity complet doit avoir eu lieu **au moins une fois** (pour générer `Bundles/`, `ModManifest.json` et les natives dans le dossier d'install). Après ça, fast-build suffit pour toute modif code/JSON.
 
-**Limites** :
-- Pas de validation compile en amont — une syntax error C# n'apparaît qu'au lancement du jeu dans Player.log.
-- Si ajout/suppression d'un fichier source (nouveau .cs ou .json), fast-build avertit ("non déclaré dans ModManifest.json") et stoppe — il faut refaire un build Unity pour redéclarer le fichier.
-- Si ajout d'asset Unity (prefab, ScriptableObject sérialisé) : build Unity obligatoire.
+**Mode miroir (par défaut)** : l'install est mis en **miroir exact** des sources de la branche courante. fast-build **régénère lui-même** le champ `files` du `ModManifest.json` à partir des `.cs`/`.json` présents, supprime les orphelins (résidus d'une autre branche), et **préserve** les entrées qu'il ne gère pas (`Scripts/Generated/*.g.cs` et `Bundles/*`, produits par Unity). Conséquence : **ajouter ou supprimer un fichier source (`.cs`/`.json`) ne demande PLUS Unity** — fast-build le déclare tout seul. `-NoMirror` revient au comportement historique (copie seule + avertissement si fichier non déclaré, sans rien supprimer).
+
+**Validation compile en amont** : par défaut fast-build appelle `tools/check-compile.ps1` avant de déployer ; si la compile échoue, le déploiement est annulé (exit 3). `-NoCheck` pour forcer.
+
+**Limites (Unity reste obligatoire pour)** :
+- Ajout d'un **fichier généré** Unity : nouveau système ECS → `.g.cs` dans `Scripts/Generated/` (fast-build ne produit pas les `.g.cs`).
+- Ajout d'un **asset Unity** (prefab, ScriptableObject sérialisé → `Bundles/`).
 
 ## Workflow d'automatisation Unity (Editor inaccessible NVDA, fallback)
 

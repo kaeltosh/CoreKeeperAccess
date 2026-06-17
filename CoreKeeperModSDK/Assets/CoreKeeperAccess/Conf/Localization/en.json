@@ -143,6 +143,7 @@
   "place.from": "from",
   "place.to": "to",
   "place.facing": "facing",
+  "place.zone": "zone",
   "poi.ghorm": "Ghorm the Devourer",
   "obj.TheCore": "The Core",
   "obj.IndestructibleAncientWire": "Ancient wire",

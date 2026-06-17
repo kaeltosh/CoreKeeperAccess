@@ -15,6 +15,7 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 
 - **Mode construction et pose accessibles** : calage directionnel (Triangle + L3) pour aligner ce que tu poses, pose multi-cases au curseur, rotation (Triangle + R1).
 - **Lecture au curseur enrichie** : agriculture (sol labouré ou arrosé, état des plantes — prête à récolter, a soif, en croissance), stations de transformation (slots d'entrée et de sortie étiquetés, progression en pourcentage), machines, convoyeurs et électricité, seau et arrosoir vides ou pleins.
+- **Taille de zone des outils** : pour la houe, l'arrosoir, la pelle ou le semoir, la taille de la zone d'effet est annoncée à la sélection et à chaque changement (Triangle + R1) — par exemple « zone 3x3 ». Ces outils n'annoncent plus une fausse « forme » comme s'ils étaient des meubles.
 
 ### Commerce
 

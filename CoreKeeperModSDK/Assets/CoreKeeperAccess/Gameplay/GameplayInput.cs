@@ -658,6 +658,7 @@ namespace CoreKeeperAccess.Gameplay
         private static float _next;
         private static ObjectID _lastObjId = ObjectID.None;
         private static int _lastRot = -1;
+        private static int _lastSize = -1;
         private static bool _lastValid = true;
         private static bool _primed;
 
@@ -683,6 +684,17 @@ namespace CoreKeeperAccess.Gameplay
             }
             catch { _primed = false; return; }
 
+            // Cran de zone courant pour les outils a zone reglable (le Rotate cycle la
+            // ZONE, pas la rotation, donc rotationVariationToPlace ne bouge pas) -> on
+            // surveille EquippedObjectVisualCD.sizeVariationToPlace separement.
+            int sizeVar = -1;
+            try
+            {
+                if (EntityUtility.HasComponentData<EquippedObjectVisualCD>(player.entity, player.world))
+                    sizeVar = EntityUtility.GetComponentData<EquippedObjectVisualCD>(player.entity, player.world).sizeVariationToPlace;
+            }
+            catch { }
+
             if (_primed)
             {
                 if (pc.rotationVariationToPlace != _lastRot)
@@ -690,11 +702,19 @@ namespace CoreKeeperAccess.Gameplay
                     int2 dir = DirectionBasedOnVariationCD.GetDirectionFromVariation(pc.rotationVariationToPlace, false);
                     TtsText.Say(Strings.L("place.facing") + " " + Cardinal4(dir), true);
                 }
+                // Zone d'outil cyclee au Rotate -> annonce "zone 3x3" (null = pas un outil
+                // a zone reglable, donc muet pour les meubles).
+                if (sizeVar != _lastSize && _lastSize >= 0)
+                {
+                    string zone = InGameTtsCore.ToolZoneLabel(player);
+                    if (!string.IsNullOrEmpty(zone)) TtsText.Say(zone, true);
+                }
                 if (_lastValid && !pc.canPlaceObject)
                     GameplayAudio.PlaySpatial(InvalidSfx, 0f, 1f, InvalidVolume);
             }
 
             _lastRot = pc.rotationVariationToPlace;
+            _lastSize = sizeVar;
             _lastValid = pc.canPlaceObject;
             _primed = true;
         }

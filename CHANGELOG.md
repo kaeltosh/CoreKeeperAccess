@@ -15,6 +15,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 
 - **Accessible building and placement**: directional snapping (Triangle + L3) to line up what you place, multi-tile placement at the cursor, rotation (Triangle + R1).
 - **Richer cursor reading**: farming (tilled or watered ground, plant state — ready to harvest, thirsty, growing), processing stations (labelled input and output slots, progress percentage), machines, conveyors and electricity, empty or full bucket and watering can.
+- **Tool effect-zone size**: for the hoe, watering can, shovel or seeder, the size of the effect area is announced on selection and on every change (Triangle + R1) — e.g. "zone 3x3". These tools no longer announce a bogus "footprint" as if they were furniture.
 
 ### Trading
 

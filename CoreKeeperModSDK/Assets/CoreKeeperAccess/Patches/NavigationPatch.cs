@@ -100,6 +100,10 @@ namespace CoreKeeperAccess.Patches
                     string fill = InGameTtsCore.FillLevelLabel(held);
                     if (fill != null) text = $"{name}, {fill}";
                     else text = held.amount > 1 ? $"{name}, {held.amount}" : name;
+                    // Outil a zone reglable (houe/arrosoir/pelle/semoir) : ajouter la zone
+                    // d'effet courante ("zone 3x3"). null pour tout autre objet.
+                    string zone = InGameTtsCore.ToolZoneLabel(__instance);
+                    if (!string.IsNullOrEmpty(zone)) text += ", " + zone;
                 }
                 TtsText.Say(text, true);
             }
