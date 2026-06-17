@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Navigation;
 using Pug.Automation;
 using Pug.Properties;
 using PugTilemap;
@@ -105,6 +106,34 @@ namespace CoreKeeperAccess.Gameplay
         public static bool ResultValid; // reponse publiee (consommee par le mod)
         public static bool Found;
         public static int2 Tile;        // tuile de minerai la plus proche
+    }
+
+    // Pont recalcul local du reseau de navigation (tranche C, "mise a jour du reseau"). Le
+    // mod pose une demande (centre = case joueur, rayon de revision) ; le systeme la traite
+    // avec son TileAccessor (NetworkWeaver tisse les aretes manquantes par LIGNE DE VUE
+    // franchissable) et publie le nombre d'aretes ajoutees. Le mod l'annonce. AJOUT seulement.
+    internal static class NetworkRecalc
+    {
+        public static bool Requested;   // demande posee par le mod (consommee par le systeme)
+        public static int2 Center;      // case du joueur
+        public static float Radius;     // rayon de revision en cases
+
+        public static bool ResultValid; // reponse publiee (consommee par le mod)
+        public static int AddedEdges;   // aretes ajoutees (lignes de vue degagees)
+        public static int RemovedEdges; // aretes coupees (lignes de vue obstruees)
+        public static int LostNodes;    // noeuds fantomes elagues (balise disparue, feuille)
+    }
+
+    // Pont DUMP ASCII du reseau local (dev). Le mod pose une demande (centre, rayon) ; le
+    // systeme dessine dans Player.log une grille "vue par le mod" : # = mur LU, . = sol,
+    // = passage (pont/porte sur tuile bloquante), lettre = noeud, @ = joueur, + la liste des
+    // aretes intra-fenetre (par lettres). A comparer a une capture carte : valide a la fois la
+    // coherence interne (aucune arete a travers un #) ET la lecture des murs (# lus vs reels).
+    internal static class NetworkDump
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static float Radius;
     }
 
     // Pont ping sonar (Triangle + L1). Le mod pose une demande (centre, rayon) ; le
@@ -383,6 +412,40 @@ namespace CoreKeeperAccess.Gameplay
                     SonarScan.ResultValid = true;
                     Diag.Error("A11ySonarDiag", ex);
                 }
+            }
+
+            // Recalcul local du reseau de navigation (tranche C) : tisse les aretes manquantes
+            // par ligne de vue dans le rayon de revision. Independant du curseur.
+            if (NetworkRecalc.Requested)
+            {
+                NetworkRecalc.Requested = false;
+                try
+                {
+                    var taNet = new TileAccessor(ref CheckedStateRef, true);
+                    CoreKeeperAccess.Navigation.NetworkWeaver.Weave(
+                        ref taNet, NetworkRecalc.Center, NetworkRecalc.Radius,
+                        out int added, out int removed, out int lost);
+                    NetworkRecalc.AddedEdges = added;
+                    NetworkRecalc.RemovedEdges = removed;
+                    NetworkRecalc.LostNodes = lost;
+                    NetworkRecalc.ResultValid = true;
+                }
+                catch (System.Exception ex)
+                {
+                    NetworkRecalc.AddedEdges = 0;
+                    NetworkRecalc.RemovedEdges = 0;
+                    NetworkRecalc.LostNodes = 0;
+                    NetworkRecalc.ResultValid = true;
+                    Diag.Error("A11yNetRecalc", ex);
+                }
+            }
+
+            // Dump ASCII du reseau local (dev) : dessine la zone vue par le mod dans le log.
+            if (NetworkDump.Requested)
+            {
+                NetworkDump.Requested = false;
+                try { DumpNetwork(); }
+                catch (System.Exception ex) { Diag.Error("A11yNetDump", ex); }
             }
 
             // Diagnostic automation a la demande (dev) : independant du curseur actif.
@@ -698,6 +761,61 @@ namespace CoreKeeperAccess.Gameplay
 
             PingScan.Count = count;
             PingScan.ResultValid = true;
+        }
+
+        // Dump ASCII du reseau local (dev) : grille "vue par le mod" dans Player.log, Nord en
+        // haut. # = mur LU (TryGetBlockingTile), . = sol, = = passage (pont/porte sur tuile
+        // bloquante), lettre = noeud du reseau, @ = joueur. Puis la liste des aretes dont les
+        // DEUX extremites sont dans la fenetre (par lettres). A croiser avec une capture carte.
+        private const string DumpAlphabet =
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        private void DumpNetwork()
+        {
+            int r = (int)NetworkDump.Radius;
+            int2 c = NetworkDump.Center;
+            var ta = new TileAccessor(ref CheckedStateRef, true);
+
+            // Noeuds de la fenetre -> une lettre chacun (au-dela de 52 : '*').
+            var nodes = new List<int2>();
+            BeaconGraph.NodesInRadius(new float2(c.x, c.y), r, nodes);
+            var label = new Dictionary<long, char>();
+            for (int i = 0; i < nodes.Count; i++)
+                label[ObjectIndex.Key(nodes[i])] = i < DumpAlphabet.Length ? DumpAlphabet[i] : '*';
+
+            Diag.Log("A11yNetDump", "=== zone " + c.x + "," + c.y + " rayon " + r
+                + " : " + nodes.Count + " noeuds (Nord en haut) ===");
+
+            var sb = new System.Text.StringBuilder();
+            for (int y = c.y + r; y >= c.y - r; y--)
+            {
+                sb.Clear();
+                for (int x = c.x - r; x <= c.x + r; x++)
+                {
+                    int2 t = new int2(x, y);
+                    char ch;
+                    if (x == c.x && y == c.y) ch = '@';
+                    else if (label.TryGetValue(ObjectIndex.Key(t), out char lc)) ch = lc;
+                    else if (!ta.TryGetBlockingTile(t, out _, true)) ch = '.';
+                    else if (ObjectIndex.TryGet(t, out var e) && BeaconObjects.IsPassable(e.Id)) ch = '=';
+                    else ch = '#';
+                    sb.Append(ch);
+                }
+                Diag.Log("A11yNetDump", sb.ToString());
+            }
+
+            // Aretes intra-fenetre (les deux extremites dans le rayon) par lettres.
+            var edges = new List<BeaconGraph.Edge>();
+            BeaconGraph.EdgesInRadius(new float2(c.x, c.y), r, edges);
+            var es = new System.Text.StringBuilder();
+            foreach (var e in edges)
+            {
+                char la = label.TryGetValue(ObjectIndex.Key(new int2(e.ax, e.ay)), out char a) ? a : '?';
+                char lb = label.TryGetValue(ObjectIndex.Key(new int2(e.bx, e.by)), out char b) ? b : '?';
+                if (es.Length > 0) es.Append(' ');
+                es.Append(la).Append('-').Append(lb);
+            }
+            Diag.Log("A11yNetDump", "aretes (" + edges.Count + ") : " + es);
         }
 
         // Dump dev : liste TOUS les composants de l'entite sous le curseur + les valeurs

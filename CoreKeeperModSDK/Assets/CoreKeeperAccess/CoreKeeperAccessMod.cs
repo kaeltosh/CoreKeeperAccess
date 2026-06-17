@@ -97,6 +97,7 @@ public class CoreKeeperAccessMod : IMod
 
     public void Shutdown()
     {
+        CoreKeeperAccess.Navigation.BeaconGraph.Flush(); // sauve les dernieres aretes non ecrites (debounce)
         Strings.Unload();
         Tolk.Unload();
     }
@@ -130,12 +131,16 @@ public class CoreKeeperAccessMod : IMod
         TryAutoLoad();
         TryDevGodMode();
         TryDevInvincible();
+        TryDevBeaconGraphDiag();
+        TryDevNetworkRecalc();
+        TryDevNetworkDump();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
+        CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
@@ -186,6 +191,49 @@ public class CoreKeeperAccessMod : IMod
         bool on = CoreKeeperAccess.Gameplay.DevInvincibility.Active;
         TtsText.Say(on ? "Invincible active" : "Invincible desactive", true);
         Diag.Log("A11yDevGodMode", "invincibilite pure -> " + on);
+    }
+
+    // Diagnostic dev du reseau de navigation (tranche A) : Triangle (touche access)
+    // MAINTENU + F6 -> annonce nombre de noeuds / aretes + noeud courant. Sert a valider
+    // le tissage des torches AU TTS, sans audio ni combo manette dedie (le guidage sonore
+    // viendra en tranche B). Cache aux testeurs comme F7/F8.
+    private void TryDevBeaconGraphDiag()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F6)) return;
+        CoreKeeperAccess.Gameplay.BeaconTracker.AnnounceDiag();
+    }
+
+    // Recalcul local du reseau (tranche C) : Triangle (touche access) MAINTENU + F5 -> tisse
+    // les aretes manquantes par ligne de vue dans un rayon autour du joueur (mise a jour de la
+    // base). Au clavier dev pour valider l'algo ; le vrai declencheur manette viendra apres.
+    private void TryDevNetworkRecalc()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F5)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        var wp = player.WorldPosition;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Center = new Unity.Mathematics.int2(
+            UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Radius = 16f;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.ResultValid = false;
+        CoreKeeperAccess.Gameplay.NetworkRecalc.Requested = true;
+    }
+
+    // Dump ASCII du reseau local (dev) : Triangle (touche access) MAINTENU + F4 -> dessine la
+    // zone vue par le mod dans Player.log (prefixe [A11yNetDump]), a croiser avec une capture.
+    private void TryDevNetworkDump()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F4)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        var wp = player.WorldPosition;
+        CoreKeeperAccess.Gameplay.NetworkDump.Center = new Unity.Mathematics.int2(
+            UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+        CoreKeeperAccess.Gameplay.NetworkDump.Radius = 12f;
+        CoreKeeperAccess.Gameplay.NetworkDump.Requested = true;
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

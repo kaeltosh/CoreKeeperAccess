@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using CoreKeeperAccess.Controls;
+using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using Rewired;
@@ -60,9 +61,50 @@ namespace CoreKeeperAccess.Navigation
         private static List<MapMarkerUIElement> CurrentList =>
             _category == 0 ? _dests : (_category == 1 ? _pois : _beacons);
 
-        // Expose pour la table de combos : l'onglet "Mes balises" est ouvert et navigable
-        // (pas en pleine saisie de nom). Conditionne Triangle+bas/droite = supprimer/renommer.
-        internal static bool BeaconCategoryActive => _active && _category == 2 && !TextEntry.Active;
+        // ===== Lignes VIRTUELLES de l'onglet "Mes balises" =====
+        // En tete de l'onglet balises, des entrees qui ne sont PAS des marqueurs :
+        //   0 = "Nouvelle balise ici" (toujours presente, meme liste vide) -> Croix cree ;
+        //   1 = "Rejoindre le reseau le plus proche" (seulement si le graphe a des noeuds)
+        //       -> Croix lance un guidage DIRECT vers la torche la plus proche.
+        // Les balises reelles suivent, decalees de ce nombre.
+        // Lignes virtuelles de l'onglet "Mes balises". En TETE : 0 = "Nouvelle balise ici"
+        // (toujours), 1 = "Rejoindre le reseau le plus proche" (si le graphe a des noeuds).
+        // En QUEUE : "Recalculer le reseau" (si le graphe a des noeuds) = action de maintenance,
+        // donc reletguee en fin de liste.
+        private const int VrowNew = 0, VrowJoin = 1, VrowRecalc = 2;
+
+        private static bool HasNetwork => BeaconGraph.NodeCount > 0;
+        private static int BeaconHeadCount() => 1 + (HasNetwork ? 1 : 0); // tete (creer / rejoindre)
+        private static int BeaconTailCount() => HasNetwork ? 1 : 0;        // queue (recalculer)
+
+        // Nombre de lignes navigables de la categorie courante (lignes virtuelles comprises
+        // pour l'onglet balises).
+        private static int RowCount()
+            => _category == 2 ? BeaconHeadCount() + _beacons.Count + BeaconTailCount() : CurrentList.Count;
+
+        // Vrai si l'index (onglet balises) tombe sur une ligne virtuelle ; sort son kind.
+        private static bool IsVirtualRow(int idx, out int kind)
+        {
+            kind = -1;
+            if (_category != 2) return false;
+            int head = BeaconHeadCount();
+            if (idx >= 0 && idx < head) { kind = idx; return true; }                          // tete
+            if (BeaconTailCount() > 0 && idx == head + _beacons.Count) { kind = VrowRecalc; return true; } // queue
+            return false;
+        }
+
+        // Marqueur correspondant a l'index courant (onglet balises : decale des lignes
+        // virtuelles de tete). null si l'index ne pointe pas un marqueur.
+        private static MapMarkerUIElement MarkerAt(int idx)
+        {
+            if (_category != 2)
+            {
+                var l = CurrentList;
+                return (idx >= 0 && idx < l.Count) ? l[idx] : null;
+            }
+            int mi = idx - BeaconHeadCount();
+            return (mi >= 0 && mi < _beacons.Count) ? _beacons[mi] : null;
+        }
 
         // CanTeleport est prive -> reflection. (mapMarkerEntity, lui, est un champ PUBLIC :
         // acces direct, pas de reflection.)
@@ -77,7 +119,7 @@ namespace CoreKeeperAccess.Navigation
             bool open = InputContext.MapOpen;
 
             if (open && !_active) Enter();
-            else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _groups.Clear(); _hasPendingSelect = false; }
+            else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _groups.Clear(); _hasPendingSelect = false; ActionMenu.Close(); }
             if (!_active) return;
 
             // Selection differee d'une balise fraichement posee (le temps que MapUI cree
@@ -89,7 +131,7 @@ namespace CoreKeeperAccess.Navigation
                 if (_category == 2)
                 {
                     int idx = _beacons.FindIndex(b => MarkerTile(b, out int2 t) && t.Equals(_pendingSelectTile));
-                    if (idx >= 0) { _index = idx; Select(_index, interruptTts: false); }
+                    if (idx >= 0) { _index = BeaconHeadCount() + idx; Select(_index, interruptTts: false); }
                 }
             }
 
@@ -124,11 +166,10 @@ namespace CoreKeeperAccess.Navigation
             }
             string cat = Strings.L(_category == 0 ? "map.destinations"
                 : _category == 1 ? "map.poi" : "map.beacons");
-            var list = CurrentList;
-            if (list.Count == 0)
+            // L'onglet balises a toujours au moins la ligne "Nouvelle balise ici" -> RowCount.
+            if (RowCount() == 0)
             {
-                string none = Strings.L(_category == 0 ? "teleport.none"
-                    : _category == 1 ? "map.poi.none" : "map.beacons.none");
+                string none = Strings.L(_category == 0 ? "teleport.none" : "map.poi.none");
                 TtsText.Say(cat + ", " + none, true);
                 return;
             }
@@ -240,8 +281,8 @@ namespace CoreKeeperAccess.Navigation
 
         private static void HandleInput()
         {
-            // Pleine saisie d'un nom de balise : le clavier a la main, on gele la nav.
-            if (TextEntry.Active) return;
+            // Saisie d'un nom OU menu contextuel ouvert : ils ont la main, on gele la nav.
+            if (TextEntry.Active || ActionMenu.Active) return;
             var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
             if (joy == null) return;
             // Touche access (Triangle) tenue : la croix directionnelle est reservee aux
@@ -277,9 +318,9 @@ namespace CoreKeeperAccess.Navigation
         private static void Move(int step)
         {
             if (_category == 3) { JournalMove(step); return; }
-            var list = CurrentList;
-            if (list.Count == 0) return;
-            _index = (_index + step + list.Count) % list.Count;
+            int n = RowCount();
+            if (n == 0) return;
+            _index = (_index + step + n) % n;
             Select(_index);
         }
 
@@ -352,21 +393,109 @@ namespace CoreKeeperAccess.Navigation
         private static void Confirm()
         {
             if (_category == 3) { JournalOpen(); return; } // Croix = ouvrir la conversation / relire
-            if (_category == 2) { PlaceBeaconAtPlayer(); return; }
-            if (_category != 0)
+            // Onglet balises : lignes virtuelles (creer / rejoindre le reseau) en tete,
+            // sinon menu d'actions sur la balise.
+            if (_category == 2)
             {
-                TtsText.Say(Strings.L("map.poi.notteleport"), true);
+                if (IsVirtualRow(_index, out int kind))
+                {
+                    if (kind == VrowNew) PlaceBeaconAtPlayer();
+                    else if (kind == VrowJoin) JoinNearestNetwork();
+                    else RecalcNetwork();
+                    return;
+                }
+                var bm = MarkerAt(_index);
+                if (bm != null) OpenMarkerMenu(bm);
                 return;
             }
+            // Points d'interet : menu d'actions (guidage). Pas de teleportation.
+            if (_category == 1)
+            {
+                if (_index >= 0 && _index < _pois.Count) OpenMarkerMenu(_pois[_index]);
+                return;
+            }
+            // Destinations / relais : Croix = teleportation directe (inchange).
             if (_index < 0 || _index >= _dests.Count) return;
             _dests[_index].OnLeftClicked(false, false);
         }
 
+        // ===== Menu contextuel d'un marqueur (POI / balise) =====
+        // Croix sur un POI ou une balise ouvre une liste d'ACTIONS (guidage reseau / direct,
+        // + renommer / supprimer pour une balise). Libere le moteur de keymaps : plus de
+        // combo Triangle par action.
+        private static void OpenMarkerMenu(MapMarkerUIElement m)
+        {
+            if (m == null || !MarkerTile(m, out int2 tile)) return;
+            string name = _category == 2 ? BeaconName(m) : MarkerTitle(m);
+            if (string.IsNullOrEmpty(name)) name = Strings.L("map.poi.marker");
+
+            var items = new List<ActionMenu.Item>
+            {
+                new ActionMenu.Item { Label = Strings.L("ctx.navigate"), Run = () => StartGuide(tile, name, true) },
+                new ActionMenu.Item { Label = Strings.L("ctx.direct"),   Run = () => StartGuide(tile, name, false) },
+            };
+            if (_category == 2)
+            {
+                var marker = m; // capture pour les closures (rename/delete operent sur CE marqueur)
+                items.Add(new ActionMenu.Item { Label = Strings.L("ctx.rename"), Run = () => RenameBeacon(marker) });
+                items.Add(new ActionMenu.Item { Label = Strings.L("ctx.delete"), Run = () => DeleteBeacon(marker) });
+            }
+            ActionMenu.Open(Strings.L("ctx.title") + ", " + name, items);
+        }
+
+        // Lance un guidage (reseau ou direct) vers la case, puis ferme la carte pour partir.
+        private static void StartGuide(int2 tile, string name, bool routed)
+        {
+            if (routed) BeaconGuide.StartRouted(tile, name);
+            else BeaconGuide.StartDirect(tile, name);
+            CloseMap();
+        }
+
+        // "Rejoindre le reseau le plus proche" : guidage DIRECT vers la torche-noeud la plus
+        // proche du joueur (pour rallier ses balises quand on est perdu hors reseau).
+        private static void JoinNearestNetwork()
+        {
+            if (!BeaconGraph.NearestNode(PlayerPos(), float.MaxValue, out int2 node))
+            {
+                TtsText.Say(Strings.L("guide.nonetwork"), true);
+                return;
+            }
+            BeaconGuide.StartDirect(node, Strings.L("guide.network"));
+            CloseMap();
+        }
+
+        // "Recalculer le reseau" : pose une demande de recalcul local (tranche C) autour de la
+        // position du joueur. Le systeme tisse les aretes manquantes par ligne de vue ; l'annonce
+        // ("Reseau mis a jour, K liaisons") part de GameplayInput quand la reponse arrive. On
+        // RESTE sur la carte (action de maintenance, pas de deplacement).
+        private static void RecalcNetwork()
+        {
+            float2 pp = PlayerPos();
+            NetworkRecalc.Center = new int2((int)math.round(pp.x), (int)math.round(pp.y));
+            NetworkRecalc.Radius = 16f;
+            NetworkRecalc.ResultValid = false;
+            NetworkRecalc.Requested = true;
+        }
+
+        // Ferme la carte par l'API native directe (Manager.ui.HideMap(), celle qu'appelle le
+        // bouton de fermeture du jeu) -> deterministe, contrairement a l'armement de TOGGLE_MAP
+        // qui dependait du polling du jeu. L'earcon de guidage prend alors le relais en jeu
+        // (il ne sonne qu'InGameFree, donc carte fermee).
+        private static void CloseMap()
+        {
+            if (Manager.ui != null) Manager.ui.HideMap();
+        }
+
         private static void Select(int idx, bool interruptTts = true)
         {
-            var list = CurrentList;
-            if (idx < 0 || idx >= list.Count) return;
-            var m = list[idx];
+            // Ligne virtuelle (onglet balises) : pas de marqueur a focaliser, juste l'annonce.
+            if (IsVirtualRow(idx, out int kind))
+            {
+                TtsText.Say(VirtualLabel(kind), interruptTts);
+                return;
+            }
+            var m = MarkerAt(idx);
+            if (m == null) return;
             // Selection forcee + recalage du curseur manette virtuel (meme piege UIMouse que
             // l'inventaire) pour que A native clique bien CE marqueur -> teleportation.
             InventoryNavState.SuppressPassiveAnnounce = true;
@@ -379,6 +508,12 @@ namespace CoreKeeperAccess.Navigation
             finally { InventoryNavState.SuppressPassiveAnnounce = false; }
             Announce(m, interruptTts);
         }
+
+        // Libelle TTS d'une ligne virtuelle de l'onglet balises.
+        private static string VirtualLabel(int kind)
+            => kind == VrowNew ? Strings.L("beacon.new")
+             : kind == VrowJoin ? Strings.L("guide.joinnetwork")
+             : Strings.L("netrecalc.menu");
 
         // Titre d'un marqueur, avec rattrapage des libelles que le JEU laisse en anglais
         // meme en francais (trad I2 manquante, un voyant FR voit le meme anglais) : on
@@ -406,8 +541,11 @@ namespace CoreKeeperAccess.Navigation
                     name = Strings.L(_category == 0 ? "teleport.portal" : "map.poi.marker");
             }
             // Numero en tete : STABLE pour les relais (tri par distance au centre),
-            // simple ordre de proximite pour les points d'interet et les balises.
-            int number = _category == 0 ? StableNumber(m) : _index + 1;
+            // simple ordre de proximite pour les points d'interet et les balises (l'onglet
+            // balises retranche les lignes virtuelles de tete pour numeroter a partir de 1).
+            int number = _category == 0 ? StableNumber(m)
+                : _category == 2 ? (_index - BeaconHeadCount() + 1)
+                : _index + 1;
             string head = number + ", " + name;
             string dd = DirectionAndDistance(m);
             TtsText.Say(string.IsNullOrEmpty(dd) ? head : head + ", " + dd, interrupt);
@@ -418,9 +556,9 @@ namespace CoreKeeperAccess.Navigation
         internal static void AnnounceDetail()
         {
             if (_category == 3) { if (_jLevel == 1) AnnounceItem(true); else AnnounceGroup(true); return; } // journal : relire le focus
-            var list = CurrentList;
-            if (_index < 0 || _index >= list.Count) return;
-            var m = list[_index];
+            if (IsVirtualRow(_index, out int kind)) { TtsText.Say(VirtualLabel(kind), true); return; }
+            var m = MarkerAt(_index);
+            if (m == null) return;
             string label;
             if (_category == 0)
             {
@@ -437,7 +575,9 @@ namespace CoreKeeperAccess.Navigation
                 label = MarkerTitle(m);
                 if (string.IsNullOrEmpty(label)) label = Strings.L("map.poi.marker");
             }
-            int number = _category == 0 ? StableNumber(m) : _index + 1;
+            int number = _category == 0 ? StableNumber(m)
+                : _category == 2 ? (_index - BeaconHeadCount() + 1)
+                : _index + 1;
             string text = number + ", " + label;
             if (TryMarkerPos(m, out float2 mp))
             {
@@ -515,14 +655,12 @@ namespace CoreKeeperAccess.Navigation
             _hasPendingSelect = true;
         }
 
-        // Triangle + bas sur l'onglet balises : supprime la balise selectionnee (RemoveMarker
-        // serveur) et oublie son nom.
-        internal static void DeleteSelectedBeacon()
+        // Action "Supprimer" du menu contextuel : supprime la balise donnee (RemoveMarker
+        // serveur) et oublie son nom. Opere sur le marqueur capture a l'ouverture du menu
+        // (pas sur _index, qui inclut desormais les lignes virtuelles).
+        private static void DeleteBeacon(MapMarkerUIElement m)
         {
-            if (!BeaconCategoryActive) return;
-            if (_index < 0 || _index >= _beacons.Count) return;
-            var m = _beacons[_index];
-            if (!MarkerTile(m, out int2 tile)) return;
+            if (m == null || !MarkerTile(m, out int2 tile)) return;
             if (!TryMarkerPos(m, out float2 pos)) return;
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null || player.guestMode) return;
@@ -540,19 +678,18 @@ namespace CoreKeeperAccess.Navigation
             BeaconStore.Remove(tile);
             TtsText.Say(Strings.L("beacon.deleted") + ", " + name, true);
             BuildDestinations();
-            if (_beacons.Count == 0) { _index = 0; return; }
-            if (_index >= _beacons.Count) _index = _beacons.Count - 1;
+            // Re-cadre la selection sur une ligne valide (les lignes virtuelles restent).
+            int n = RowCount();
+            if (_index >= n) _index = n - 1;
+            if (_index < 0) _index = 0;
             Select(_index, interruptTts: false);
         }
 
-        // Triangle + droite sur l'onglet balises : renomme la balise selectionnee via
-        // l'editeur clavier maison (carte ouverte = gameplay gele, saisie sure).
-        internal static void RenameSelectedBeacon()
+        // Action "Renommer" du menu contextuel : ouvre l'editeur clavier maison (carte
+        // ouverte = gameplay gele, saisie sure) sur la balise donnee.
+        private static void RenameBeacon(MapMarkerUIElement m)
         {
-            if (!BeaconCategoryActive) return;
-            if (_index < 0 || _index >= _beacons.Count) return;
-            var m = _beacons[_index];
-            if (!MarkerTile(m, out int2 tile)) return;
+            if (m == null || !MarkerTile(m, out int2 tile)) return;
             string current = BeaconStore.GetName(tile) ?? "";
             TextEntry.Begin("beacon.rename", current, 40, name =>
             {
