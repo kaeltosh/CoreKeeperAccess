@@ -166,6 +166,9 @@ namespace CoreKeeperAccess.Navigation
             string station = Gameplay.GameplayInput.BuildStationDetail(_current);
             if (!string.IsNullOrEmpty(station))
                 info = string.IsNullOrEmpty(info) ? station : info + ". " + station;
+            string forge = Gameplay.GameplayInput.BuildForgeDetail();
+            if (!string.IsNullOrEmpty(forge))
+                info = string.IsNullOrEmpty(info) ? forge : info + ". " + forge;
             string merchant = InGameTtsCore.BuildMerchantDetail();
             if (!string.IsNullOrEmpty(merchant))
                 info = string.IsNullOrEmpty(info) ? merchant : info + ". " + merchant;

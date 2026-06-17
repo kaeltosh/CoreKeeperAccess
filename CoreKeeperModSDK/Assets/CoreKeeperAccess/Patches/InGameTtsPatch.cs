@@ -38,6 +38,7 @@ namespace CoreKeeperAccess.Patches
             }
 
             Add(BuildSkillTalentInfo(element));
+            Add(BuildSoulInfo(element));
             Add(FillLevelLabel(element.GetContainedObject().objectData));
             Add(BuildCraftInfo(element));
             Add(BuildMerchantInfo(element));
@@ -193,6 +194,21 @@ namespace CoreKeeperAccess.Patches
             }
             catch { }
             return null;
+        }
+
+        // Etat d'une ame (SoulsUIElement) : l'element n'expose nom + description + effet
+        // que si l'ame est OBTENUE ; un emplacement non obtenu n'affiche que son nom (l'icone
+        // coloree est masquee pour le voyant -> il voit "a debloquer"). On verbalise donc
+        // l'etat que le visuel porte : "a debloquer" si pas collectee, sinon "activee" /
+        // "desactivee" selon que le pouvoir est en service. Null pour tout autre element.
+        private static string BuildSoulInfo(UIelement element)
+        {
+            var soul = element as SoulsUIElement;
+            if (soul == null || soul.soulID == SoulID.None) return null;
+            var saves = Manager.saves;
+            if (saves == null) return null;
+            if (!saves.HasCollectedSoul(soul.soulID)) return Strings.L("soul.locked");
+            return Strings.L(saves.SoulPowerIsEnabled(soul.soulID) ? "soul.enabled" : "soul.disabled");
         }
 
         // Nom(s) du ou des talents prerequis d'un talent verrouille : les talents qui le
@@ -533,6 +549,11 @@ namespace CoreKeeperAccess.Patches
             var announcement = TtsText.ResolvePugText(___text);
             if (string.IsNullOrEmpty(announcement)) return;
             TtsText.Say(announcement, false);
+            // Les messages de TUTORIEL (early-game : recolte bois, four, etabli, torche,
+            // pioche) sont des emotes EmoteType.Tutorial* -> on les archive dans la section
+            // dediee du journal (les autres emotes = feedback transitoire, non archive).
+            if (___emoteTypeInput.ToString().StartsWith("Tutorial"))
+                Navigation.DialogueLog.AddTutorial(announcement);
         }
     }
 
@@ -626,6 +647,56 @@ namespace CoreKeeperAccess.Patches
             // interrupt=true : une nouvelle replique remplace la precedente (le joueur
             // avance dans le dialogue a son rythme, pas de file qui s'accumule).
             TtsText.Say(announcement, true);
+            // ... et on l'archive (section Coeur, groupee par conversation) : repliques fugaces
+            // et parfois ONE-SHOT par monde -> relisables dans l'onglet "Journal" de la carte.
+            Navigation.DialogueLog.AddCore(announcement);
+        }
+    }
+
+    // Reconstruction du dialogue d'ACTIVATION du Core (coreSpeechStrings) pour l'injecter dans
+    // le journal meme s'il a deja ete joue avant que le TTS / le journal existent (sequence
+    // ONE-SHOT par monde, donc autrement perdue). On lit les repliques STATIQUES du prefab
+    // (terme I2 + champ de direction), on les resout en langue courante exactement comme le jeu
+    // (StartNextActivationSentence : "CardinalDirections/" + biomeDirections[biome] pour le {0}),
+    // on strip les marqueurs d'effet, et on seede EN TETE du journal. Necessite une instance
+    // TheCore chargee (Core a portee) ; retourne false sinon -> on retentera plus tard.
+    internal static class CoreDialogueArchive
+    {
+        public static bool ReconstructActivation()
+        {
+            TheCore tc = null;
+            foreach (var c in UnityEngine.Object.FindObjectsByType<TheCore>(UnityEngine.FindObjectsSortMode.None))
+                if (c != null) { tc = c; break; }
+            if (tc == null || tc.coreSpeechStrings == null) return false;
+
+            var lines = new List<string>();
+            foreach (var e in tc.coreSpeechStrings)
+            {
+                if (e == null || string.IsNullOrEmpty(e.text.mTerm)) continue;
+                string[] ff = null;
+                if (e.hasDirectionFormatFieldToBiome != Biome.None && tc.biomeDirections != null)
+                {
+                    int bi = (int)e.hasDirectionFormatFieldToBiome;
+                    if (bi >= 0 && bi < tc.biomeDirections.Length)
+                    {
+                        string dirTerm = "CardinalDirections/" + tc.biomeDirections[bi].ToString();
+                        string dirText = null;
+                        try { dirText = PugMod.API.Localization?.GetLocalizedTerm(dirTerm); } catch { }
+                        ff = new[] { dirText ?? "" };
+                    }
+                }
+                string txt = null;
+                try { txt = PugText.ProcessText(e.text.mTerm, ff, true, false); }
+                catch { try { txt = PugMod.API.Localization?.GetLocalizedTerm(e.text.mTerm); } catch { } }
+                if (string.IsNullOrEmpty(txt)) continue;
+                // memes marqueurs d'effet ('*'/'`') que la capture live -> retires
+                txt = txt.Replace("*", "").Replace("`", "");
+                txt = System.Text.RegularExpressions.Regex.Replace(txt, @"\s+", " ").Trim();
+                if (txt.Length > 0) lines.Add(txt);
+            }
+            if (lines.Count == 0) return false;
+            Navigation.DialogueLog.SeedActivation(lines);
+            return true;
         }
     }
 }

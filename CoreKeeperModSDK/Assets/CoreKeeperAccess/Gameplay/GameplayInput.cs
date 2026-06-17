@@ -42,6 +42,7 @@ namespace CoreKeeperAccess.Gameplay
         private static int _prospectRadius;
 
         private static bool StationOpen => InputContext.StationOpen;
+        private static bool ForgeOpen => InputContext.ForgeOpen;
 
         // Combos de GAMEPLAY (hors nav inventaire, hors menus) consommes ici :
         // Triangle + gauche = prospection minerai. Appele chaque frame apres InfoKey.
@@ -229,6 +230,70 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(Strings.L("salvage.done"), true);
         }
 
+        // Forge d'amelioration (1 slot) : on depose un objet, ce combo l'ameliore d'un
+        // niveau. Comme la reparation, le gros bouton visuel ne fait que basculer un mode
+        // souris -> on appelle directement le canal officiel UpgradeForgeUI.Upgrade(). Refus
+        // parlant si slot vide / niveau max / materiaux insuffisants (le bouton expose son
+        // eligibilite via ShouldBeActive() et le cout via GetRequiredMaterials()).
+        public static void UpgradeForgeAction()
+        {
+            if (!ForgeOpen) return; // contextuel : muet sans forge
+            var player = Manager.main != null ? Manager.main.player : null;
+            var forge = FindForge();
+            if (player == null || forge == null || forge.button == null) return;
+
+            var data = forge.GetInventoryHandler().GetObjectData(0);
+            if (data.objectID == ObjectID.None)
+            {
+                TtsText.Say(Strings.L("forge.empty"), true);
+                return;
+            }
+            // GetRequiredMaterials renvoie null si l'objet est au niveau max (ou non
+            // ameliorable) ; sinon ShouldBeActive distingue "pas assez de materiaux".
+            List<PugDatabase.MaterialInfo> mats = null;
+            try { mats = forge.button.GetRequiredMaterials(false, false); }
+            catch { }
+            if (mats == null)
+            {
+                TtsText.Say(Strings.L("forge.maxed"), true);
+                return;
+            }
+            if (!forge.button.ShouldBeActive())
+            {
+                TtsText.Say(Strings.L("forge.noMaterials"), true);
+                return;
+            }
+
+            forge.Upgrade();
+            TtsText.Say(Strings.L("forge.done"), true);
+        }
+
+        // Volet "forge" du combo details (Triangle + haut) : cout d'amelioration de l'objet
+        // depose (materiaux requis pour passer au niveau suivant). Null hors forge / slot
+        // vide / niveau max. La forge n'a qu'un slot, le cout ne depend pas de l'element
+        // focalise -> on lit directement le bouton (meme source que l'infobulle native).
+        public static string BuildForgeDetail()
+        {
+            if (!ForgeOpen) return null;
+            var forge = FindForge();
+            if (forge == null || forge.button == null) return null;
+
+            List<PugDatabase.MaterialInfo> mats = null;
+            try { mats = forge.button.GetRequiredMaterials(false, false); }
+            catch { }
+            if (mats == null || mats.Count == 0) return null;
+
+            var items = new List<string>();
+            foreach (var m in mats)
+            {
+                if (m == null) continue;
+                string nom = InGameTtsCore.ResolveObjectName(m.objectID);
+                if (!string.IsNullOrEmpty(nom)) items.Add(m.amountNeeded + " " + nom);
+            }
+            if (items.Count == 0) return null;
+            return Strings.L("forge.cost") + " " + string.Join(", ", items);
+        }
+
         // "Tout vendre" (Triangle + gauche quand un marchand est ouvert) : encaisse tout
         // ce qui est depose dans les emplacements de vente via le canal serveur officiel
         // SellAll (memes gardes et sons natifs que le bouton Vendre du jeu). Annonce le
@@ -337,6 +402,15 @@ namespace CoreKeeperAccess.Gameplay
             var stations = Object.FindObjectsByType<SalvageAndRepairUI>(FindObjectsSortMode.None);
             foreach (var s in stations)
                 if (s != null && s.isShowing) return s;
+            return null;
+        }
+
+        // La forge d'amelioration ouverte, sinon null. Recherche a l'appui du combo.
+        private static UpgradeForgeUI FindForge()
+        {
+            var forges = Object.FindObjectsByType<UpgradeForgeUI>(FindObjectsSortMode.None);
+            foreach (var f in forges)
+                if (f != null && f.isShowing) return f;
             return null;
         }
     }

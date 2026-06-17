@@ -28,6 +28,8 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 ### Character and progression
 
 - **Talents tab**: each talent's state is spoken (locked with its prerequisite, available, or maxed out), along with how many points you have left to spend.
+- **Souls tab**: each slot now states its status — to unlock, enabled, or disabled — on top of the name and effect of souls you own, so you can find your way around the wheel.
+- **Upgrade forge**: upgrades the item you placed by one tier (Triangle + right), with the material cost on demand (Triangle + up).
 
 ### Multiplayer
 
@@ -37,6 +39,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 ### Dialogue
 
 - **The Core speaks to you**: its lines are now read by the screen reader.
+- **Dialogue journal**: a "Journal" tab on the map archives what the Core tells you, world by world, so you can re-read it at your own pace — handy since some dialogues only play once and get overwritten fast. Drop-down navigation: the list of conversations, you open the one you want (right) and step back to the list (left). Dialogues you already went through (including the Core's activation) are reconstructed, and tutorial messages get their own section to avoid clutter.
 
 ### Settings and audio
 
