@@ -2,6 +2,47 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## Alpha 2 — June 2026
+
+A big batch since Alpha 1. Most of the game beyond the menus becomes playable: building, trading, farming, boss fights, multiplayer, and a new navigation aid.
+
+### Navigation and orientation
+
+- **Proximity sonar** (toggled from the settings panel): an aid for moving around in tight spaces. The footstep beep is decoupled from the rest, sheets of noise mark the walls around you in all four directions (left/right via panning, deep or mid timbre, dull for a wall, a splash for water or a chasm), and a small "ding" marks nearby objects tile by tile. Three adjustable volumes, each toggleable on its own.
+- **Personal map beacons**: a "My beacons" tab where you drop a marker at your position (Cross), rename it, or delete it. Names are remembered per world and per location.
+
+### Building and cursor reading
+
+- **Accessible building and placement**: directional snapping (Triangle + L3) to line up what you place, multi-tile placement at the cursor, rotation (Triangle + R1).
+- **Richer cursor reading**: farming (tilled or watered ground, plant state — ready to harvest, thirsty, growing), processing stations (labelled input and output slots, progress percentage), machines, conveyors and electricity, empty or full bucket and watering can.
+
+### Trading
+
+- **Accessible merchant** (Buy and Sell sections, values, balance, sell everything at once) and **full pouch support**: the panel expands automatically, contents are presented in rows, equip and unequip a pouch on the gamepad.
+
+### Combat
+
+- **Accessible boss fights**: symmetrical combat slow-motion (it slows the boss too, so it's not an advantage), an audio cue for the arena center, and a detector for fire zones on the ground.
+- **Automatic mortar aiming**: the reticle locks on by itself to the enemy you're aiming at with the laser cane.
+
+### Character and progression
+
+- **Talents tab**: each talent's state is spoken (locked with its prerequisite, available, or maxed out), along with how many points you have left to spend.
+
+### Multiplayer
+
+- **Player management menus are read**: sections, names, and each button's action (admin, ban, invite, view profile, PvP team), both on the dedicated screen and in the pause menu's "Connected players" panel.
+- **Confirmation pop-ups are read**: the question and the option labels (Yes / Cancel…) are announced in every dialog.
+
+### Dialogue
+
+- **The Core speaks to you**: its lines are now read by the screen reader.
+
+### Settings and audio
+
+- **In-game accessibility settings panel** (Triangle + Back): navigable and fully voiced, modal, with settings that survive updates (volumes, direction assist, combat slow-motion, normalization, etc.).
+- **Audio overhaul**: more accurate volume normalization (it no longer misses short, snappy sounds), volumes adjustable up to 200%, and a dedicated volume for navigation (tile cursor and laser cane).
+
 ## Alpha 1, build 54 — June 2026
 
 - **Bosses now have their own beep in the aggro sentinel**: a deep, longer tone repeated about three times per second on a dedicated channel, instead of blending into the regular one-beep-per-second queue. Same positional language (pan, vertical pitch, distance volume).

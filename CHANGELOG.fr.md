@@ -2,6 +2,47 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## Alpha 2 — juin 2026
+
+Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des menus : construction, commerce, agriculture, combat de boss, multijoueur, et une nouvelle aide à la navigation.
+
+### Navigation et repérage
+
+- **Sonar de proximité** (activable dans le panneau de réglages) : une aide pour se déplacer en zone confinée. Le bip de pas est découplé du reste, des nappes de bruit signalent les murs autour de toi dans les quatre directions (gauche/droite par le panoramique, grave ou medium selon le timbre, mat pour un mur, clapotis pour l'eau ou un gouffre), et un petit « ding » marque les objets proches case par case. Trois volumes réglables, le tout coupable indépendamment.
+- **Balises personnelles sur la carte** : un onglet « Mes balises » où tu poses un repère à ta position (Croix), le renommes ou le supprimes. Les noms sont mémorisés par monde et par emplacement.
+
+### Construction et lecture au curseur
+
+- **Mode construction et pose accessibles** : calage directionnel (Triangle + L3) pour aligner ce que tu poses, pose multi-cases au curseur, rotation (Triangle + R1).
+- **Lecture au curseur enrichie** : agriculture (sol labouré ou arrosé, état des plantes — prête à récolter, a soif, en croissance), stations de transformation (slots d'entrée et de sortie étiquetés, progression en pourcentage), machines, convoyeurs et électricité, seau et arrosoir vides ou pleins.
+
+### Commerce
+
+- **Marchand accessible** (sections Acheter et Vendre, valeurs, solde, tout vendre d'un coup) et **support complet des bourses** : panneau déployé automatiquement, contenu présenté en lignes, équiper et déséquiper une bourse à la manette.
+
+### Combat
+
+- **Combat de boss accessible** : ralenti de combat symétrique (qui ralentit aussi le boss, donc pas un avantage), repère sonore du centre de l'arène, détecteur des zones de feu au sol.
+- **Visée du mortier automatique** : le viseur se cale tout seul sur l'ennemi que tu vises à la canne laser.
+
+### Personnage et progression
+
+- **Onglet talents** : l'état de chaque talent est lu (verrouillé avec son prérequis, disponible, ou au maximum), ainsi que le nombre de points qu'il te reste à dépenser.
+
+### Multijoueur
+
+- **Menus de gestion des joueurs lus** : sections, noms, et action de chaque bouton (administrateur, bannir, inviter, voir le profil, équipe JcJ), aussi bien sur l'écran dédié que dans le panneau « Joueurs connectés » du menu pause.
+- **Pop-ups de confirmation lus** : la question et les libellés des options (Oui / Annuler…) sont annoncés dans tous les dialogues.
+
+### Dialogue
+
+- **Le Core te parle** : ses répliques sont désormais lues au lecteur d'écran.
+
+### Réglages et audio
+
+- **Panneau de réglages d'accessibilité in-game** (Triangle + Back) : navigable et entièrement vocalisé, modal, avec des réglages qui survivent aux mises à jour (volumes, aide à la direction, ralenti de combat, normalisation, etc.).
+- **Refonte audio** : normalisation du volume plus juste (elle ne rate plus les sons brefs et claquants), volumes réglables jusqu'à 200 %, et un volume dédié à la navigation (curseur de tuile et canne laser).
+
 ## Alpha 1, build 54 — juin 2026
 
 - **Les boss ont désormais leur propre bip dans la sentinelle d'aggro** : un ton grave et plus long, répété environ trois fois par seconde sur un canal dédié, au lieu de se fondre dans la file normale à un bip par seconde. Même langage positionnel (pan, hauteur verticale, volume-distance).
