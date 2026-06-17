@@ -27,14 +27,20 @@ Usage :
 & "C:\Users\flame\Documents\core keeper\tools\fast-build.ps1"
 ```
 
-Cycle de dev typique : edit code → fast-build -Launch → naviguer en jeu → quitter → inspecter `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log` si erreur. Temps : 1-2 s vs 30+ s avec Unity.
+Cycle de dev typique : edit code → fast-build → naviguer en jeu → quitter → inspecter `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log` si erreur. Temps : 1-2 s vs 30+ s avec Unity.
 
-**Pré-requis** : un build Unity complet doit avoir eu lieu **au moins une fois** (pour générer `Bundles/`, `ModManifest.json` et les natives dans le dossier d'install). Après ça, fast-build suffit pour toute modif code/JSON.
+**Pré-requis** : un build Unity complet doit avoir eu lieu **au moins une fois** (pour générer `Bundles/`, `ModManifest.json` et les natives dans le dossier d'install). Après ça, fast-build suffit pour toute modif code/JSON, **y compris l'ajout/suppression de fichiers source**.
 
-**Limites** :
-- Pas de validation compile en amont — une syntax error C# n'apparaît qu'au lancement du jeu dans Player.log.
-- Si ajout/suppression d'un fichier source (nouveau .cs ou .json), fast-build avertit ("non déclaré dans ModManifest.json") et stoppe — il faut refaire un build Unity pour redéclarer le fichier.
-- Si ajout d'asset Unity (prefab, ScriptableObject sérialisé) : build Unity obligatoire.
+**Validation compile en amont** : le script lance `check-compile.ps1` avant de déployer. Une syntax error C# annule le déploiement (exit 3) et est signalée **tout de suite** — plus besoin d'attendre Player.log. `-NoCheck` pour forcer.
+
+**Mode MIROIR (défaut)** : l'install est mise en miroir exact des sources de la branche courante — copie tout, **supprime les orphelins** (résidus d'une autre branche) et **resynchronise le `ModManifest.json`** (backup `.bak` avant). Conséquence : ajouter ou supprimer un `.cs`/`.json` **ne réclame plus de build Unity**, et on peut alterner entre branches sans rebuild. `-NoMirror` revient au comportement historique (avertit + stoppe sur fichier non déclaré, sans rien supprimer). Le script **auto-localise** son `ModSource` depuis son propre emplacement → dans chaque worktree il déploie sa propre feature sans `-ModSource`.
+
+**`dev.flag`** : posé d'office à chaque déploiement (auto-load monde 1/perso 1 + skip logos studio) ; `-NoDev` le retire pour tester le comportement release. Jamais présent dans l'artefact distribué.
+
+**Build Unity nécessaire uniquement pour** :
+- un **nouveau système ECS** (`SystemBase`/`[WorldSystemFilter]`) → fast-build ne produit pas les `.g.cs` générés. On évite donc l'ECS quand c'est possible.
+- un **asset Unity** (prefab, ScriptableObject sérialisé, texture, son) → fast-build ne rebuild pas les `Bundles/`.
+- la **première installation** d'un mod (avant d'avoir la structure de base).
 
 ## Workflow d'automatisation Unity (Editor inaccessible NVDA, fallback)
 
@@ -44,7 +50,7 @@ L'éditeur Unity n'est pas accessible NVDA. Contournement : `Assets/Editor/A11yA
 - `create_mod` : `PugMod.ModBuilderWindow.CreateNewMod(modName)` pour créer la structure d'un nouveau mod.
 - `build_install` : `PugMod.ModBuilder.BuildMod(...)` puis post-fix de relocation des natives.
 
-**Quand utiliser Unity au lieu de fast-build** : ajout d'asset Unity, premier build d'un nouveau mod, ajout/suppression de fichier source à déclarer dans ModManifest.
+**Quand utiliser Unity au lieu de fast-build** : ajout d'asset Unity, nouveau système ECS (fichiers `.g.cs` générés), premier build d'un nouveau mod. L'ajout/suppression d'un simple fichier source est désormais géré par le mode miroir de fast-build.
 
 **Pattern d'utilisation** : dépose le flag JSON, donne le focus à Unity (Alt+Tab), Unity recompile / détecte le flag, exécute l'action, supprime le flag. Loggé dans `%LOCALAPPDATA%\Unity\Editor\Editor.log` (chercher `[A11yAutomation]`).
 
