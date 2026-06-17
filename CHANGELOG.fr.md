@@ -10,6 +10,7 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 
 - **Sonar de proximité** (activable dans le panneau de réglages) : une aide pour se déplacer en zone confinée. Le bip de pas est découplé du reste, des nappes de bruit signalent les murs autour de toi dans les quatre directions (gauche/droite par le panoramique, grave ou medium selon le timbre, mat pour un mur, clapotis pour l'eau ou un gouffre), et un petit « ding » marque les objets proches case par case. Trois volumes réglables, le tout coupable indépendamment.
 - **Balises personnelles sur la carte** : un onglet « Mes balises » où tu poses un repère à ta position (Croix), le renommes ou le supprimes. Les noms sont mémorisés par monde et par emplacement.
+- **Guidage par réseau de balises** : au-delà de poser des repères, tu peux te faire guider jusqu'à n'importe quel point de la carte (une balise ou un point d'intérêt). Croix sur la cible ouvre un menu : guidage par le **réseau** (qui suit le chemin de tes torches et balises, de proche en proche) ou guidage **direct** (à vol d'oiseau). Un carillon répété te donne la direction (gauche/droite par le panoramique, devant/derrière par la hauteur) et monte en volume à mesure que tu approches ; l'arrivée est annoncée. Le réseau se construit et se recalcule tout seul à partir de tes torches qui se voient l'une l'autre.
 
 ### Construction et lecture au curseur
 

@@ -10,6 +10,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 
 - **Proximity sonar** (toggled from the settings panel): an aid for moving around in tight spaces. The footstep beep is decoupled from the rest, sheets of noise mark the walls around you in all four directions (left/right via panning, deep or mid timbre, dull for a wall, a splash for water or a chasm), and a small "ding" marks nearby objects tile by tile. Three adjustable volumes, each toggleable on its own.
 - **Personal map beacons**: a "My beacons" tab where you drop a marker at your position (Cross), rename it, or delete it. Names are remembered per world and per location.
+- **Beacon-network guidance**: beyond dropping markers, you can be guided to any point on the map (a beacon or a point of interest). Cross on the target opens a menu: **network** guidance (which follows the path of your torches and beacons, hop by hop) or **direct** guidance (as the crow flies). A repeating chime gives you the direction (left/right via panning, ahead/behind via pitch) and rises in volume as you get closer; arrival is announced. The network builds and recalculates itself from your torches that are within sight of one another.
 
 ### Building and cursor reading
 
