@@ -23,7 +23,7 @@ namespace CoreKeeperAccess.Navigation
     // carte). Bumpers = categories (destinations / points d'interet).
     internal static class TeleportNavigator
     {
-        private const int DpadUp = 16, DpadDown = 18, CrossButton = 6, Lb = 10, Rb = 11;
+        private const int DpadUp = 16, DpadDown = 18, DpadRight = 17, DpadLeft = 19, CrossButton = 6, Lb = 10, Rb = 11;
 
         private static bool _active;
         private static readonly List<MapMarkerUIElement> _dests = new List<MapMarkerUIElement>();      // navigables (CanTeleport)
@@ -36,8 +36,17 @@ namespace CoreKeeperAccess.Navigation
         // navigation par points (cf. fiche beacon-navigation) : un noeud = une POSITION,
         // d'ou la persistance des noms par case dans BeaconStore.
         private static readonly List<MapMarkerUIElement> _beacons = new List<MapMarkerUIElement>();
-        private static int _category; // 0 = destinations, 1 = points d'interet, 2 = mes balises
-        private const int CategoryCount = 3;
+        // JOURNAL : dialogues archives (Coeur + tutoriels), navigues comme un MENU CONTEXTUEL en
+        // cascade : niveau 0 = liste des conversations (titres), on en OUVRE une (droite/Croix)
+        // pour passer au niveau 1 = ses repliques, et on REVIENT au niveau 0 (gauche). Un seul
+        // niveau s'entend a la fois. C'est du TEXTE, pas des marqueurs -> chemin a part.
+        private static readonly List<DialogueGroup> _groups = new List<DialogueGroup>();
+        private static int _jLevel;  // 0 = liste des conversations, 1 = repliques d'une conversation ouverte
+        private static int _jGroup;  // conversation courante (niveau 0)
+        private static int _jItem;   // replique courante (niveau 1)
+        private static int _category; // 0 = destinations, 1 = points d'interet, 2 = mes balises, 3 = journal
+        private const int CategoryCount = 4;
+        private static bool _coreReconstructAttempted; // reconstruction du dialogue d'activation deja reussie
         private static MapMarkerUIElement _coreMarker;                                                  // le plus proche de l'origine
         private static int _index;
 
@@ -68,7 +77,7 @@ namespace CoreKeeperAccess.Navigation
             bool open = InputContext.MapOpen;
 
             if (open && !_active) Enter();
-            else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _hasPendingSelect = false; }
+            else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _groups.Clear(); _hasPendingSelect = false; }
             if (!_active) return;
 
             // Selection differee d'une balise fraichement posee (le temps que MapUI cree
@@ -103,6 +112,16 @@ namespace CoreKeeperAccess.Navigation
         // Annonce le nom de la categorie courante puis son premier element (ou son vide).
         private static void AnnounceCategory()
         {
+            // Journal : menu contextuel en cascade. On entre au niveau 0 (liste des conversations).
+            if (_category == 3)
+            {
+                string j = Strings.L("map.journal");
+                _jLevel = 0; _jGroup = 0; _jItem = 0;
+                if (_groups.Count == 0) { TtsText.Say(j + ", " + Strings.L("map.journal.none"), true); return; }
+                TtsText.Say(j, true);
+                AnnounceGroup(interrupt: false);
+                return;
+            }
             string cat = Strings.L(_category == 0 ? "map.destinations"
                 : _category == 1 ? "map.poi" : "map.beacons");
             var list = CurrentList;
@@ -195,6 +214,16 @@ namespace CoreKeeperAccess.Navigation
                     _coreMarker = m;
                 }
             if (best > 100f) _coreMarker = null; // aucun relais assez proche de l'origine
+
+            // Reconstruction unique du dialogue d'activation du Core (one-shot deja joue) tant
+            // qu'on ne l'a pas reussie : ne se fait que si une instance TheCore est chargee
+            // (Core a portee) -> on retente aux ouvertures suivantes jusqu'a y arriver.
+            if (!_coreReconstructAttempted && Patches.CoreDialogueArchive.ReconstructActivation())
+                _coreReconstructAttempted = true;
+
+            // Journal : recharge les conversations archivees du monde courant (groupes triees).
+            _groups.Clear();
+            _groups.AddRange(DialogueLog.BuildGroups());
         }
 
         // Tri par distance a l'origine (0,0) : le Core (centre du monde) = relais 1, puis de
@@ -224,6 +253,10 @@ namespace CoreKeeperAccess.Navigation
                 int id = joy.ButtonElementIdentifiers[i].id;
                 if (id == DpadUp) { Move(-1); return; }
                 if (id == DpadDown) { Move(+1); return; }
+                // Journal (menu cascade) : droite ouvre la conversation, gauche revient. Capte
+                // seulement sur cet onglet -> les autres categories gardent leur D-pad natif.
+                if (_category == 3 && id == DpadRight) { JournalOpen(); return; }
+                if (_category == 3 && id == DpadLeft) { JournalBack(); return; }
                 if (id == CrossButton) { Confirm(); return; }
                 if (id == Lb) { SwitchCategory(-1); return; }
                 if (id == Rb) { SwitchCategory(+1); return; }
@@ -243,10 +276,71 @@ namespace CoreKeeperAccess.Navigation
 
         private static void Move(int step)
         {
+            if (_category == 3) { JournalMove(step); return; }
             var list = CurrentList;
             if (list.Count == 0) return;
             _index = (_index + step + list.Count) % list.Count;
             Select(_index);
+        }
+
+        // ===== Journal : menu contextuel en cascade =====
+
+        // D-pad haut/bas : parcourt le niveau courant (conversations au niveau 0, repliques de la
+        // conversation ouverte au niveau 1).
+        private static void JournalMove(int step)
+        {
+            if (_groups.Count == 0) return;
+            if (_jLevel == 0)
+            {
+                _jGroup = (_jGroup + step + _groups.Count) % _groups.Count;
+                AnnounceGroup(interrupt: true);
+            }
+            else
+            {
+                var g = _groups[_jGroup];
+                if (g.lines.Count == 0) return;
+                _jItem = (_jItem + step + g.lines.Count) % g.lines.Count;
+                AnnounceItem(interrupt: true);
+            }
+        }
+
+        // D-pad droite / Croix : OUVRE la conversation focalisee (niveau 0 -> 1). Au niveau 1,
+        // Croix relit la replique courante.
+        private static void JournalOpen()
+        {
+            if (_groups.Count == 0) return;
+            if (_jLevel == 0)
+            {
+                if (_groups[_jGroup].lines.Count == 0) return;
+                _jLevel = 1; _jItem = 0;
+                AnnounceItem(interrupt: true);
+            }
+            else AnnounceItem(interrupt: true); // relire
+        }
+
+        // D-pad gauche : REVIENT a la liste des conversations (niveau 1 -> 0). Butee au niveau 0.
+        private static void JournalBack()
+        {
+            if (_jLevel == 1) { _jLevel = 0; AnnounceGroup(interrupt: true); }
+        }
+
+        // Niveau 0 : titre de la conversation + nombre de repliques.
+        private static void AnnounceGroup(bool interrupt)
+        {
+            if (_jGroup < 0 || _jGroup >= _groups.Count) return;
+            var g = _groups[_jGroup];
+            string pos = (_jGroup + 1) + " " + Strings.L("journal.of") + " " + _groups.Count;
+            TtsText.Say(pos + ", " + g.label + ", " + g.lines.Count + " " + Strings.L("journal.replies"), interrupt);
+        }
+
+        // Niveau 1 : position "n sur m" dans la conversation + texte de la replique.
+        private static void AnnounceItem(bool interrupt)
+        {
+            if (_jGroup < 0 || _jGroup >= _groups.Count) return;
+            var g = _groups[_jGroup];
+            if (_jItem < 0 || _jItem >= g.lines.Count) return;
+            string pos = (_jItem + 1) + " " + Strings.L("journal.of") + " " + g.lines.Count;
+            TtsText.Say(pos + ", " + g.lines[_jItem], interrupt);
         }
 
         // A = clic direct sur la destination selectionnee = teleportation. On appelle
@@ -257,6 +351,7 @@ namespace CoreKeeperAccess.Navigation
         // a la position du joueur. Points d'interet = refus parlant.
         private static void Confirm()
         {
+            if (_category == 3) { JournalOpen(); return; } // Croix = ouvrir la conversation / relire
             if (_category == 2) { PlaceBeaconAtPlayer(); return; }
             if (_category != 0)
             {
@@ -322,6 +417,7 @@ namespace CoreKeeperAccess.Navigation
         // (portail / point de passage) + coordonnees exactes + cap + distance.
         internal static void AnnounceDetail()
         {
+            if (_category == 3) { if (_jLevel == 1) AnnounceItem(true); else AnnounceGroup(true); return; } // journal : relire le focus
             var list = CurrentList;
             if (_index < 0 || _index >= list.Count) return;
             var m = list[_index];

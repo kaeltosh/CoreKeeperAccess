@@ -30,6 +30,8 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 
 - **Onglet talents** : l'état de chaque talent est lu (verrouillé avec son prérequis, disponible, ou au maximum), ainsi que le nombre de points qu'il te reste à dépenser.
 - **Roue de stats à la manette** (maintiens Triangle, puis pousse le stick gauche dans une direction) : un accès rapide à tes informations sans ouvrir de menu, la marche est mise en pause le temps de consulter. Chaque direction lit une donnée — vie et barrière, faim, mana et serviteurs invoqués, états actifs (empoisonné, en feu, ralenti par la bave…), avancement dans le monde, et prospection de minerai autour de toi. La régénération de vie ou de mana s'ajoute en fin d'annonce (par exemple « +4.2/s »). Au passage, la commande de position (Triangle + D-pad haut) indique maintenant aussi ton biome actuel.
+- **Onglet âmes** : chaque emplacement indique son état — à débloquer, activée ou désactivée — en plus du nom et de l'effet des âmes obtenues, pour t'y retrouver sur la roue.
+- **Forge d'amélioration** : améliore l'objet déposé d'un cran (Triangle + droite), avec le coût en matériaux à la demande (Triangle + haut).
 
 ### Multijoueur
 
@@ -39,6 +41,7 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 ### Dialogue
 
 - **Le Core te parle** : ses répliques sont désormais lues au lecteur d'écran.
+- **Journal de dialogues** : un onglet « Journal » sur la carte archive ce que le Cœur te dit, monde par monde, pour le relire à tête reposée — utile car certains dialogues ne passent qu'une fois et sont vite écrasés. Navigation en menu déroulant : la liste des conversations, tu ouvres celle qui t'intéresse (droite), tu reviens à la liste (gauche). Les dialogues déjà passés (dont l'activation du Cœur) sont reconstitués, et les messages de tutoriel ont leur propre section pour ne pas mélanger.
 
 ### Réglages et audio
 

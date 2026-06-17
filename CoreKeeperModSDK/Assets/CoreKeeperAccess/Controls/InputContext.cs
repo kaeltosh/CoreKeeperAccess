@@ -32,6 +32,7 @@ namespace CoreKeeperAccess.Controls
         public static bool AnyInventoryOpen { get; private set; }    // fenetre inventaire du jeu
         public static bool CharacterWindowOpen { get; private set; }
         public static bool StationOpen { get; private set; }         // station de reparation/recyclage
+        public static bool ForgeOpen { get; private set; }           // forge d'amelioration (1 slot)
         public static bool InventoryNavActive { get; private set; }  // notre nav inventaire tient la main
         public static bool SettingsOpen { get; private set; }        // panneau de reglages a11y ouvert
 
@@ -48,6 +49,7 @@ namespace CoreKeeperAccess.Controls
             AnyInventoryOpen = InWorld && ui.isAnyInventoryShowing;
             CharacterWindowOpen = InWorld && ui.characterWindow != null && ui.characterWindow.isShowing;
             StationOpen = InWorld && ui.isSalvageAndRepairUIShowing;
+            ForgeOpen = InWorld && ui.isUpgradeForgeUIShowing;
             InventoryNavActive = Navigation.InventoryNavState.SuppressNativeInput;
             SettingsOpen = Settings.SettingsMenu.Active;
 

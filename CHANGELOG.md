@@ -30,6 +30,8 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 
 - **Talents tab**: each talent's state is spoken (locked with its prerequisite, available, or maxed out), along with how many points you have left to spend.
 - **Controller stats wheel** (hold Triangle, then push the left stick in a direction): quick access to your information without opening a menu, with movement paused while you check. Each direction reads one piece of data — health and barrier, hunger, mana and active minions, active conditions (poisoned, burning, slowed by slime…), world progress, and ore prospecting around you. Health or mana regeneration is appended at the end (e.g. "+4.2/s"). The position command (Triangle + D-pad up) now also tells you your current biome.
+- **Souls tab**: each slot now states its status — to unlock, enabled, or disabled — on top of the name and effect of souls you own, so you can find your way around the wheel.
+- **Upgrade forge**: upgrades the item you placed by one tier (Triangle + right), with the material cost on demand (Triangle + up).
 
 ### Multiplayer
 
@@ -39,6 +41,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 ### Dialogue
 
 - **The Core speaks to you**: its lines are now read by the screen reader.
+- **Dialogue journal**: a "Journal" tab on the map archives what the Core tells you, world by world, so you can re-read it at your own pace — handy since some dialogues only play once and get overwritten fast. Drop-down navigation: the list of conversations, you open the one you want (right) and step back to the list (left). Dialogues you already went through (including the Core's activation) are reconstructed, and tutorial messages get their own section to avoid clutter.
 
 ### Settings and audio
 

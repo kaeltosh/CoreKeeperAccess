@@ -41,9 +41,12 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.TransferSelected);
 
-            // Triangle + droite = reparer (nav inventaire). En jeu, la position est fusionnee
-            // sur le D-pad haut (localisation) - plus de role gameplay ici. Sur la carte :
-            // renomme une balise (onglet balises), sinon rien.
+            // Triangle + droite = ameliorer (forge ouverte) / reparer (autre station) /
+            // position (jeu normal). La forge prime sur la reparation : les deux stations
+            // ne sont jamais ouvertes ensemble, mais l'ordre rend l'intention explicite.
+            // Sur la carte : renomme une balise (onglet balises), sinon rien.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
+                () => InputContext.ForgeOpen, GameplayInput.UpgradeForgeAction);
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.RepairSelected);
 
