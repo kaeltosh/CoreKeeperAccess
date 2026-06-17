@@ -55,8 +55,9 @@ namespace CoreKeeperAccess.Gameplay
                 _nextScan = Time.unscaledTime + ScanInterval;
                 foreach (var kv in ObjectIndex.Map)
                 {
-                    if (!IsBeacon(kv.Value.Id)) continue;
-                    BeaconGraph.EnsureNode(new int2((int)(kv.Key >> 32), (int)(uint)kv.Key), NodeType.Torch);
+                    // Torches ET portes deviennent des noeuds (a plat, seul le libelle differe).
+                    if (!BeaconObjects.IsNode(kv.Value.Id, out NodeType nt)) continue;
+                    BeaconGraph.EnsureNode(new int2((int)(kv.Key >> 32), (int)(uint)kv.Key), nt);
                 }
             }
 
@@ -85,14 +86,11 @@ namespace CoreKeeperAccess.Gameplay
             BeaconGraph.FlushIfDue();
         }
 
-        // Balises lumineuses reconnues comme noeuds. Centre sur les torches que le joueur
-        // pose pour s'eclairer en route ; liste a etendre (lanternes, etc.) au besoin.
-        private static bool IsBeacon(ObjectID id)
-            => id == ObjectID.Torch
-            || id == ObjectID.FishoilTorch;
+        // (La reconnaissance des noeuds torches/portes est centralisee dans BeaconObjects.)
 
         // Diagnostic dev (Triangle + F6) : etat du graphe au lecteur d'ecran, pour valider
-        // le tissage sans audio. Nom du noeud courant via BeaconStore si nomme, sinon coords.
+        // le tissage sans audio. Nom du noeud courant via BeaconStore si nomme, sinon type
+        // (porte / torche) + coords.
         public static void AnnounceDiag()
         {
             int nodes = BeaconGraph.NodeCount;
@@ -101,9 +99,10 @@ namespace CoreKeeperAccess.Gameplay
             if (_hasCurrent)
             {
                 string name = BeaconStore.GetName(_currentNode);
+                string kind = BeaconGraph.TypeOf(_currentNode) == NodeType.Door ? "porte" : "torche";
                 cur = !string.IsNullOrEmpty(name)
                     ? name
-                    : "case " + _currentNode.x + ", " + _currentNode.y;
+                    : kind + " case " + _currentNode.x + ", " + _currentNode.y;
             }
             else cur = "aucun noeud courant";
 

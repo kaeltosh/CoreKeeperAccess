@@ -165,6 +165,8 @@
   "guide.nonetwork": "No beacon network",
   "netrecalc.done": "Network updated",
   "netrecalc.links": "links added",
+  "netrecalc.removed": "removed",
+  "netrecalc.lost": "beacons lost",
   "netrecalc.menu": "Recalculate network",
   "ctx.title": "Actions",
   "ctx.navigate": "Navigate via network",

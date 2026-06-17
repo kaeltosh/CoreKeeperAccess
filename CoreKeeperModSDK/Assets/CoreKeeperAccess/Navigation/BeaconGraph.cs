@@ -184,6 +184,55 @@ namespace CoreKeeperAccess.Navigation
             return _edges.ContainsKey(EdgeKey(a, b));
         }
 
+        // Arêtes dont les DEUX extrémités sont dans le rayon (candidates au recalcul/coupe).
+        // Une arête dont une extrémité SORT du rayon est exclue → frontière intouchable : on
+        // ne révise jamais une liaison vers la zone déchargée (rempart anti-isolement distant).
+        public static void EdgesInRadius(float2 center, float radius, List<Edge> outList)
+        {
+            EnsureLoaded();
+            outList.Clear();
+            float r2 = radius * radius;
+            foreach (var e in _edges.Values)
+                if (math.lengthsq(new float2(e.ax, e.ay) - center) <= r2
+                    && math.lengthsq(new float2(e.bx, e.by) - center) <= r2)
+                    outList.Add(e);
+        }
+
+        // Supprime l'arête a<->b si elle existe (recalcul : coupe sur preuve forte locale).
+        public static void RemoveEdge(int2 a, int2 b)
+        {
+            EnsureLoaded();
+            if (_edges.Remove(EdgeKey(a, b))) MarkDirty();
+        }
+
+        // Nombre d'arêtes incidentes à un nœud (degré). Sert à l'anti-isolement : une feuille
+        // (degré ≤ 1) fantôme peut être oubliée, un nœud interne (degré ≥ 2) est toujours gardé.
+        public static int NodeDegree(int2 pos)
+        {
+            EnsureLoaded();
+            long k = Key(pos);
+            int deg = 0;
+            foreach (var e in _edges.Values)
+                if (Key(new int2(e.ax, e.ay)) == k || Key(new int2(e.bx, e.by)) == k) deg++;
+            return deg;
+        }
+
+        // Retire un nœud ET toutes ses arêtes incidentes (élagage d'une feuille fantôme dont la
+        // balise a disparu, en zone vérifiée). NE PAS utiliser pour un nœud interne.
+        public static void RemoveNode(int2 pos)
+        {
+            EnsureLoaded();
+            long k = Key(pos);
+            if (!_nodes.Remove(k)) return;
+            var drop = new List<string>();
+            foreach (var kv in _edges)
+                if (Key(new int2(kv.Value.ax, kv.Value.ay)) == k
+                    || Key(new int2(kv.Value.bx, kv.Value.by)) == k)
+                    drop.Add(kv.Key);
+            foreach (var ek in drop) _edges.Remove(ek);
+            MarkDirty();
+        }
+
         // Plus court chemin de `from` à `to` SUR LE GRAPHE PARCOURU (Dijkstra). Retourne la
         // suite de positions de `from` (inclus) à `to` (inclus), ou liste VIDE si pas de
         // chemin connu (composantes disjointes — règle d'égalité : on ne route que sur du

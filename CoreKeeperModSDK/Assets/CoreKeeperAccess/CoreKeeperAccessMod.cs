@@ -133,6 +133,7 @@ public class CoreKeeperAccessMod : IMod
         TryDevInvincible();
         TryDevBeaconGraphDiag();
         TryDevNetworkRecalc();
+        TryDevNetworkDump();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
@@ -218,6 +219,21 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.NetworkRecalc.Radius = 16f;
         CoreKeeperAccess.Gameplay.NetworkRecalc.ResultValid = false;
         CoreKeeperAccess.Gameplay.NetworkRecalc.Requested = true;
+    }
+
+    // Dump ASCII du reseau local (dev) : Triangle (touche access) MAINTENU + F4 -> dessine la
+    // zone vue par le mod dans Player.log (prefixe [A11yNetDump]), a croiser avec une capture.
+    private void TryDevNetworkDump()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F4)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        var wp = player.WorldPosition;
+        CoreKeeperAccess.Gameplay.NetworkDump.Center = new Unity.Mathematics.int2(
+            UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+        CoreKeeperAccess.Gameplay.NetworkDump.Radius = 12f;
+        CoreKeeperAccess.Gameplay.NetworkDump.Requested = true;
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

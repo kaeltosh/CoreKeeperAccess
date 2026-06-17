@@ -27,33 +27,30 @@ namespace CoreKeeperAccess.Navigation
     // franchissable (liste blanche par type d'objet).
     internal static class NetworkWeaver
     {
-        // Liste blanche des objets traités comme sol libre malgré une tuile bloquante dessous
-        // (pont au-dessus d'eau/pit) ou un collider (porte). Classés par TYPE d'objet.
-        private static readonly HashSet<ObjectID> Passable = new HashSet<ObjectID>
-        {
-            // Portes (gap dans un mur) — un collider, mais un passage.
-            ObjectID.WoodDoor, ObjectID.StoneDoor, ObjectID.ScarletDoor, ObjectID.GleamWoodDoor,
-            ObjectID.CoralDoor, ObjectID.GalaxiteDoor, ObjectID.PuzzleDoor, ObjectID.ExcavationDoor,
-            ObjectID.ExcavationDrillDoor, ObjectID.ElectricalDoor,
-            // Ponts / passerelles (au-dessus d'eau ou de pit).
-            ObjectID.WoodBridge, ObjectID.StoneBridge, ObjectID.ScarletBridge, ObjectID.CoralBridge,
-            ObjectID.GalaxiteBridge, ObjectID.GlassBridge, ObjectID.GleamWoodBridge,
-            ObjectID.MetalGrateBridge, ObjectID.ExcavationBridge,
-        };
-
         // Longueur max d'une arête tissée (cases). Au-delà, on ne relie pas en direct : un
         // long segment droit traversant tout sans torche intermédiaire est improbable en base,
         // et borne le coût.
         private const float MaxEdgeTiles = 20f;
 
         private static readonly List<int2> _nodes = new List<int2>();
+        private static readonly List<BeaconGraph.Edge> _edgeBuf = new List<BeaconGraph.Edge>();
 
-        // Tisse les arêtes manquantes par ligne de vue entre les nœuds du rayon. Retourne le
-        // nombre d'arêtes AJOUTÉES (pour l'annonce).
-        public static int Weave(ref TileAccessor ta, int2 center, float radius)
+        // Recalcul local SYMÉTRIQUE dans le rayon de révision (= la minicarte du voyant) :
+        //  - AJOUTE les arêtes manquantes dont la ligne de vue est dégagée ;
+        //  - COUPE les arêtes locales dont la ligne de vue est désormais obstruée (preuve forte
+        //    = mur sur le tracé) — uniquement si LES DEUX extrémités sont dans le rayon ;
+        //  - ÉLAGUE les nœuds fantômes (balise disparue, zone vérifiée) : une feuille (degré ≤ 1)
+        //    est oubliée, un nœud interne (degré ≥ 2) est gardé (anti-isolement, on route à travers).
+        // Sort les compteurs pour l'annonce. Tout est borné au rayon → la zone déchargée distante
+        // n'est jamais touchée.
+        public static void Weave(ref TileAccessor ta, int2 center, float radius,
+            out int added, out int removed, out int lost)
         {
-            BeaconGraph.NodesInRadius(new float2(center.x, center.y), radius, _nodes);
-            int added = 0;
+            float2 c = new float2(center.x, center.y);
+            added = 0; removed = 0; lost = 0;
+
+            // 1. AJOUT — paires de nœuds en ligne de vue franchissable.
+            BeaconGraph.NodesInRadius(c, radius, _nodes);
             for (int i = 0; i < _nodes.Count; i++)
                 for (int j = i + 1; j < _nodes.Count; j++)
                 {
@@ -65,7 +62,28 @@ namespace CoreKeeperAccess.Navigation
                     BeaconGraph.AddOrReinforceEdge(a, b, d, BeaconGraph.TypeOf(a), BeaconGraph.TypeOf(b));
                     added++;
                 }
-            return added;
+
+            // 2. COUPE — arêtes locales (deux extrémités dans le rayon) devenues obstruées.
+            BeaconGraph.EdgesInRadius(c, radius, _edgeBuf);
+            foreach (var e in _edgeBuf)
+            {
+                int2 a = new int2(e.ax, e.ay), b = new int2(e.bx, e.by);
+                if (!LineWalkable(ref ta, a, b)) { BeaconGraph.RemoveEdge(a, b); removed++; }
+            }
+
+            // 3. ÉLAGAGE — nœuds fantômes (plus de torche/porte à cette case, zone vérifiée).
+            //    Feuille oubliée, nœud interne gardé. (Re-collecte des nœuds après la coupe.)
+            BeaconGraph.NodesInRadius(c, radius, _nodes);
+            foreach (var n in _nodes)
+            {
+                if (ObjectIndex.TryGet(n, out var e) && BeaconObjects.IsNode(e.Id, out _)) continue; // présent
+                if (BeaconGraph.NodeDegree(n) <= 1) { BeaconGraph.RemoveNode(n); lost++; } // feuille fantôme
+                // sinon : nœud interne fantôme → gardé (on route à travers)
+            }
+
+            Diag.Log("A11yNetRecalc", "recalc center=" + center.x + "," + center.y + " r=" + radius
+                + " ajout=" + added + " coupe=" + removed + " perdu=" + lost
+                + " total nodes=" + BeaconGraph.NodeCount + " edges=" + BeaconGraph.EdgeCount);
         }
 
         // Toutes les cases traversées par le segment a→b sont-elles franchissables ?
@@ -99,7 +117,7 @@ namespace CoreKeeperAccess.Navigation
         private static bool IsWalkable(ref TileAccessor ta, int2 t)
         {
             if (!ta.TryGetBlockingTile(t, out _, true)) return true; // sol libre (porte sur sol incluse)
-            return ObjectIndex.TryGet(t, out var e) && Passable.Contains(e.Id);
+            return ObjectIndex.TryGet(t, out var e) && BeaconObjects.IsPassable(e.Id);
         }
     }
 }

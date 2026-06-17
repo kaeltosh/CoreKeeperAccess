@@ -166,6 +166,8 @@
   "guide.nonetwork": "Aucun réseau de balises",
   "netrecalc.done": "Réseau mis à jour",
   "netrecalc.links": "liaisons ajoutées",
+  "netrecalc.removed": "retirées",
+  "netrecalc.lost": "balises perdues",
   "netrecalc.menu": "Recalculer le réseau",
   "ctx.title": "Actions",
   "ctx.navigate": "Naviguer par le réseau",

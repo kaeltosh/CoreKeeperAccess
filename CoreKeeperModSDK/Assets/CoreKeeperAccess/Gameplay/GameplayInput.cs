@@ -63,8 +63,13 @@ namespace CoreKeeperAccess.Gameplay
             if (NetworkRecalc.ResultValid)
             {
                 NetworkRecalc.ResultValid = false;
-                TtsText.Say(Strings.L("netrecalc.done") + ", " + NetworkRecalc.AddedEdges
-                    + " " + Strings.L("netrecalc.links"), true);
+                string msg = Strings.L("netrecalc.done") + ", "
+                    + NetworkRecalc.AddedEdges + " " + Strings.L("netrecalc.links");
+                if (NetworkRecalc.RemovedEdges > 0)
+                    msg += ", " + NetworkRecalc.RemovedEdges + " " + Strings.L("netrecalc.removed");
+                if (NetworkRecalc.LostNodes > 0)
+                    msg += ", " + NetworkRecalc.LostNodes + " " + Strings.L("netrecalc.lost");
+                TtsText.Say(msg, true);
             }
 
             // Les combos (prospection, ping sonar, double-tap carte) sont routes par
