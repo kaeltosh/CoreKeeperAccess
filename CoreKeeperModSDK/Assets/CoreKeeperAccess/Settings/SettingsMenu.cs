@@ -84,6 +84,11 @@ namespace CoreKeeperAccess.Settings
                 LabelKey = "settings.navvolume",
                 Get = () => A11ySettings.NavigationVolume, Set = A11ySettings.SetNavigationVolume, Step = 0.1f, Max = 2f,
             });
+            _root.Children.Add(new Slider
+            {
+                LabelKey = "settings.guidevolume",
+                Get = () => A11ySettings.GuideVolume, Set = A11ySettings.SetGuideVolume, Step = 0.05f, Max = 2f,
+            });
             _root.Children.Add(new Toggle
             {
                 LabelKey = "settings.stepbeep",

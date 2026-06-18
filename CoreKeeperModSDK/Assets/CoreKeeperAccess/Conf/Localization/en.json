@@ -212,6 +212,7 @@
   "settings.percent": "percent",
   "settings.mastervolume": "Master volume",
   "settings.navvolume": "Navigation volume",
+  "settings.guidevolume": "Guidance volume",
   "settings.stepbeep": "Step beep",
   "settings.directiontick": "Step beep volume",
   "settings.snap": "Assisted direction",

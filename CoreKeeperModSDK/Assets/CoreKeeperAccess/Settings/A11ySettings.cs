@@ -34,6 +34,10 @@ namespace CoreKeeperAccess.Gameplay
             // la nav plus forte). Sans risque de clip : a 200 %, le pic d'un son reste
             // <= base x TargetPeak x 2 < 1. S'applique en plus du volume maitre.
             public float navigationVolume = 1f;
+            // Volume de l'earcon de GUIDAGE par balises (le ping repete d'un itineraire actif).
+            // Decouple de la distance (la distance pilote la CADENCE), c'est un niveau fixe.
+            // 0..2 (defaut 1 ; jusqu'a 2 = +6 dB). S'applique en plus du volume maitre.
+            public float guideVolume = 1f;
             // Snap directionnel (marche forcee au cardinal pour poser en rangs). Aussi
             // basculee par Triangle+L3 : meme source de verite, donc persistee. PONCTUEL,
             // donc inactif par defaut.
@@ -71,6 +75,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float DirectionTickVolume => _d.directionTickVolume;
         public static bool StepBeep => _d.stepBeep;
         public static float NavigationVolume => _d.navigationVolume;
+        public static float GuideVolume => _d.guideVolume;
 
         // Snap : source de verite partagee entre Triangle+L3 (DirectionAssist) et le
         // panneau. Le set persiste -> l'etat survit au relancement.
@@ -95,6 +100,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetDirectionTickVolume(float v) { _d.directionTickVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetNavigationVolume(float v) { _d.navigationVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetGuideVolume(float v) { _d.guideVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetStepBeep(bool v) { _d.stepBeep = v; Save(); }
         public static void SetSnapDirectional(bool v) { _d.snapDirectional = v; Save(); }
         public static void SetCombatSlowMo(bool v) { _d.combatSlowMo = v; Save(); }
@@ -151,6 +157,7 @@ namespace CoreKeeperAccess.Gameplay
             d.masterVolume = Mathf.Clamp(d.masterVolume, 0f, 2f);
             d.directionTickVolume = Mathf.Clamp(d.directionTickVolume, 0f, 2f);
             d.navigationVolume = Mathf.Clamp(d.navigationVolume, 0f, 2f);
+            d.guideVolume = Mathf.Clamp(d.guideVolume, 0f, 2f);
             d.sonarVolume = Mathf.Clamp(d.sonarVolume, 0f, 2f);
             d.sonarVolMedium = Mathf.Clamp(d.sonarVolMedium, 0f, 2f);
             d.sonarVolGrave = Mathf.Clamp(d.sonarVolGrave, 0f, 2f);
