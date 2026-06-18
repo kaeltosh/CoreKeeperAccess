@@ -32,7 +32,7 @@ namespace CoreKeeperAccess.Controls
             // Triangle+bas/droite de l'onglet balises ont donc ete retires : keymaps liberes.
 
             // Triangle + bas = transferer (nav inventaire). En jeu, vitals est passe sur la
-            // roue de stats (stick droit) - le D-pad bas n'a plus de role gameplay. Sur la
+            // roue de stats (stick gauche) - le D-pad bas n'a plus de role gameplay. Sur la
             // carte : supprime une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
                 () => InventoryNavState.SuppressNativeInput, GameplayInput.TransferSelected);
@@ -48,7 +48,7 @@ namespace CoreKeeperAccess.Controls
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
             // recycler (station). La prospection minerai est passee sur la roue de stats
-            // (stick droit) - plus de role gameplay ici. Vente en premier : marchand et
+            // (stick gauche) - plus de role gameplay ici. Vente en premier : marchand et
             // station jamais ouverts ensemble, l'ordre rend juste l'intention explicite.
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput && Manager.ui != null && Manager.ui.isSellUIShowing,
