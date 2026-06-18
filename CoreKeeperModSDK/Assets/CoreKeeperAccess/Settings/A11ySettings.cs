@@ -54,6 +54,15 @@ namespace CoreKeeperAccess.Gameplay
             public float sonarVolGrave = 2f;     // grave (sombre) : sud (pousse au max a l'oreille)
             // Couche OBJETS du sonar (le ding sur les objets poses), togglable a part du bruit.
             public bool objectDing = true;
+            // Annonce vocale du nom des objets ramasses (a CHAQUE ramassage, pas seulement au
+            // premier comme le jeu). Actif par defaut.
+            public bool pickupAnnounce = true;
+            // Filtre les BLOCS (tag TileBlock : terre, pierre, murs posables) hors de l'annonce
+            // de ramassage, pour calmer le bruit en minant. Inactif par defaut (on entend tout).
+            public bool pickupFilterBlocks = false;
+            // Suffixe la quantite TOTALE possedee a l'annonce de ramassage ("47 en tout").
+            // Inactif par defaut (plus verbeux).
+            public bool pickupTotal = false;
         }
 
         private static Data _d = new Data();
@@ -78,6 +87,9 @@ namespace CoreKeeperAccess.Gameplay
         public static float SonarVolMedium => _d.sonarVolMedium;
         public static float SonarVolGrave => _d.sonarVolGrave;
         public static bool ObjectDing => _d.objectDing;
+        public static bool PickupAnnounce => _d.pickupAnnounce;
+        public static bool PickupFilterBlocks => _d.pickupFilterBlocks;
+        public static bool PickupTotal => _d.pickupTotal;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -92,6 +104,9 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetSonarVolMedium(float v) { _d.sonarVolMedium = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetSonarVolGrave(float v) { _d.sonarVolGrave = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetObjectDing(bool v) { _d.objectDing = v; Save(); }
+        public static void SetPickupAnnounce(bool v) { _d.pickupAnnounce = v; Save(); }
+        public static void SetPickupFilterBlocks(bool v) { _d.pickupFilterBlocks = v; Save(); }
+        public static void SetPickupTotal(bool v) { _d.pickupTotal = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

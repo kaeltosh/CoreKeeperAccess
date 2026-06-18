@@ -231,6 +231,12 @@
   "settings.sonarmedium": "Sonar medium volume",
   "settings.sonargrave": "Sonar bass volume",
   "settings.objectding": "Object ding",
+  "settings.pickup": "Picked up items announcement",
+  "settings.pickupblocks": "Filter blocks on pickup",
+  "settings.pickuptotal": "Owned total on pickup",
+  "pickup.times": "times",
+  "pickup.full": "Inventory full",
+  "pickup.total": "in total",
   "stats.conditions": "Conditions",
   "stats.conditions.none": "No notable condition",
   "cond.poisoned": "poisoned",
@@ -246,5 +252,6 @@
   "progress.core.on": "activated",
   "progress.core.off": "not activated",
   "progress.bosses": "bosses defeated",
+  "progress.talktocore": "the Core is awake, talk to it",
   "progress.wall": "Great Wall lowered"
 }
