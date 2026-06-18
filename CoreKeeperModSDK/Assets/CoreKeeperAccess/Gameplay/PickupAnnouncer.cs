@@ -1,49 +1,49 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
+using Unity.Collections;
+using Unity.Entities;
+using Unity.Transforms;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Gameplay
 {
-    // Annonce le nom des objets RAMASSES, a chaque ramassage (le jeu ne nomme l'objet
-    // qu'a la PREMIERE decouverte d'un type via ChatWindow.NewItem, puis c'est un compteur
-    // visuel muet - confirme dans PlayerController.DetectUndiscoveredObjectsInInventory).
+    // Annonce le nom des objets RAMASSES, a chaque ramassage (le jeu ne nomme l'objet qu'a la
+    // PREMIERE decouverte d'un type via ChatWindow.NewItem, puis c'est un compteur visuel muet -
+    // confirme dans PlayerController.DetectUndiscoveredObjectsInInventory).
     //
     // Le ramassage au sol est un systeme ECS server-authoritative (PickUpItemSystem) non
-    // hookable proprement en hot-compile. On copie donc le pattern du jeu lui-meme : un DIFF
-    // cote client de l'inventaire du joueur. Chaque tick on compare un instantane par slot
-    // (objectID + quantite) au contenu courant ; toute HAUSSE = un gain a annoncer.
+    // hookable proprement en hot-compile. On le deduit donc d'un DIFF cote client de l'inventaire
+    // du joueur. CRUCIAL : on diff les TOTAUX PAR OBJET, pas les slots. Le jeu reorganise sans
+    // cesse les slots (poser via le switch rapide echange deux slots, tri auto, etc.) -> un diff
+    // slot par slot voit de faux "gains" de piles entieres a chaque echange. Avec les totaux :
+    // changer de slot garde le total identique (rien), consommer = total qui baisse (ignore),
+    // ramasser = total qui monte (annonce). Empilable -> somme des quantites ; non empilable ->
+    // nombre d'exemplaires (l'amount serait la durabilite, pas une quantite).
     //
-    // Garde-fou anti-faux-positif : on n'annonce QUE quand aucun inventaire n'est ouvert
-    // (comme le jeu). Inventaire ferme, les seules hausses de quantite viennent de vrais
-    // ramassages (drops au sol, recolte, butin, auto-ramassage des bourses) : deplacer,
-    // crafter ou prendre dans un coffre se fait inventaire OUVERT -> exclu d'office. On
-    // continue toutefois a tenir l'instantane a jour inventaire ouvert, pour ne pas dumper
-    // les manips manuelles comme des ramassages a la fermeture.
+    // Garde-fou : on n'annonce QUE inventaire ferme (gameplay). On tient quand meme les totaux a
+    // jour inventaire ouvert, pour ne pas dumper les manips manuelles a la fermeture.
     //
-    // Anti-spam : les gains sont accumules sur une courte fenetre (debounce a la traine) puis
-    // annonces en une fois ("Terre fois 4, Cuivre fois 2"), en file d'attente NVDA
-    // (interrupt:false) comme les autres notifs passives.
+    // Anti-spam : gains accumules sur une courte fenetre (debounce a la traine) puis annonces en
+    // une fois ("Terre fois 4, Cuivre fois 2"), en file d'attente NVDA (interrupt:false).
     internal static class PickupAnnouncer
     {
-        private struct Slot { public ObjectID Id; public int Amount; }
+        // Totaux par objet : precedent (reference) et courant (recalcule chaque tick).
+        private static readonly Dictionary<ObjectID, int> _prev = new Dictionary<ObjectID, int>();
+        private static readonly Dictionary<ObjectID, int> _cur = new Dictionary<ObjectID, int>();
+        private static bool _hasBaseline;
+        private static bool _bagHasEmpty; // un slot libre dans le SAC principal (pour "plein")
 
-        // Instantane du contenu, une entree par handler suivi (sac + bourses). Le handler
-        // (instance de classe) sert de cle stable entre les frames.
-        private static readonly Dictionary<InventoryHandler, Slot[]> _snap =
-            new Dictionary<InventoryHandler, Slot[]>();
+        // Cache d'empilabilite par objet (evite un GetObjectInfo par slot par tick).
+        private static readonly Dictionary<ObjectID, bool> _stackCache = new Dictionary<ObjectID, bool>();
 
         // Gains en attente d'annonce (ordre d'apparition preserve pour une lecture naturelle).
         private static readonly List<ObjectID> _order = new List<ObjectID>();
         private static readonly Dictionary<ObjectID, int> _counts = new Dictionary<ObjectID, int>();
-        private static float _flushAt;       // debounce : annonce quand plus rien depuis Window
-        private static float _firstPendingAt; // garde-fou : flush force passe MaxAge
-
-        private const float Window = 0.5f;   // silence apres le dernier ramassage avant d'annoncer
-        private const float MaxAge = 2f;     // ramassage continu : on ne retient pas indefiniment
-
-        // Reutilisable entre handlers : evite d'allouer un tableau temporaire par tick.
-        private static readonly List<InventoryHandler> _seen = new List<InventoryHandler>();
+        private static float _flushAt;        // debounce : annonce quand plus rien depuis Window
+        private static float _firstPendingAt;  // garde-fou : flush force passe MaxAge
+        private const float Window = 0.5f;     // silence apres le dernier ramassage avant d'annoncer
+        private const float MaxAge = 2f;       // ramassage continu : on ne retient pas indefiniment
 
         public static void Tick()
         {
@@ -51,7 +51,7 @@ namespace CoreKeeperAccess.Gameplay
             if (player == null)
             {
                 // Retour menu / changement de monde : on rebaseline a la prochaine entree.
-                if (_snap.Count > 0) _snap.Clear();
+                if (_hasBaseline) { _prev.Clear(); _hasBaseline = false; }
                 ClearPending();
                 return;
             }
@@ -61,101 +61,81 @@ namespace CoreKeeperAccess.Gameplay
                 && Manager.sceneHandler != null && Manager.sceneHandler.isSceneHandlerReady
                 && !Manager.sceneHandler.cutsceneIsPlaying;
 
-            _seen.Clear();
-            ScanHandler(player.playerInventoryHandler, announce);
-            var eh = player.equipmentHandler;
-            if (eh != null && eh.pouchInventorySlotsHandlers != null)
-                foreach (var h in eh.pouchInventorySlotsHandlers)
-                    ScanHandler(h, announce);
+            ComputeTotals(player); // remplit _cur + _bagHasEmpty
 
-            // Purge des handlers disparus (bourse retiree) pour ne pas fuir.
-            if (_snap.Count > _seen.Count) PruneStale();
+            // Diff des totaux : toute HAUSSE = un gain (= un ramassage). Seulement si l'on a deja
+            // une reference (sinon le 1er scan annoncerait tout l'inventaire) et que l'annonce
+            // est active.
+            if (announce && _hasBaseline)
+                foreach (var kv in _cur)
+                {
+                    int prev = _prev.TryGetValue(kv.Key, out int p) ? p : 0;
+                    int gained = kv.Value - prev;
+                    if (gained <= 0) continue;
+                    if (A11ySettings.PickupFilterBlocks && IsBlock(kv.Key)) continue; // blocs filtres au gre du joueur
+                    AddPending(kv.Key, gained);
+                }
 
-            CheckFull(player.playerInventoryHandler, announce);
+            // Bascule la reference (TOUJOURS, meme inventaire ouvert).
+            _prev.Clear();
+            foreach (var kv in _cur) _prev[kv.Key] = kv.Value;
+            _hasBaseline = true;
+
+            CheckBlockedPickup(player, announce);
             FlushIfDue();
         }
 
-        // Alerte "inventaire plein" : aucune notif native n'existe (verifie dans
-        // ChatWindow.MessageTextType), donc on la deduit du scan. "Plein" = plus aucun
-        // emplacement LIBRE dans le sac/barre (un objet d'un type NOUVEAU ne rentrerait plus,
-        // meme si une pile existante pourrait encore grossir). Annoncee une seule fois au
-        // front montant ; re-armee des qu'une case se libere.
-        private static bool _wasFull;
-
-        private static void CheckFull(InventoryHandler bag, bool announce)
+        // Recalcule les totaux par objet sur les inventaires du joueur (sac + bourses) et note si
+        // le SAC principal a au moins un slot vide (pour l'alerte "plein").
+        private static void ComputeTotals(PlayerController player)
         {
-            if (bag == null || !_snap.TryGetValue(bag, out var snap)) return;
-            bool full = true;
-            for (int i = 0; i < snap.Length; i++)
-                if (snap[i].Id == ObjectID.None) { full = false; break; }
-
-            // On met l'etat a jour meme inventaire ouvert (remplir soi-meme ne doit pas
-            // declencher une alerte differee a la fermeture) ; on ne PARLE qu'au front
-            // montant et seulement quand l'annonce est active.
-            if (full && !_wasFull && announce) TtsText.Say(Strings.L("pickup.full"), false);
-            _wasFull = full;
+            _cur.Clear();
+            _bagHasEmpty = false;
+            AddHandlerTotals(player.playerInventoryHandler, true);
+            var eh = player.equipmentHandler;
+            if (eh != null && eh.pouchInventorySlotsHandlers != null)
+                foreach (var h in eh.pouchInventorySlotsHandlers)
+                    AddHandlerTotals(h, false);
         }
 
-        // Diff d'un handler : detecte les hausses de quantite slot par slot. Met TOUJOURS
-        // l'instantane a jour ; n'empile un gain que si announce == true.
-        private static void ScanHandler(InventoryHandler handler, bool announce)
+        private static void AddHandlerTotals(InventoryHandler handler, bool isMainBag)
         {
             if (handler == null) return;
-            _seen.Add(handler);
-
             int size;
             try { size = handler.size; } catch { return; }
-            if (size <= 0) return;
-
-            Slot[] snap;
-            bool fresh = false;
-            if (!_snap.TryGetValue(handler, out snap) || snap.Length != size)
-            {
-                snap = new Slot[size];
-                _snap[handler] = snap;
-                fresh = true; // premier scan de ce handler : on baseline sans annoncer
-            }
-
             for (int i = 0; i < size; i++)
             {
                 ObjectDataCD od;
                 try { od = handler.GetContainedObjectData(i).objectData; }
                 catch { continue; }
-
-                var prev = snap[i];
-                snap[i].Id = od.objectID;
-                snap[i].Amount = od.amount;
-
-                if (fresh || !announce || od.objectID == ObjectID.None) continue;
-
-                ObjectInfo info = TryInfo(od.objectID, od.variation);
-                bool stackable = info == null || info.isStackable;
-
-                int gained = 0;
-                if (od.objectID != prev.Id)
-                    gained = stackable ? od.amount : 1; // nouvel objet dans le slot
-                else if (od.amount > prev.Amount && stackable)
-                    gained = od.amount - prev.Amount; // meme pile empilable qui grossit
-                // (meme objet non empilable, amount qui change = durabilite -> ignore)
-
-                if (gained <= 0) continue;
-                if (A11ySettings.PickupFilterBlocks && IsBlock(info)) continue; // blocs filtres au gre du joueur
-                AddPending(od.objectID, gained);
+                if (od.objectID == ObjectID.None) { if (isMainBag) _bagHasEmpty = true; continue; }
+                int add = IsStackable(od.objectID, od.variation) ? od.amount : 1;
+                _cur.TryGetValue(od.objectID, out int c);
+                _cur[od.objectID] = c + add;
             }
         }
 
-        private static ObjectInfo TryInfo(ObjectID id, int variation)
+        private static bool IsStackable(ObjectID id, int variation)
         {
-            try { return PugDatabase.GetObjectInfo(id, variation); }
-            catch { return null; }
+            if (_stackCache.TryGetValue(id, out bool s)) return s;
+            bool stackable = true;
+            try { var info = PugDatabase.GetObjectInfo(id, variation); stackable = info == null || info.isStackable; }
+            catch { }
+            _stackCache[id] = stackable;
+            return stackable;
         }
 
         // Un "bloc" = objet portant le tag ObjectCategoryTag.TileBlock (terre, pierre, murs
-        // posables...) : c'est la categorie a part du jeu pour les tuiles posables, la source
-        // principale du bruit en minant.
-        private static bool IsBlock(ObjectInfo info)
+        // posables...) : la categorie a part du jeu pour les tuiles posables, la source du bruit
+        // en minant. (variation 0 : le tag ne depend pas de la variation.)
+        private static bool IsBlock(ObjectID id)
         {
-            return info != null && info.tags != null && info.tags.Contains(ObjectCategoryTag.TileBlock);
+            try
+            {
+                var info = PugDatabase.GetObjectInfo(id, 0);
+                return info != null && info.tags != null && info.tags.Contains(ObjectCategoryTag.TileBlock);
+            }
+            catch { return false; }
         }
 
         private static void AddPending(ObjectID id, int qty)
@@ -172,13 +152,21 @@ namespace CoreKeeperAccess.Gameplay
             float now = Time.unscaledTime;
             if (now < _flushAt && now - _firstPendingAt < MaxAge) return;
 
+            bool withTotal = A11ySettings.PickupTotal;
             var parts = new List<string>(_order.Count);
             foreach (var id in _order)
             {
                 string name = InGameTtsCore.ResolveObjectName(id);
                 if (string.IsNullOrEmpty(name)) continue;
                 int n = _counts[id];
-                parts.Add(n > 1 ? name + " " + Strings.L("pickup.times") + " " + n : name);
+                string label = n > 1 ? name + " " + Strings.L("pickup.times") + " " + n : name;
+                if (withTotal)
+                {
+                    int total = _cur.TryGetValue(id, out int t) ? t : n;
+                    // Inutile de redire le total quand on ne possede que ce qu'on vient de prendre.
+                    if (total > n) label += ", " + total + " " + Strings.L("pickup.total");
+                }
+                parts.Add(label);
             }
             ClearPending();
             if (parts.Count > 0) TtsText.Say(string.Join(", ", parts), false);
@@ -190,12 +178,79 @@ namespace CoreKeeperAccess.Gameplay
             _counts.Clear();
         }
 
-        private static void PruneStale()
+        // Alerte de ramassage BLOQUE ("Fer, inventaire plein"). Aucune notif native n'existe
+        // (verifie dans ChatWindow.MessageTextType), et "plein" depend de l'OBJET : le plafond de
+        // pile du jeu est 9999, donc il y a de la place s'il reste un slot vide OU une pile du
+        // meme objet. On regarde les objets LACHES au sol (PickUpItemCD - present UNIQUEMENT sur
+        // le loot lache, PAS sur les meubles poses) dans le rayon de ramassage du joueur et on
+        // teste leur place contre les totaux deja calcules -> alerte seulement quand un objet a
+        // cote ne rentre VRAIMENT pas. Throttle ~3 fois/s. Requetes ECS managees, pas un systeme.
+        private static ObjectID _lastBlocked = ObjectID.None;
+        private static float _nextScan;
+
+        private static void CheckBlockedPickup(PlayerController player, bool announce)
         {
-            var dead = new List<InventoryHandler>();
-            foreach (var kv in _snap)
-                if (!_seen.Contains(kv.Key)) dead.Add(kv.Key);
-            foreach (var h in dead) _snap.Remove(h);
+            if (!announce) { _lastBlocked = ObjectID.None; return; }
+            float now = Time.unscaledTime;
+            if (now < _nextScan) return;
+            _nextScan = now + 0.3f;
+
+            ObjectID blocked = ObjectID.None;
+            try
+            {
+                // Rayon de ramassage du joueur (inclut le bonus d'aimant). Repli si absent.
+                float pd = 1.6f;
+                try { pd = EntityUtility.GetComponentData<AutoPickUpItemCD>(player.entity, player.world).pickupDistance; }
+                catch { }
+                float pd2 = pd * pd;
+
+                var q = Manager.ecs.GetClientEntityQuery(new ComponentType[]
+                {
+                    ComponentType.ReadOnly<PickUpItemCD>(),
+                    ComponentType.ReadOnly<LocalTransform>(),
+                    ComponentType.ReadOnly<ContainedObjectsBuffer>(),
+                    ComponentType.Exclude<EntityDestroyedCD>(),
+                });
+                using (var states = q.ToComponentDataArray<PickUpItemCD>(Allocator.Temp))
+                using (var trans = q.ToComponentDataArray<LocalTransform>(Allocator.Temp))
+                using (var ents = q.ToEntityArray(Allocator.Temp))
+                {
+                    var pp = player.WorldPosition;
+                    for (int i = 0; i < ents.Length; i++)
+                    {
+                        var st = states[i].state;
+                        if (st == PickUpItemState.IsBeingPickedUp || st == PickUpItemState.HasBeenPickedUp)
+                            continue; // deja en cours de ramassage : non bloque
+                        var p = trans[i].Position;
+                        float dx = p.x - pp.x, dz = p.z - pp.z;
+                        if (dx * dx + dz * dz > pd2) continue; // hors du rayon de ramassage
+                        var buf = EntityUtility.GetBuffer<ContainedObjectsBuffer>(ents[i], player.world);
+                        if (buf.Length == 0) continue;
+                        var od = buf[0].objectData;
+                        if (od.objectID == ObjectID.None || HasRoom(od)) continue;
+                        blocked = od.objectID;
+                        break;
+                    }
+                }
+            }
+            catch (System.Exception ex) { Diag.Error("A11yPickupDiag", ex); return; }
+
+            // Annonce une fois par objet bloque ; re-armee quand plus rien ne bloque a cote
+            // (blocked == None) ou quand l'objet bloque change de type.
+            if (blocked != ObjectID.None && blocked != _lastBlocked)
+                TtsText.Say(InGameTtsCore.ResolveObjectName(blocked) + ", " + Strings.L("pickup.full"), false);
+            _lastBlocked = blocked;
+        }
+
+        // Y a-t-il de la place pour cet objet ? Un slot vide dans le sac principal, ou - si
+        // empilable - on en possede deja (on peut empiler dessus, le plafond 9999 n'est jamais
+        // atteint en pratique). Les slots VIDES de bourse ne comptent pas (filtres par categorie,
+        // on ne sait pas s'ils accepteraient l'objet). Reutilise les totaux deja calcules.
+        private static bool HasRoom(ObjectDataCD od)
+        {
+            if (_bagHasEmpty) return true;
+            return IsStackable(od.objectID, od.variation)
+                && _cur.TryGetValue(od.objectID, out int c) && c > 0;
         }
     }
 }

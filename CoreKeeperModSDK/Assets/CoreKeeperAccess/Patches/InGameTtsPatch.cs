@@ -553,6 +553,8 @@ namespace CoreKeeperAccess.Patches
             ChatWindow.MessageTextType.ReceivedItems,
             ChatWindow.MessageTextType.PetLeveledUp,
             ChatWindow.MessageTextType.GainedSoul,
+            ChatWindow.MessageTextType.TalkToTheCore,     // indice d'objectif natif ("va parler au Coeur")
+            ChatWindow.MessageTextType.DiedFromStarvation, // mort de FAIM (vs tue par un ennemi)
         };
 
         [HarmonyPostfix]

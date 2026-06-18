@@ -234,8 +234,10 @@
   "settings.objectding": "Ding des objets",
   "settings.pickup": "Annonce des objets ramassés",
   "settings.pickupblocks": "Filtrer les blocs au ramassage",
+  "settings.pickuptotal": "Total possédé au ramassage",
   "pickup.times": "fois",
   "pickup.full": "Inventaire plein",
+  "pickup.total": "en tout",
   "stats.conditions": "États",
   "stats.conditions.none": "Aucun état particulier",
   "cond.poisoned": "empoisonné",
@@ -251,5 +253,6 @@
   "progress.core.on": "activé",
   "progress.core.off": "non activé",
   "progress.bosses": "boss vaincus",
+  "progress.talktocore": "le Cœur est éveillé, parle-lui",
   "progress.wall": "Grand mur abaissé"
 }

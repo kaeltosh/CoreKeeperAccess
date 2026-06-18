@@ -144,6 +144,11 @@ namespace CoreKeeperAccess.Settings
                 LabelKey = "settings.pickupblocks",
                 Get = () => A11ySettings.PickupFilterBlocks, Set = A11ySettings.SetPickupFilterBlocks,
             });
+            _root.Children.Add(new Toggle
+            {
+                LabelKey = "settings.pickuptotal",
+                Get = () => A11ySettings.PickupTotal, Set = A11ySettings.SetPickupTotal,
+            });
         }
 
         // --- Ouverture / fermeture ---
