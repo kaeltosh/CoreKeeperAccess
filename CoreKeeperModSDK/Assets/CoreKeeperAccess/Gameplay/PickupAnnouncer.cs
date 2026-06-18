@@ -71,7 +71,29 @@ namespace CoreKeeperAccess.Gameplay
             // Purge des handlers disparus (bourse retiree) pour ne pas fuir.
             if (_snap.Count > _seen.Count) PruneStale();
 
+            CheckFull(player.playerInventoryHandler, announce);
             FlushIfDue();
+        }
+
+        // Alerte "inventaire plein" : aucune notif native n'existe (verifie dans
+        // ChatWindow.MessageTextType), donc on la deduit du scan. "Plein" = plus aucun
+        // emplacement LIBRE dans le sac/barre (un objet d'un type NOUVEAU ne rentrerait plus,
+        // meme si une pile existante pourrait encore grossir). Annoncee une seule fois au
+        // front montant ; re-armee des qu'une case se libere.
+        private static bool _wasFull;
+
+        private static void CheckFull(InventoryHandler bag, bool announce)
+        {
+            if (bag == null || !_snap.TryGetValue(bag, out var snap)) return;
+            bool full = true;
+            for (int i = 0; i < snap.Length; i++)
+                if (snap[i].Id == ObjectID.None) { full = false; break; }
+
+            // On met l'etat a jour meme inventaire ouvert (remplir soi-meme ne doit pas
+            // declencher une alerte differee a la fermeture) ; on ne PARLE qu'au front
+            // montant et seulement quand l'annonce est active.
+            if (full && !_wasFull && announce) TtsText.Say(Strings.L("pickup.full"), false);
+            _wasFull = full;
         }
 
         // Diff d'un handler : detecte les hausses de quantite slot par slot. Met TOUJOURS
@@ -106,21 +128,34 @@ namespace CoreKeeperAccess.Gameplay
 
                 if (fresh || !announce || od.objectID == ObjectID.None) continue;
 
+                ObjectInfo info = TryInfo(od.objectID, od.variation);
+                bool stackable = info == null || info.isStackable;
+
                 int gained = 0;
                 if (od.objectID != prev.Id)
-                    gained = IsStackable(od.objectID, od.variation) ? od.amount : 1; // nouvel objet dans le slot
-                else if (od.amount > prev.Amount && IsStackable(od.objectID, od.variation))
+                    gained = stackable ? od.amount : 1; // nouvel objet dans le slot
+                else if (od.amount > prev.Amount && stackable)
                     gained = od.amount - prev.Amount; // meme pile empilable qui grossit
                 // (meme objet non empilable, amount qui change = durabilite -> ignore)
 
-                if (gained > 0) AddPending(od.objectID, gained);
+                if (gained <= 0) continue;
+                if (A11ySettings.PickupFilterBlocks && IsBlock(info)) continue; // blocs filtres au gre du joueur
+                AddPending(od.objectID, gained);
             }
         }
 
-        private static bool IsStackable(ObjectID id, int variation)
+        private static ObjectInfo TryInfo(ObjectID id, int variation)
         {
-            try { var info = PugDatabase.GetObjectInfo(id, variation); return info == null || info.isStackable; }
-            catch { return true; }
+            try { return PugDatabase.GetObjectInfo(id, variation); }
+            catch { return null; }
+        }
+
+        // Un "bloc" = objet portant le tag ObjectCategoryTag.TileBlock (terre, pierre, murs
+        // posables...) : c'est la categorie a part du jeu pour les tuiles posables, la source
+        // principale du bruit en minant.
+        private static bool IsBlock(ObjectInfo info)
+        {
+            return info != null && info.tags != null && info.tags.Contains(ObjectCategoryTag.TileBlock);
         }
 
         private static void AddPending(ObjectID id, int qty)
