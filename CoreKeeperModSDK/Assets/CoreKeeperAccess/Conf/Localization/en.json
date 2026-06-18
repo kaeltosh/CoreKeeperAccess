@@ -231,6 +231,8 @@
   "settings.sonarmedium": "Sonar medium volume",
   "settings.sonargrave": "Sonar bass volume",
   "settings.objectding": "Object ding",
+  "settings.pickup": "Picked up items announcement",
+  "pickup.times": "times",
   "stats.conditions": "Conditions",
   "stats.conditions.none": "No notable condition",
   "cond.poisoned": "poisoned",

@@ -143,6 +143,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
+        CoreKeeperAccess.Gameplay.PickupAnnouncer.Tick(); // diff inventaire -> annonce des ramassages
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
         TeleportNavigator.Update();
         CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active

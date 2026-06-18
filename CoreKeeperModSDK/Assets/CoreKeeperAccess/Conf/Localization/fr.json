@@ -232,6 +232,8 @@
   "settings.sonarmedium": "Volume sonar medium",
   "settings.sonargrave": "Volume sonar grave",
   "settings.objectding": "Ding des objets",
+  "settings.pickup": "Annonce des objets ramassés",
+  "pickup.times": "fois",
   "stats.conditions": "États",
   "stats.conditions.none": "Aucun état particulier",
   "cond.poisoned": "empoisonné",
