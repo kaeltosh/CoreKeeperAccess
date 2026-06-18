@@ -1,125 +1,239 @@
 {
-    "guid": "f75379426bf548038f4be424b060838f",
-    "name": "CoreKeeperAccess",
-    "displayName": "",
-    "skipSafetyChecks": true,
-    "disableScripts": false,
-    "accessesExtraAssemblies": true,
-    "disableHarmonyPatching": false,
-    "requiredOn": 0,
-    "files": [
-        {
-            "path": "Conf/Localization/fr.json",
-            "guid": "8b8ca4d740e17ae4fb9cd997c5c7e1dc"
-        },
-        {
-            "path": "Conf/Localization/en.json",
-            "guid": "00e95a9194403bb4ab31b0e8347b7471"
-        },
-        {
-            "path": "Scripts/Tolk.cs",
-            "guid": "714705abe1ad0e0459a7bb458071cfc1"
-        },
-        {
-            "path": "Scripts/Patches/TtsText.cs",
-            "guid": "5e11ce31708d4894f9cebe583028c722"
-        },
-        {
-            "path": "Scripts/Patches/NavigationPatch.cs",
-            "guid": "1c41bc56ce74e8d4e9cb4094a130c586"
-        },
-        {
-            "path": "Scripts/Patches/NativeInputSuppressionPatch.cs",
-            "guid": "abab02380e54dd743a5ea7d8616c83e9"
-        },
-        {
-            "path": "Scripts/Patches/MenuTtsPatch.cs",
-            "guid": "2fbb8f50690c34b489ac474727801222"
-        },
-        {
-            "path": "Scripts/Patches/InGameTtsPatch.cs",
-            "guid": "c0b7525034714fb4593d8fcdf65de70a"
-        },
-        {
-            "path": "Scripts/Navigation/SlotSection.cs",
-            "guid": "d84b8a81fefe2ea408a4be3b0dabaa7e"
-        },
-        {
-            "path": "Scripts/Navigation/InventoryNavState.cs",
-            "guid": "766173deeb207ed4797514f70d5b5243"
-        },
-        {
-            "path": "Scripts/Navigation/InventoryNavigator.cs",
-            "guid": "c9849104eac89b645a3aa6efbb463a7e"
-        },
-        {
-            "path": "Scripts/Navigation/ActionWheel.cs",
-            "guid": "a3c3340bf08f0f748affbbbe32d769f9"
-        },
-        {
-            "path": "Scripts/Localization/Strings.cs",
-            "guid": "077fa1a364d88c6458e580e2007083ac"
-        },
-        {
-            "path": "Scripts/Gameplay/VitalsReadout.cs",
-            "guid": "454c097378c412242847af7cdeda5c61"
-        },
-        {
-            "path": "Scripts/Gameplay/TileReader.cs",
-            "guid": "9a99ebcfa95d9c641a95dacb397b7329"
-        },
-        {
-            "path": "Scripts/Gameplay/MovementReader.cs",
-            "guid": "5e4c773ab5bd00f4682ae018f54f5b26"
-        },
-        {
-            "path": "Scripts/Gameplay/LaserCane.cs",
-            "guid": "94f5e50c15b2008459d51093ac535f73"
-        },
-        {
-            "path": "Scripts/Gameplay/GameplayInput.cs",
-            "guid": "f892b3429ca7f444e9f155311e8caaab"
-        },
-        {
-            "path": "Scripts/Gameplay/GameplayAudio.cs",
-            "guid": "c5d91f61488b8cc47b0f3b30c54d838e"
-        },
-        {
-            "path": "Scripts/Gameplay/BuildModeNavigator.cs",
-            "guid": "a4f909a49da822d428713da67ca23293"
-        },
-        {
-            "path": "Scripts/Gameplay/AggroSentinel.cs",
-            "guid": "eab5c7b1c34755341887562210cb3998"
-        },
-        {
-            "path": "Scripts/CoreKeeperAccessMod.cs",
-            "guid": "e7243fb1bab1cd84592d3578be9f07e8"
-        },
-        {
-            "path": "Scripts/Generated/AggroSentinel__System_6326761670.g.cs",
-            "guid": ""
-        },
-        {
-            "path": "Scripts/Generated/LaserCane__System_7936357450.g.cs",
-            "guid": ""
-        },
-        {
-            "path": "Bundles/CoreKeeperAccess_Windows.assetbundle",
-            "guid": ""
-        },
-        {
-            "path": "Bundles/CoreKeeperAccess_Windows.assetbundle.manifest",
-            "guid": ""
-        },
-        {
-            "path": "Bundles/CoreKeeperAccess_Linux.assetbundle",
-            "guid": ""
-        },
-        {
-            "path": "Bundles/CoreKeeperAccess_Linux.assetbundle.manifest",
-            "guid": ""
-        }
-    ],
-    "dependencies": []
+    "guid":  "f75379426bf548038f4be424b060838f",
+    "name":  "CoreKeeperAccess",
+    "displayName":  "",
+    "skipSafetyChecks":  true,
+    "disableScripts":  false,
+    "accessesExtraAssemblies":  true,
+    "disableHarmonyPatching":  false,
+    "requiredOn":  0,
+    "files":  [
+                  {
+                      "path":  "Scripts/CoreKeeperAccessMod.cs",
+                      "guid":  "e7243fb1bab1cd84592d3578be9f07e8"
+                  },
+                  {
+                      "path":  "Scripts/Diag.cs",
+                      "guid":  "2d0d96d0d0675ee469ea539e8d9b6c4d"
+                  },
+                  {
+                      "path":  "Scripts/Tolk.cs",
+                      "guid":  "714705abe1ad0e0459a7bb458071cfc1"
+                  },
+                  {
+                      "path":  "Scripts/Controls/ActionMenu.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Controls/ComboBindings.cs",
+                      "guid":  "fe92d89b2917e6043ad02397c6c0eb8e"
+                  },
+                  {
+                      "path":  "Scripts/Controls/ComboDispatcher.cs",
+                      "guid":  "9d45bd7c53a30af4ba2253a31e8db11e"
+                  },
+                  {
+                      "path":  "Scripts/Controls/CommandWheel.cs",
+                      "guid":  "63b558acab1e3b4409ee36d57c1ecd61"
+                  },
+                  {
+                      "path":  "Scripts/Controls/InfoKey.cs",
+                      "guid":  "56432c1c21d945b47b1efb9fa95286ce"
+                  },
+                  {
+                      "path":  "Scripts/Controls/InputContext.cs",
+                      "guid":  "a6b68f69676cc5b4795e859177f72513"
+                  },
+                  {
+                      "path":  "Scripts/Controls/PadDiagnostic.cs",
+                      "guid":  "753c02ea84bd2c344b130d90e78a65ed"
+                  },
+                  {
+                      "path":  "Scripts/Controls/TextEntry.cs",
+                      "guid":  "9f8a05aab8ead5d47bc5709c8419a49e"
+                  },
+                  {
+                      "path":  "Scripts/Controls/TriangleModifier.cs",
+                      "guid":  "814de3529b439a7419129776f9216640"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/AggroSentinel.cs",
+                      "guid":  "eab5c7b1c34755341887562210cb3998"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/BeaconGuide.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/BeaconTracker.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
+                      "guid":  "a4f909a49da822d428713da67ca23293"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/CenterBeacon.cs",
+                      "guid":  "15f97aede0de03c4b8af4ef175c8975a"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/CombatSlowMotion.cs",
+                      "guid":  "637a9054aa64a094a88c15da282d4df9"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/DevTools.cs",
+                      "guid":  "93a046ae17ba60b4ca4f0ba77a460117"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/FireProximity.cs",
+                      "guid":  "895410dc2d954e04ab38f7028159790f"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/GameplayAudio.cs",
+                      "guid":  "c5d91f61488b8cc47b0f3b30c54d838e"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/GameplayInput.cs",
+                      "guid":  "f892b3429ca7f444e9f155311e8caaab"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/LaserCane.cs",
+                      "guid":  "94f5e50c15b2008459d51093ac535f73"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/MovementReader.cs",
+                      "guid":  "5e4c773ab5bd00f4682ae018f54f5b26"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/ProximitySonar.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/StatsWheel.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/TileReader.cs",
+                      "guid":  "9a99ebcfa95d9c641a95dacb397b7329"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/VitalsReadout.cs",
+                      "guid":  "454c097378c412242847af7cdeda5c61"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/WorldProgress.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Localization/Strings.cs",
+                      "guid":  "077fa1a364d88c6458e580e2007083ac"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/ActionWheel.cs",
+                      "guid":  "a3c3340bf08f0f748affbbbe32d769f9"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/BeaconGraph.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/BeaconObjects.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/BeaconStore.cs",
+                      "guid":  "b20ef2163d3ee884ea599c7976733ff7"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/DialogueLog.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/InventoryNavigator.cs",
+                      "guid":  "c9849104eac89b645a3aa6efbb463a7e"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/InventoryNavState.cs",
+                      "guid":  "766173deeb207ed4797514f70d5b5243"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/NetworkWeaver.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/SlotSection.cs",
+                      "guid":  "d84b8a81fefe2ea408a4be3b0dabaa7e"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/TeleportNavigator.cs",
+                      "guid":  "9ece7eab6b99461459038e7b244b4859"
+                  },
+                  {
+                      "path":  "Scripts/Patches/InGameTtsPatch.cs",
+                      "guid":  "c0b7525034714fb4593d8fcdf65de70a"
+                  },
+                  {
+                      "path":  "Scripts/Patches/MenuTtsPatch.cs",
+                      "guid":  "2fbb8f50690c34b489ac474727801222"
+                  },
+                  {
+                      "path":  "Scripts/Patches/NativeInputSuppressionPatch.cs",
+                      "guid":  "abab02380e54dd743a5ea7d8616c83e9"
+                  },
+                  {
+                      "path":  "Scripts/Patches/NavigationPatch.cs",
+                      "guid":  "1c41bc56ce74e8d4e9cb4094a130c586"
+                  },
+                  {
+                      "path":  "Scripts/Patches/TtsText.cs",
+                      "guid":  "5e11ce31708d4894f9cebe583028c722"
+                  },
+                  {
+                      "path":  "Scripts/Settings/A11ySettings.cs",
+                      "guid":  "2493c794d9bcf11428ba3beacb260157"
+                  },
+                  {
+                      "path":  "Scripts/Settings/SettingsMenu.cs",
+                      "guid":  "8163c06c77aa351429d7a2d7b7a274d9"
+                  },
+                  {
+                      "path":  "Conf/Localization/en.json",
+                      "guid":  "00e95a9194403bb4ab31b0e8347b7471"
+                  },
+                  {
+                      "path":  "Conf/Localization/fr.json",
+                      "guid":  "8b8ca4d740e17ae4fb9cd997c5c7e1dc"
+                  },
+                  {
+                      "path":  "Scripts/Generated/AggroSentinel__System_6326761670.g.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Generated/LaserCane__System_7936357450.g.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Generated/TileReader__System_10519468220.g.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Bundles/CoreKeeperAccess_Windows.assetbundle",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Bundles/CoreKeeperAccess_Windows.assetbundle.manifest",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Bundles/CoreKeeperAccess_Linux.assetbundle",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Bundles/CoreKeeperAccess_Linux.assetbundle.manifest",
+                      "guid":  ""
+                  }
+              ],
+    "dependencies":  [
+
+                     ]
 }

@@ -19,6 +19,12 @@ namespace CoreKeeperAccess.Navigation
         // non-slots, ex. les onglets de prereglage d'equipement en bas de l'equipement.
         public readonly List<UIelement> Slots = new List<UIelement>();
 
+        // Grille LOGIQUE en lignes (null sauf pour la section pochette) : une ligne =
+        // la barre des emplacements d'equipement de bourse (ligne 0), puis une ligne par
+        // bourse (son contenu). Gauche/droite = item dans la ligne, haut/bas = bourse.
+        // Quand non nul, la nav l'utilise au lieu de la grille par position.
+        public List<List<UIelement>> Rows;
+
         public string SectionName => Strings.L(NameKey);
     }
 
@@ -28,13 +34,14 @@ namespace CoreKeeperAccess.Navigation
 
         private static readonly string[] Order =
         {
-            "hotbar", "bag", "pouch", "equipment", "crafting", "chest", "trash", "other"
+            "hotbar", "bag", "pouch", "equipment", "buy", "sell", "crafting", "chest", "trash", "other"
         };
 
         private static readonly Dictionary<string, string> NameKeys = new Dictionary<string, string>
         {
             { "hotbar", "section.hotbar" }, { "bag", "section.bag" }, { "pouch", "section.pouch" },
-            { "equipment", "section.equipment" }, { "crafting", "section.crafting" },
+            { "equipment", "section.equipment" }, { "buy", "section.buy" }, { "sell", "section.sell" },
+            { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
             { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
             { "souls", "section.souls" }, { "stats", "section.stats" },
@@ -71,6 +78,7 @@ namespace CoreKeeperAccess.Navigation
                     .ThenBy(s => s.transform.position.x));
                 sections.Add(section);
             }
+            BuildPouchRows(sections);
             AppendEquipmentTabs(sections);
             // Fenetres de progression (sous-vues de characterWindow) : compétences,
             // arbre de talents de la competence ouverte, talents de familier. Ce sont
@@ -87,6 +95,74 @@ namespace CoreKeeperAccess.Navigation
             // sont pas des slots mais des StatTextUIElement, avec titres de section.
             AddStatsSection(sections);
             return sections;
+        }
+
+        // Reorganise la section pochette en lignes logiques (cf. SlotSection.Rows) :
+        // ligne 0 = les emplacements d'equipement de bourse (Pouch1-4, la "barre des
+        // bourses"), puis une ligne par bourse = son contenu, groupe par conteneur. Les
+        // Slots a plat sont reconstruits dans l'ordre des lignes pour le reste de la nav.
+        private static void BuildPouchRows(List<SlotSection> sections)
+        {
+            var pouch = sections.Find(s => s.Kind == "pouch");
+            if (pouch == null || pouch.Slots.Count == 0) return;
+            var pinv = Manager.ui != null ? Manager.ui.playerInventoryUI as InventoryUI : null;
+            if (pinv == null) return;
+            var player = Manager.main != null ? Manager.main.player : null;
+            var eh = player != null ? player.equipmentHandler : null;
+
+            // Ligne 0 : les emplacements d'equipement de bourse (Pouch1-4), deja captes
+            // dans la section, ordonnes de gauche a droite.
+            var equip = new List<UIelement>();
+            foreach (var e in pouch.Slots)
+            {
+                var s = e as SlotUIBase;
+                if (s == null) continue;
+                var t = s.slotType;
+                if (t == ItemSlotsUIType.Pouch1 || t == ItemSlotsUIType.Pouch2
+                    || t == ItemSlotsUIType.Pouch3 || t == ItemSlotsUIType.Pouch4)
+                    equip.Add(s);
+            }
+
+            var rows = new List<List<UIelement>>();
+            if (equip.Count > 0)
+            {
+                equip.Sort((a, b) => a.transform.position.x.CompareTo(b.transform.position.x));
+                rows.Add(equip);
+            }
+            // Une ligne par bourse : on lit directement les conteneurs dedies du jeu
+            // (pouchSlotsContainers, un par bourse equipee), dans leur ordre naturel. On
+            // n'EXCLUT PAS les slots inactifs : le jeu n'active le contenu d'une bourse que
+            // lorsqu'on la regarde, donc filtrer sur activeInHierarchy ne montrerait que la
+            // bourse couramment visitee. Lecture et interaction passent par le handler du
+            // slot (pas par son etat UI), donc l'inactivite ne gene pas.
+            if (pinv.pouchSlotsContainers != null)
+                for (int k = 0; k < pinv.pouchSlotsContainers.Count; k++)
+                {
+                    // Bourse non equipee : son handler a une taille nulle. Le conteneur UI
+                    // peut persister apres deséquipement -> on saute la ligne, sinon une
+                    // bourse retiree resterait affichee. (Index k aligne sur le handler k,
+                    // comme le fait le jeu dans ItemSlotsBarUI.)
+                    int size = (eh != null && eh.pouchInventorySlotsHandlers != null
+                        && k < eh.pouchInventorySlotsHandlers.Length)
+                        ? eh.pouchInventorySlotsHandlers[k].size : 0;
+                    if (size == 0) continue; // bourse non equipee (conteneur UI persistant)
+                    var container = pinv.pouchSlotsContainers[k];
+                    if (container == null || container.itemSlots == null) continue;
+                    var row = new List<UIelement>();
+                    foreach (var s in container.itemSlots)
+                    {
+                        if (s != null) row.Add(s);
+                        if (row.Count >= size) break; // borner a la taille reelle : le jeu
+                        // pre-instancie le MAX de slots (10), la bourse n'en utilise que size.
+                    }
+                    if (row.Count > 0) rows.Add(row);
+                }
+            if (rows.Count == 0) return;
+
+            pouch.Rows = rows;
+            pouch.IsList = false;
+            pouch.Slots.Clear();
+            foreach (var row in rows) pouch.Slots.AddRange(row);
         }
 
         // Titre de section associe a chaque ligne de stat navigable (pour prefixer
@@ -236,6 +312,10 @@ namespace CoreKeeperAccess.Navigation
                 case ItemSlotsUIType.BreastVanitySlot:
                 case ItemSlotsUIType.PantsVanitySlot:
                     return "equipment";
+                case ItemSlotsUIType.BuySlot:
+                    return "buy";
+                case ItemSlotsUIType.PlayerSellSlot:
+                    return "sell";
                 case ItemSlotsUIType.RecipeSlot:
                 case ItemSlotsUIType.MaterialSlot:
                 case ItemSlotsUIType.OutputSlot:
@@ -255,6 +335,13 @@ namespace CoreKeeperAccess.Navigation
         // (le nom de la recette tient lieu de libelle).
         public static string RoleLabel(SlotSection section, UIelement element, int indexInSection)
         {
+            // Station de transformation (four / fonderie / chaudron) : etiqueter le slot
+            // entree / sortie (+ etat de transformation sur la sortie), independamment de
+            // la section. Le role s'affiche MEME si le slot est vide -> on sait ou deposer
+            // le minerai et ou recuperer le resultat.
+            string craftRole = CraftStationRole(element);
+            if (craftRole != null) return craftRole;
+
             if (section.Kind == "equipment")
             {
                 // Slot d'equipement -> nom du role ; onglet de preset -> rien (son
@@ -262,11 +349,117 @@ namespace CoreKeeperAccess.Navigation
                 var slot = element as SlotUIBase;
                 return slot != null ? Strings.L(EquipKey(slot.slotType)) : null;
             }
+            // Pochette en lignes : numero de colonne (position dans la bourse / la barre).
+            if (section.Kind == "pouch" && section.Rows != null)
+            {
+                int col = ColOf(section, element);
+                return col >= 0 ? (col + 1).ToString() : null;
+            }
             if (section.Kind == "crafting" || section.Kind == "trash"
                 || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents"
                 || section.Kind == "souls" || section.Kind == "stats")
                 return null;
             return (indexInSection + 1).ToString();
+        }
+
+        private static System.Reflection.FieldInfo _outIdxField;
+
+        // Role "entree" / "sortie" d'un slot de station de transformation (four, fonderie,
+        // chaudron). La sortie porte en plus l'etat ("en cours 60%" / "en pause") lu sur le
+        // CraftingHandler actif. Renvoie null pour tout slot qui n'est pas un I/O de station
+        // (sac, recettes d'un etabli simple, equipement...). Defensif : aucune exception ne
+        // doit casser l'annonce d'un slot ordinaire.
+        private static string CraftStationRole(UIelement element)
+        {
+            var slot = element as InventorySlotUI;
+            if (slot == null) return null;
+            var player = Manager.main != null ? Manager.main.player : null;
+            var handler = player != null ? player.activeCraftingHandler : null;
+            if (handler == null) return null;
+
+            // Slot de SORTIE : OutputSlotUI (resultat) ou InventoryProgressSlotUI (timer).
+            if (slot is OutputSlotUI || slot is InventoryProgressSlotUI)
+            {
+                string outp = Strings.L("craft.output");
+                try
+                {
+                    int ci = CraftSlotIndex(slot);
+                    if (handler.HasStartedCrafting(ci))
+                    {
+                        if (handler.IsCrafting(ci))
+                        {
+                            int pct = Mathf.Clamp(Mathf.RoundToInt(handler.GetNormalizedElapsedCraftingTime(ci) * 100f), 0, 100);
+                            return outp + ", " + Strings.L("craft.processing") + " " + pct + "%";
+                        }
+                        return outp + ", " + Strings.L("craft.paused");
+                    }
+                }
+                catch { }
+                return outp;
+            }
+
+            // Slot d'ENTREE : appartient a l'inventaire PROPRE de la station (distinct du sac
+            // du joueur -> exclut l'etabli simple, qui pioche dans le sac), et n'est pas une
+            // recette.
+            try
+            {
+                if (!(slot is RecipeSlotUI)
+                    && handler.inventoryHandler != null
+                    && player.playerInventoryHandler != handler.inventoryHandler
+                    && slot.GetInventoryHandler() == handler.inventoryHandler)
+                    return Strings.L("craft.input");
+            }
+            catch { }
+            return null;
+        }
+
+        // Index de craft a interroger sur le CraftingHandler. InventoryProgressSlotUI suit
+        // son inventorySlotIndex (public) ; OutputSlotUI a un champ prive dedie
+        // (outputForCraftingSlotIndex) -> reflection, fallback sur l'index public.
+        private static int CraftSlotIndex(InventorySlotUI slot)
+        {
+            if (slot is OutputSlotUI)
+            {
+                try
+                {
+                    if (_outIdxField == null)
+                        _outIdxField = typeof(OutputSlotUI).GetField("outputForCraftingSlotIndex",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (_outIdxField != null) return (int)_outIdxField.GetValue(slot);
+                }
+                catch { }
+            }
+            return slot.inventorySlotIndex;
+        }
+
+        // Indice de ligne (= bourse) de l'element dans une section a Rows, ou -1.
+        public static int RowOf(SlotSection section, UIelement element)
+        {
+            if (section.Rows == null || element == null) return -1;
+            for (int i = 0; i < section.Rows.Count; i++)
+                if (section.Rows[i].Contains(element)) return i;
+            return -1;
+        }
+
+        // Indice de colonne (position dans la ligne) de l'element, ou -1.
+        private static int ColOf(SlotSection section, UIelement element)
+        {
+            if (section.Rows == null || element == null) return -1;
+            foreach (var row in section.Rows)
+            {
+                int c = row.IndexOf(element);
+                if (c >= 0) return c;
+            }
+            return -1;
+        }
+
+        // Libelle d'une ligne de la pochette : ligne 0 = la barre des emplacements
+        // d'equipement, lignes suivantes = "Bourse N". Annonce au changement de ligne.
+        public static string RowLabel(SlotSection section, int rowIndex)
+        {
+            if (section.Rows == null || rowIndex < 0 || rowIndex >= section.Rows.Count) return null;
+            if (rowIndex == 0) return Strings.L("pouch.equip");
+            return Strings.L("pouch.bag") + " " + rowIndex;
         }
 
         private static string EquipKey(ItemSlotsUIType t)

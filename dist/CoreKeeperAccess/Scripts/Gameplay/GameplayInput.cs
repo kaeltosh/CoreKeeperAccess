@@ -1,10 +1,14 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
 using Interaction;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Gameplay
@@ -37,8 +41,8 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _prospectPending;
         private static int _prospectRadius;
 
-        private static bool StationOpen
-            => Manager.ui != null && Manager.ui.isSalvageAndRepairUIShowing;
+        private static bool StationOpen => InputContext.StationOpen;
+        private static bool ForgeOpen => InputContext.ForgeOpen;
 
         // Combos de GAMEPLAY (hors nav inventaire, hors menus) consommes ici :
         // Triangle + gauche = prospection minerai. Appele chaque frame apres InfoKey.
@@ -50,28 +54,42 @@ namespace CoreKeeperAccess.Gameplay
             // Centre de l'index d'objets (TileReaderSystem le reconstruit autour).
             ObjectIndex.Center = new float2(player.WorldPosition.x, player.WorldPosition.z);
 
-            bool uiBusy = InventoryNavState.SuppressNativeInput
-                          || (Manager.menu != null && Manager.menu.IsAnyMenuActive());
-            if (!uiBusy && InfoKey.ComboLeft) RequestProspect(player);
+            // Tisse le reseau de navigation (torches -> noeuds, trajets -> aretes). Apres la
+            // publication du centre : l'index est alimente pour la meme position de joueur.
+            BeaconTracker.Tick(player);
+            BeaconGuide.Tick(player); // guidage a l'oreille vers un noeud (si le mode est actif)
 
-            // Triangle + L1 = ping sonar (photo sonore de l'environnement). Jeu normal
-            // seulement, comme le laser : pas en inventaire / fiche perso / carte (sur
-            // la carte, les bumpers naviguent deja les categories de POI).
-            bool inGame = !uiBusy && Manager.ui != null
-                          && !Manager.ui.isAnyInventoryShowing
-                          && !(Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                          && !Manager.ui.isShowingMap;
-            if (inGame && InfoKey.ComboLB) PingSonar.Trigger(player);
-            PingSonar.Tick(player);
-
-            // Double-tap Triangle = ouvrir/fermer la CARTE : on rejoue l'action native
-            // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
-            // jeu fait le reste (toggle, fermeture au B aussi). La nav de carte
-            // (TeleportNavigator) prend la main une fois la carte ouverte.
-            if (!uiBusy && InfoKey.DoubleTapped)
+            // Recalcul local du reseau (tranche C) : reponse du systeme -> on annonce le
+            // nombre d'aretes ajoutees par le tissage en ligne de vue.
+            if (NetworkRecalc.ResultValid)
             {
-                InventoryNavState.ArmedInput = PlayerInput.InputType.TOGGLE_MAP;
-                InventoryNavState.ArmedTtl = 2;
+                NetworkRecalc.ResultValid = false;
+                string msg = Strings.L("netrecalc.done") + ", "
+                    + NetworkRecalc.AddedEdges + " " + Strings.L("netrecalc.links");
+                if (NetworkRecalc.RemovedEdges > 0)
+                    msg += ", " + NetworkRecalc.RemovedEdges + " " + Strings.L("netrecalc.removed");
+                if (NetworkRecalc.LostNodes > 0)
+                    msg += ", " + NetworkRecalc.LostNodes + " " + Strings.L("netrecalc.lost");
+                TtsText.Say(msg, true);
+            }
+
+            // Les combos (prospection, ping sonar, double-tap carte) sont routes par
+            // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
+            PingSonar.Tick(player);
+            StepEngine.Tick(player);
+            ProximitySonar.Tick(player);
+            PlacementReader.Tick(player);
+            StatsWheel.Tick(player);
+
+            // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
+            // (BuildModeNavigator pose FootprintDueAt), annonce apres un petit delai - le
+            // temps que le ghost rattrape le curseur (sinon ca oscille), et UNIQUEMENT sur
+            // geste -> n'interrompt plus les autres TTS en continu.
+            if (BuildModeNavigator.FootprintDueAt > 0f && Time.unscaledTime >= BuildModeNavigator.FootprintDueAt)
+            {
+                BuildModeNavigator.FootprintDueAt = -1f;
+                string fp = InGameTtsCore.FootprintFromCursor(BuildModeNavigator.CursorTile);
+                if (!string.IsNullOrEmpty(fp)) TtsText.Say(fp, true);
             }
 
             TickProspect(player);
@@ -85,7 +103,7 @@ namespace CoreKeeperAccess.Gameplay
         // faire quelque chose et sur quoi. Regle le "il faut etre au bon endroit" des
         // objets multi-cases (statues, Core...). Sortie de portee : silence.
         private const float InteractPollInterval = 0.2f;
-        private static int _lastInteractable;
+        private static long _lastInteractable;
         private static float _nextInteractPoll;
 
         private static void WatchInteractable(PlayerController player)
@@ -93,7 +111,7 @@ namespace CoreKeeperAccess.Gameplay
             if (Time.unscaledTime < _nextInteractPoll) return;
             _nextInteractPoll = Time.unscaledTime + InteractPollInterval;
 
-            int key = 0;
+            long key = 0;
             ObjectID id = ObjectID.None;
             try
             {
@@ -103,10 +121,10 @@ namespace CoreKeeperAccess.Gameplay
                 if (e != Entity.Null && EntityUtility.HasComponentData<ObjectDataCD>(e, player.world))
                 {
                     id = EntityUtility.GetComponentData<ObjectDataCD>(e, player.world).objectID;
-                    key = e.Index;
+                    key = EntityKey.Of(e);
                 }
             }
-            catch { return; }
+            catch (System.Exception ex) { Diag.Error("A11yInteractDiag", ex); return; }
 
             if (key == _lastInteractable) return;
             _lastInteractable = key;
@@ -122,7 +140,7 @@ namespace CoreKeeperAccess.Gameplay
         // Pose la demande de scan : rayon = stat VisibleOreDistance du perso, la MEME
         // que le shader des paillettes (equite stricte : les talents de minage et
         // objets qui l'augmentent portent aussi notre prospection).
-        private static void RequestProspect(PlayerController player)
+        internal static void RequestProspect(PlayerController player)
         {
             int bonus = 0;
             try
@@ -232,6 +250,92 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(Strings.L("salvage.done"), true);
         }
 
+        // Forge d'amelioration (1 slot) : on depose un objet, ce combo l'ameliore d'un
+        // niveau. Comme la reparation, le gros bouton visuel ne fait que basculer un mode
+        // souris -> on appelle directement le canal officiel UpgradeForgeUI.Upgrade(). Refus
+        // parlant si slot vide / niveau max / materiaux insuffisants (le bouton expose son
+        // eligibilite via ShouldBeActive() et le cout via GetRequiredMaterials()).
+        public static void UpgradeForgeAction()
+        {
+            if (!ForgeOpen) return; // contextuel : muet sans forge
+            var player = Manager.main != null ? Manager.main.player : null;
+            var forge = FindForge();
+            if (player == null || forge == null || forge.button == null) return;
+
+            var data = forge.GetInventoryHandler().GetObjectData(0);
+            if (data.objectID == ObjectID.None)
+            {
+                TtsText.Say(Strings.L("forge.empty"), true);
+                return;
+            }
+            // GetRequiredMaterials renvoie null si l'objet est au niveau max (ou non
+            // ameliorable) ; sinon ShouldBeActive distingue "pas assez de materiaux".
+            List<PugDatabase.MaterialInfo> mats = null;
+            try { mats = forge.button.GetRequiredMaterials(false, false); }
+            catch { }
+            if (mats == null)
+            {
+                TtsText.Say(Strings.L("forge.maxed"), true);
+                return;
+            }
+            if (!forge.button.ShouldBeActive())
+            {
+                TtsText.Say(Strings.L("forge.noMaterials"), true);
+                return;
+            }
+
+            forge.Upgrade();
+            TtsText.Say(Strings.L("forge.done"), true);
+        }
+
+        // Volet "forge" du combo details (Triangle + haut) : cout d'amelioration de l'objet
+        // depose (materiaux requis pour passer au niveau suivant). Null hors forge / slot
+        // vide / niveau max. La forge n'a qu'un slot, le cout ne depend pas de l'element
+        // focalise -> on lit directement le bouton (meme source que l'infobulle native).
+        public static string BuildForgeDetail()
+        {
+            if (!ForgeOpen) return null;
+            var forge = FindForge();
+            if (forge == null || forge.button == null) return null;
+
+            List<PugDatabase.MaterialInfo> mats = null;
+            try { mats = forge.button.GetRequiredMaterials(false, false); }
+            catch { }
+            if (mats == null || mats.Count == 0) return null;
+
+            var items = new List<string>();
+            foreach (var m in mats)
+            {
+                if (m == null) continue;
+                string nom = InGameTtsCore.ResolveObjectName(m.objectID);
+                if (!string.IsNullOrEmpty(nom)) items.Add(m.amountNeeded + " " + nom);
+            }
+            if (items.Count == 0) return null;
+            return Strings.L("forge.cost") + " " + string.Join(", ", items);
+        }
+
+        // "Tout vendre" (Triangle + gauche quand un marchand est ouvert) : encaisse tout
+        // ce qui est depose dans les emplacements de vente via le canal serveur officiel
+        // SellAll (memes gardes et sons natifs que le bouton Vendre du jeu). Annonce le
+        // total encaisse, ou un refus parlant si les emplacements de vente sont vides.
+        public static void SellAllToMerchant()
+        {
+            var ui = Manager.ui;
+            if (ui == null || !ui.isSellUIShowing) return; // contextuel : muet hors vente
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null || player.sellSlotsHandler == null) return;
+
+            var handler = player.sellSlotsHandler.sellSlotsInventoryHandler;
+            int total = handler.GetCoinValueAll(player, false);
+            if (total <= 0)
+            {
+                TtsText.Say(Strings.L("merchant.sellNothing"), true);
+                return;
+            }
+            handler.SellAll(player, player.RenderPosition);
+            TtsText.Say(Strings.L("merchant.sold") + " " + total + " " + Strings.L("merchant.coins"), true);
+        }
+
         // Volet "station" du combo details (Triangle + haut) : cout de reparation de
         // l'objet selectionne (meme source que l'infobulle native du mode reparation)
         // + gain de recyclage estime. Null si pas de station ouverte / pas d'objet.
@@ -320,6 +424,15 @@ namespace CoreKeeperAccess.Gameplay
                 if (s != null && s.isShowing) return s;
             return null;
         }
+
+        // La forge d'amelioration ouverte, sinon null. Recherche a l'appui du combo.
+        private static UpgradeForgeUI FindForge()
+        {
+            var forges = Object.FindObjectsByType<UpgradeForgeUI>(FindObjectsSortMode.None);
+            foreach (var f in forges)
+                if (f != null && f.isShowing) return f;
+            return null;
+        }
     }
 
     // Ping sonar (Triangle + L1) : la "photo sonore" de l'environnement - le coup d'oeil
@@ -393,11 +506,10 @@ namespace CoreKeeperAccess.Gameplay
             {
                 var b = _salvo[_next++];
                 float2 d = b.Pos - new float2(player.WorldPosition.x, player.WorldPosition.z);
-                var cam = Manager.camera != null ? Manager.camera.gameCamera : null;
-                float halfW = cam != null ? cam.orthographicSize * cam.aspect : 0f;
-                float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+                float pan = GameplayAudio.PanFromTiles(d.x);
                 float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
-                GameplayAudio.PlaySpatial(b.Sfx, pan, pitch, b.Volume);
+                GameplayAudio.PlaySpatial(b.Sfx, pan, pitch,
+                    b.Volume * GameplayAudio.DistanceTrim(math.length(d)));
                 _nextTime = Time.unscaledTime + SlotInterval;
             }
         }
@@ -463,5 +575,253 @@ namespace CoreKeeperAccess.Gameplay
             || id == ObjectID.DiggingSpotDesert
             || id == ObjectID.DiggingSpotLava
             || id == ObjectID.DiggingSpotExcavation;
+    }
+
+    // Moteur de pas PARTAGE : une seule horloge de locomotion. Detecte le franchissement
+    // de case (RoundToInt sur la position monde) et dispatche aux COUCHES de feedback
+    // activees independamment dans A11ySettings. Aujourd'hui une couche (le bip de pas) ;
+    // le sonar d'interstices viendra se brancher ici (etage 2). Appele chaque frame depuis
+    // GameplayInput.Tick - il tourne en PERMANENCE (meme couches eteintes) pour garder la
+    // case courante fraiche : rallumer une couche en pleine marche ne rejoue pas un delta
+    // perime.
+    internal static class StepEngine
+    {
+        private static int _cx, _cz;
+        private static bool _hasCell;
+
+        public static void Tick(PlayerController player)
+        {
+            if (player == null) { _hasCell = false; return; }
+            Vector3 pos = player.WorldPosition;
+            int cx = Mathf.RoundToInt(pos.x), cz = Mathf.RoundToInt(pos.z);
+            if (!_hasCell) { _cx = cx; _cz = cz; _hasCell = true; return; }
+            if (cx == _cx && cz == _cz) return;
+
+            int dx = cx - _cx, dz = cz - _cz;
+            _cx = cx; _cz = cz;
+
+            // Couches togglables, allumees separement (cf. A11ySettings).
+            if (A11ySettings.StepBeep) StepBeep.OnStep(dx, dz);
+            // (Etage 2 : le sonar d'interstices se branchera ici.)
+        }
+    }
+
+    // Couche 0 : bip de pas (la "boussole de locomotion"). Un petit bip par case franchie
+    // encode la direction du deplacement - pan est/ouest, pitch nord/sud (langage du
+    // curseur) -> confirme le cap ET compte les cases a l'oreille. DECOUPLE du snap
+    // construction (DirectionAssist) le 16 juin : c'est un feedback PERMANENT (actif par
+    // defaut, regle au panneau), la ou le snap est un outil PONCTUEL. Diagonale en marche
+    // libre : arrondie au cardinal dominant (comme avant, ou le snap forcait le cardinal).
+    internal static class StepBeep
+    {
+        private const float NorthPitch = 1.5f;   // nord = plus aigu
+        private const float SouthPitch = 0.67f;  // sud = plus grave (est/ouest = neutre 1.0)
+
+        public static void OnStep(int dx, int dz)
+        {
+            float pan, pitch;
+            if (Mathf.Abs(dx) >= Mathf.Abs(dz)) { pan = dx >= 0 ? 1f : -1f; pitch = 1f; }   // est / ouest
+            else { pan = 0f; pitch = dz > 0 ? NorthPitch : SouthPitch; }                    // nord / sud
+            GameplayAudio.PlayTone(pan, pitch, A11ySettings.DirectionTickVolume);
+        }
+    }
+
+    // Snap directionnel (toggle Triangle + L3). Tant qu'il est actif, le deplacement au
+    // stick gauche est SNAPPE au cardinal dominant (la composante perpendiculaire est
+    // annulee, cf. DirectionSnapSystem) -> lignes droites franches sans deviation, pour
+    // poser des murs / labourer / semer en rangs. On ne touche NI a la pose NI a la
+    // vitesse : le joueur tient LT et marche, le jeu pose ; on rectifie juste le cap.
+    // DECOUPLE du bip de pas (StepBeep) le 16 juin : deux toggles independants.
+    internal static class DirectionAssist
+    {
+        // Etat persiste dans A11ySettings : Triangle+L3 ET le panneau de reglages pilotent
+        // la meme source de verite (le snap est donc reactive tel quel au relancement).
+        public static bool Active
+        {
+            get => A11ySettings.SnapDirectional;
+            set => A11ySettings.SnapDirectional = value;
+        }
+
+        // Bascule le snap + annonce l'etat.
+        public static void Toggle()
+        {
+            Active = !Active;
+            TtsText.Say(Strings.L(Active ? "direction.assist.on" : "direction.assist.off"), true);
+        }
+    }
+
+    // Snappe la marche au cardinal quand DirectionAssist est actif. Tourne APRES
+    // SendClientInputSystem (qui vient d'ecrire movementDirection depuis le stick) :
+    // on lit cette direction, on annule la composante perpendiculaire (la dominante
+    // garde sa magnitude = vitesse analogique preservee), on reecrit. Cede au
+    // point-and-click (MoveCommand) pour ne pas se marcher dessus. Meme pont ECS que
+    // PlayerMoveToSystem (cf. BuildModeNavigator).
+    [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(RunSimulationSystemGroup), OrderLast = true)]
+    [UpdateAfter(typeof(SendClientInputSystem))]
+    public partial class DirectionSnapSystem : SystemBase
+    {
+        private const float SnapDeadzone = 0.1f;
+        private EntityQuery _query;
+
+        protected override void OnCreate()
+        {
+            _query = GetEntityQuery(
+                ComponentType.ReadWrite<ClientInputData>(),
+                ComponentType.ReadOnly<GhostOwnerIsLocal>());
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!DirectionAssist.Active || MoveCommand.Active) return;
+            var entities = _query.ToEntityArray(Allocator.Temp);
+            try
+            {
+                if (entities.Length == 0) return;
+                Entity e = entities[0];
+                ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
+                ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
+
+                float2 m = ci.movementDirection;
+                if (math.length(m) > SnapDeadzone)
+                {
+                    if (math.abs(m.x) >= math.abs(m.y)) m.y = 0f;   // est-ouest domine
+                    else m.x = 0f;                                  // nord-sud domine
+                    ci.movementDirection = m;
+                    data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
+                    EntityManager.SetComponentData(e, data);
+                }
+            }
+            finally { entities.Dispose(); }
+        }
+    }
+
+    // Gel de la marche pendant la touche access (Triangle tenu). Le stick gauche pilote
+    // alors la roue de stats (cf. StatsWheel) au lieu de deplacer le perso : on annule
+    // movementDirection tant que Triangle est tenu. Meme pont ECS que DirectionSnapSystem
+    // (apres SendClientInputSystem, qui vient d'ecrire le mouvement depuis le stick).
+    [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
+    [UpdateInGroup(typeof(RunSimulationSystemGroup), OrderLast = true)]
+    [UpdateAfter(typeof(SendClientInputSystem))]
+    public partial class AccessKeyMovementLockSystem : SystemBase
+    {
+        private EntityQuery _query;
+
+        protected override void OnCreate()
+        {
+            _query = GetEntityQuery(
+                ComponentType.ReadWrite<ClientInputData>(),
+                ComponentType.ReadOnly<GhostOwnerIsLocal>());
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+            var entities = _query.ToEntityArray(Allocator.Temp);
+            try
+            {
+                if (entities.Length == 0) return;
+                Entity e = entities[0];
+                ClientInputData data = EntityManager.GetComponentData<ClientInputData>(e);
+                ClientInput ci = UnsafeUtility.As<ClientInputData, ClientInput>(ref data);
+                if (math.lengthsq(ci.movementDirection) > 0f)
+                {
+                    ci.movementDirection = float2.zero;
+                    data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
+                    EntityManager.SetComponentData(e, data);
+                }
+            }
+            finally { entities.Dispose(); }
+        }
+    }
+
+    // Lecture du PLACEMENT pour les objets en main (pose v1, 13 juin). Surveille le
+    // PlacementCD du joueur (l'etat que le jeu calcule pour le fantome de pose) :
+    //  - rotation (rotationVariationToPlace) change -> annonce le cap ("face nord") ;
+    //  - validite (canPlaceObject = ghost bleu/rouge) passe a INVALIDE -> earcon de refus
+    //    (PAS de TTS : le ghost oscille en balayant, on ne sature pas la voix).
+    // La TAILLE de l'emprise est annoncee a la selection hotbar (HeldItemAnnouncePatch).
+    // Le joueur se replace lui-meme : on donne l'info qui manque, pas un assistant.
+    internal static class PlacementReader
+    {
+        private const float Poll = 0.15f;
+        private const SfxID InvalidSfx = SfxID.menu_denied; // placeholder (choix utilisateur)
+        private const float InvalidVolume = 0.3f;
+
+        private static float _next;
+        private static ObjectID _lastObjId = ObjectID.None;
+        private static int _lastRot = -1;
+        private static int _lastSize = -1;
+        private static bool _lastValid = true;
+        private static bool _primed;
+
+        public static void Tick(PlayerController player)
+        {
+            if (player == null) { _primed = false; return; }
+            if (Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + Poll;
+
+            ObjectDataCD held;
+            try { held = player.GetHeldObject(); } catch { _primed = false; return; }
+            if (held.objectID == ObjectID.None) { _primed = false; return; }
+
+            // Changement d'objet en main : on re-amorce sans annoncer (le nom + la taille
+            // partent par HeldItemAnnouncePatch).
+            if (held.objectID != _lastObjId) { _primed = false; _lastObjId = held.objectID; }
+
+            PlacementCD pc;
+            try
+            {
+                if (!EntityUtility.HasComponentData<PlacementCD>(player.entity, player.world)) { _primed = false; return; }
+                pc = EntityUtility.GetComponentData<PlacementCD>(player.entity, player.world);
+            }
+            catch { _primed = false; return; }
+
+            // Cran de zone courant pour les outils a zone reglable (le Rotate cycle la
+            // ZONE, pas la rotation, donc rotationVariationToPlace ne bouge pas) -> on
+            // surveille EquippedObjectVisualCD.sizeVariationToPlace separement.
+            int sizeVar = -1;
+            try
+            {
+                if (EntityUtility.HasComponentData<EquippedObjectVisualCD>(player.entity, player.world))
+                    sizeVar = EntityUtility.GetComponentData<EquippedObjectVisualCD>(player.entity, player.world).sizeVariationToPlace;
+            }
+            catch { }
+
+            if (_primed)
+            {
+                if (pc.rotationVariationToPlace != _lastRot)
+                {
+                    int2 dir = DirectionBasedOnVariationCD.GetDirectionFromVariation(pc.rotationVariationToPlace, false);
+                    TtsText.Say(Strings.L("place.facing") + " " + Cardinal4(dir), true);
+                }
+                // Zone d'outil cyclee au Rotate -> annonce "zone 3x3" (null = pas un outil
+                // a zone reglable, donc muet pour les meubles).
+                if (sizeVar != _lastSize && _lastSize >= 0)
+                {
+                    string zone = InGameTtsCore.ToolZoneLabel(player);
+                    if (!string.IsNullOrEmpty(zone)) TtsText.Say(zone, true);
+                }
+                if (_lastValid && !pc.canPlaceObject)
+                    GameplayAudio.PlaySpatial(InvalidSfx, 0f, 1f, InvalidVolume);
+            }
+
+            _lastRot = pc.rotationVariationToPlace;
+            _lastSize = sizeVar;
+            _lastValid = pc.canPlaceObject;
+            _primed = true;
+        }
+
+        // Cap cardinal (4) d'une direction de variation (x=est, y=nord). Repere CONFIRME
+        // par decompil de DirectionBasedOnVariationCD.GetDirectionFromVariation
+        // (Pug.ECS.Components) : variation 0=(0,1) nord, 1=(1,0) est, 2=(0,-1) sud,
+        // 3=(-1,0) ouest -> Rotate cycle horaire N->E->S->O.
+        private static string Cardinal4(int2 d)
+        {
+            if (d.y > 0) return Strings.L("dir.n");
+            if (d.y < 0) return Strings.L("dir.s");
+            if (d.x > 0) return Strings.L("dir.e");
+            return Strings.L("dir.w");
+        }
     }
 }

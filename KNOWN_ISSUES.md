@@ -2,27 +2,24 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of alpha 1 (build 54). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of alpha 2 (build 1). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 ## Known bugs
 
 - **A generator placed on top of an ancient wire is silent to the tile cursor.** The indestructible wire network found in the Core ruins masks the object placed on it (two passive objects, the wire's collider wins). The generator works fine; the cursor just won't name it.
 - **Notable floor tiles are sometimes announced in raw English** (internal tile name), whatever the game language. Rare: standard ground is silent by design, only special floors are affected.
-- **Souls tab: the activate/deactivate toggle (Cross) is untested.** The tab navigation itself is implemented, but it could not be verified in-game yet (souls not unlocked on the test save). The state change is also not re-announced after toggling.
 
 ## Current limitations
 
 - **Item names are only spoken on the first pickup of each type.** That is native game behavior (later pickups only update a silent visual counter). A future version may hook the actual inventory insert.
 - **Light and darkness are not perceived.** Real-time lighting is shader-rendered and unreadable by the mod. Planned approach: reading light *sources* (torches as audio beacons) instead of the rendered light.
 - **No assistance to return to your place of death.** In non-Casual modes your inventory drops where you died, and nothing guides you back to it — hence the strong recommendation to play Casual (character and world), see the README.
-- **Multiplayer is untested.** The mod is client-side; test in single player.
 - **The character appearance screen (body, skin, hair…) is not adapted.** It is purely cosmetic carousel selectors; pick nothing and validate directly if you don't care about looks.
 - **Name input requires a physical keyboard.** There is no accessible on-screen keyboard for gamepad-only setups.
 
 ## Not covered yet (planned)
 
-- **Advanced automation** (drills, conveyor belts, robot arms, electricity network): planned as a dedicated milestone.
-- **Torch-based audio beacons** ("breadcrumb trail" you place yourself and follow by ear): designed, not built.
+- **Active control of advanced automation** (placing and configuring drills, conveyor belts, robot arms, the electricity network through their menus): reading them at the cursor is in (see the cursor reading entry above), but driving them is planned as a dedicated milestone.
 - **In-game control remapping screen.**
 
 ## Good to know (by design)

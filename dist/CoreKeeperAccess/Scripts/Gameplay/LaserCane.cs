@@ -1,3 +1,4 @@
+using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Patches;
 using PugTilemap;
 using Unity.Collections;
@@ -26,14 +27,15 @@ namespace CoreKeeperAccess.Gameplay
     {
         private const float StickDeadzone = 0.25f;          // deadzone stick droit
 
-        // Cadence de rappel du bip ennemi tant qu'une cible reste dans le faisceau (un ennemi
-        // immobile ne ferait sinon qu'un seul bip puis silence). A regler a l'oreille.
-        private const float EnemyBeepInterval = 0.4f;
+        // Cadence de rappel du bip ennemi tant qu'une cible reste dans le faisceau. Volontairement
+        // RAPIDE : ce son est un signal d'ALIGNEMENT (le rayon est sur l'ennemi -> mon tir part
+        // dessus, je peux frapper), pas une simple presence. A cadence serree il devient quasi
+        // tenu -> ca crepite vite = t'es dessus, ca s'arrete = t'as glisse. C'est le "viseur".
+        private const float EnemyBeepInterval = 0.13f;
 
-        // Placeholder : l'utilisateur choisira le vrai son ennemi ensuite. proximity_sensor_set
-        // = un son de detection, plausible en attendant.
+        // Son ennemi du laser. proximity_sensor_set = DEFINITIF (decision utilisateur).
         private const SfxID EnemySfxPlaceholder = SfxID.proximity_sensor_set;
-        private const float EnemyVolume = 0.5f; // a regler a l'oreille
+        private const float EnemyVolume = 0.8f; // a regler a l'oreille
 
         // Cibles NON hostiles sur le trajet (creatures passives : insectes, chevres,
         // slimes dormants... / objets poses : champignons, drops, meubles). Un son par
@@ -54,7 +56,7 @@ namespace CoreKeeperAccess.Gameplay
         private static readonly int2 NoImpact = new int2(int.MinValue, int.MinValue);
         private static int2 _lastImpact = NoImpact;
         private static int2 _lastSpecial = NoImpact;
-        private static int _lastEnemyKey;
+        private static long _lastEnemyKey;
         private static float _nextEnemyBeep;
         private static long _lastPassiveKey;
         private static float _nextPassiveBeep;
@@ -69,10 +71,7 @@ namespace CoreKeeperAccess.Gameplay
             if (PingSonar.Silencing) return;
 
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
-            if (Manager.ui.isAnyInventoryShowing
-                || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                || Manager.ui.isShowingMap)
-            { Reset(); return; }
+            if (!InputContext.InGameFree) { Reset(); return; }
 
             var input = player.inputModule;
             if (input == null) { Reset(); return; }
@@ -189,11 +188,50 @@ namespace CoreKeeperAccess.Gameplay
                     _lastPassiveKey = 0;
                 }
             }
+
+            // Focus mortier : si un mortier est equipe et qu'un ennemi est dans le
+            // faisceau, on cale le viseur du jeu dessus (placement instantane cote patch).
+            UpdateMortarFocus(player);
+        }
+
+        // Cale le viseur du mortier sur l'ennemi vise par le laser. N'a de sens que si un
+        // mortier est equipe ; sinon (autre arme / pas d'ennemi) on relache et le jeu reprend
+        // sa visee normale. Le placement INSTANTANE se fait cote patch (mode souris + point
+        // pose sur l'ennemi) : la visee manette classique rampe a vitesse finie (offset
+        // integre dans le temps) -> pas reactive, d'ou le mode souris. Ici on ne fait que
+        // publier l'intention (MortarFocus), les patches d'input s'occupent du reste.
+        private static bool _mortarFocusWas;
+        private static void UpdateMortarFocus(PlayerController player)
+        {
+            bool want = LaserScan.HasEnemy && IsMortarEquipped(player);
+            if (want) MortarFocus.TargetWorld = LaserScan.EnemyPos;
+            MortarFocus.Active = want;
+            if (want != _mortarFocusWas)
+            {
+                _mortarFocusWas = want;
+                Diag.Log("A11yMortarFocus", want
+                    ? "ON cible=" + LaserScan.EnemyPos.x + "," + LaserScan.EnemyPos.y
+                    : "OFF");
+            }
+        }
+
+        // Un mortier est equipe ? Lu sur l'entite joueur via AimIndicatorCachedStatesCD.isMortar
+        // (le jeu y met en cache le type d'arme en main pour son indicateur de visee).
+        private static bool IsMortarEquipped(PlayerController player)
+        {
+            try
+            {
+                if (player == null) return false;
+                return EntityUtility.HasComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world)
+                    && EntityUtility.GetComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world).isMortar;
+            }
+            catch { return false; }
         }
 
         private static void Reset()
         {
             Active = false;
+            MortarFocus.Active = false; // pas de laser -> pas de focus mortier
             LaserScan.Active = false;
             LaserScan.ResultValid = false; // ne pas agir sur un resultat perime a la reactivation
             _lastImpact = NoImpact;
@@ -203,16 +241,18 @@ namespace CoreKeeperAccess.Gameplay
         }
 
         // Bip ennemi positionnel : pan gauche-droite + pitch vertical (+1 demi-ton/ligne),
-        // par rapport au joueur, comme les sons du curseur.
+        // par rapport au joueur, comme les sons du curseur. PAS de trim distance ici (contrairement
+        // aux autres sons positionnels) : ce son confirme l'ALIGNEMENT du tir, pas la distance (la
+        // distance est deja portee par le bip boss / la sentinelle). Le faire faiblir avec
+        // l'eloignement rendait le "t'es dessus" inaudible sur une cible lointaine -> volume plein.
         private static void PlayEnemy(float2 worldPos)
         {
             var p = Manager.main != null ? Manager.main.player : null;
             if (p == null) return;
             float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Pow(2f, d.y / 12f);
-            GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume);
+            GameplayAudio.PlaySpatial(EnemySfxPlaceholder, pan, pitch, EnemyVolume * A11ySettings.NavigationVolume);
         }
 
         // Bip passif positionnel (meme grammaire pan/pitch que l'ennemi), timbre par
@@ -224,14 +264,14 @@ namespace CoreKeeperAccess.Gameplay
             var p = Manager.main != null ? Manager.main.player : null;
             if (p == null) return;
             float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
-            float halfW = HalfWidthTiles();
-            float pan = halfW > 0.1f ? Mathf.Clamp(d.x / halfW, -1f, 1f) : 0f;
+            float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Pow(2f, d.y / 12f);
+            float trim = GameplayAudio.DistanceTrim(math.length(d));
             GameplayAudio.PlaySpatial(
                 isCreature ? PassiveCreatureSfxPlaceholder : PassiveObjectSfxPlaceholder,
-                pan, pitch, PassiveVolume);
+                pan, pitch, PassiveVolume * A11ySettings.NavigationVolume * trim);
             if (interactable)
-                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f);
+                GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f * A11ySettings.NavigationVolume * trim);
         }
 
         // Demi-largeur visible en cases (range pour normaliser le pan -1..+1), comme le curseur.
@@ -263,7 +303,7 @@ namespace CoreKeeperAccess.Gameplay
         public static TileInfo Special;
         public static bool HasEnemy;     // un ennemi est sur le trajet (avant le mur)
         public static float2 EnemyPos;   // position monde (xz) de l'ennemi le plus proche
-        public static int EnemyKey;      // index d'entite (pour detecter une NOUVELLE cible)
+        public static long EnemyKey;     // cle d'entite index+version (NOUVELLE cible)
         public static ObjectID EnemyObjectId; // type de la creature (pour le TTS du nom)
 
         // Cible NON hostile la plus proche sur le trajet (creature passive ou objet pose),
@@ -271,7 +311,7 @@ namespace CoreKeeperAccess.Gameplay
         // un champignon proche, donc les deux pistes sont publiees separement.
         public static bool HasPassive;
         public static float2 PassivePos;
-        public static long PassiveKey;          // index d'entite (creature) ou cle de case (objet)
+        public static long PassiveKey;          // cle d'entite (creature) ou cle de case (objet)
         public static ObjectID PassiveObjectId; // pour le TTS du nom
         public static bool PassiveIsCreature;   // creature (timbre + rappel) vs objet (un bip)
         public static bool PassiveInteractable; // objet interactible -> marqueur du curseur
@@ -315,7 +355,7 @@ namespace CoreKeeperAccess.Gameplay
                 int2 last = start;
                 bool foundEnemy = false;
                 float2 enemyPos = default;
-                int enemyKey = 0;
+                long enemyKey = 0;
                 ObjectID enemyObj = ObjectID.None;
                 bool foundPassive = false;
                 float2 passivePos = default;
@@ -402,7 +442,7 @@ namespace CoreKeeperAccess.Gameplay
                 LaserScan.PassiveInteractable = passiveInteractable;
                 LaserScan.ResultValid = true;
             }
-            catch { }
+            catch (System.Exception ex) { Diag.Error("A11yLaserDiag", ex); }
         }
 
         // Creatures sur la case, classees en deux bords. HOSTILE : entite a FactionCD non
@@ -414,7 +454,7 @@ namespace CoreKeeperAccess.Gameplay
         // EnemyCD ni CritterCD ni FactionCD hostile (PNJ, meubles a collider) ne sont
         // pas des creatures : elles passent par l'index d'objets.
         private void ScanCreatures(int2 c, World world,
-            ref bool foundEnemy, ref float2 enemyPos, ref int enemyKey, ref ObjectID enemyObj,
+            ref bool foundEnemy, ref float2 enemyPos, ref long enemyKey, ref ObjectID enemyObj,
             ref bool foundPassive, ref float2 passivePos, ref long passiveKey,
             ref ObjectID passiveObj, ref bool passiveCreature, ref bool passiveInteractable)
         {
@@ -441,14 +481,17 @@ namespace CoreKeeperAccess.Gameplay
                     {
                         foundEnemy = true;
                         enemyPos = new float2(c.x, c.y);
-                        enemyKey = h.Entity.Index;
+                        enemyKey = EntityKey.Of(h.Entity);
                         enemyObj = oid;
                     }
                     else if (!hostile && !foundPassive)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);
-                        passiveKey = h.Entity.Index;
+                        // Cle d'entite dans le meme champ long que les cles de case
+                        // (ObjectIndex.Key) : collision croisee theoriquement possible,
+                        // consequence benigne (une annonce dedupliquee a tort), assumee.
+                        passiveKey = EntityKey.Of(h.Entity);
                         passiveObj = oid;
                         passiveCreature = true;
                         passiveInteractable = false;

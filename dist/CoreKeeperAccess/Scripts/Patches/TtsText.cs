@@ -10,14 +10,68 @@ namespace CoreKeeperAccess.Patches
     internal static class TtsText
     {
         private static readonly Regex UnsubstitutedPlaceholder = new Regex(@"\{\d+\}", RegexOptions.Compiled);
+        private static readonly Regex RichTextTag = new Regex(@"<[^<>]+>", RegexOptions.Compiled);
 
         // Sortie TTS centralisee : annonce via Tolk ET trace dans Player.log
-        // (prefixe [A11yTTS]) pour diagnostiquer tout ce qui est reellement lu.
+        // (prefixe [A11yTTS], timecode pour correler avec les erreurs [A11y*Diag])
+        // pour diagnostiquer tout ce qui est reellement lu.
         public static void Say(string text, bool interrupt)
         {
             if (string.IsNullOrEmpty(text)) return;
+            // Garde-fou de balisage : aucun tag rich-text (<color>, <sprite>, <missing>...)
+            // ne doit atteindre la synthese, NVDA les epellerait. On strippe ET on trace
+            // (deduplique par tag) pour remonter au site fautif au lieu de masquer.
+            if (text.IndexOf('<') >= 0 && RichTextTag.IsMatch(text))
+            {
+                var tag = RichTextTag.Match(text).Value;
+                Diag.Warn("A11yTTS", tag, "balisage strippe avant TTS, tag '" + tag + "' dans : " + text);
+                text = RichTextTag.Replace(text, "").Trim();
+                if (text.Length == 0) return;
+            }
             Tolk.Output(text, interrupt);
-            Debug.Log("[A11yTTS] " + text);
+            Debug.Log("[A11yTTS] " + Diag.Stamp() + " " + text);
+        }
+
+        // Assemble un message TTS depuis des morceaux : saute les vides, trim,
+        // deduplique les repetitions consecutives, joint par ", ". Null si rien.
+        // Socle commun de composition (les nouveaux codes l'utilisent d'office,
+        // les anciens migrent au passage).
+        public static string Compose(System.Collections.Generic.IReadOnlyList<string> parts)
+        {
+            if (parts == null) return null;
+            string result = null;
+            string prev = null;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var p = parts[i];
+                if (string.IsNullOrEmpty(p)) continue;
+                var t = p.Trim();
+                if (t.Length == 0 || t == prev) continue;
+                prev = t;
+                result = result == null ? t : result + ", " + t;
+            }
+            return result;
+        }
+
+        public static string Compose(params string[] parts) =>
+            Compose((System.Collections.Generic.IReadOnlyList<string>)parts);
+
+        // Auto-verifications du composeur, executees au boot en mode dev seulement :
+        // le contrat est simple mais sert de socle reutilisable, on le verrouille.
+        public static void SelfTest()
+        {
+            AssertEq(Compose("a", null, "", "b"), "a, b");
+            AssertEq(Compose("a", "a", "b"), "a, b");
+            AssertEq(Compose(null, ""), null);
+            AssertEq(Compose(" a ", "b "), "a, b");
+            AssertEq(Compose("a", "b", "a"), "a, b, a"); // seuls les CONSECUTIFS dedupliquent
+        }
+
+        private static void AssertEq(string got, string want)
+        {
+            if (got != want)
+                Debug.LogError("[A11yComposeDiag] " + Diag.Stamp()
+                    + " SelfTest : attendu '" + want + "', obtenu '" + got + "'");
         }
 
         // Resout un PugText deja rendu en texte affiche, ou null si vide / non resolu.
@@ -56,8 +110,7 @@ namespace CoreKeeperAccess.Patches
                 try { add = PugText.ProcessText(taf.additionalText, null, !taf.dontLocalize, false); }
                 catch { add = taf.additionalText; }
                 add = Clean(add, taf.additionalText);
-                if (!string.IsNullOrEmpty(add))
-                    main = string.IsNullOrEmpty(main) ? add : main + ", " + add;
+                main = Compose(main, add);
             }
 
             return main;

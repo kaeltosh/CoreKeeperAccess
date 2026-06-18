@@ -3,6 +3,7 @@ using System.Reflection;
 using CoreKeeperAccess.Localization;
 using HarmonyLib;
 using Rewired;
+using UnityEngine;
 
 namespace CoreKeeperAccess.Patches
 {
@@ -40,6 +41,7 @@ namespace CoreKeeperAccess.Patches
             { "WorldSlotMoreOption",   "menu.option.more" },
             { "WorldSlotDeleteOption", "menu.option.delete" },
             { "SaveSlotDeleteOption",  "menu.option.delete" },
+            { "WorldInfoExportOption", "worldinfo.export" },
         };
 
         private static string BuildAnnouncement(RadicalMenuOption option)
@@ -61,6 +63,17 @@ namespace CoreKeeperAccess.Patches
             {
                 AddPart(ResolvePugText(parentSlot.number));
                 seenTexts.Add(parentSlot.number);
+            }
+
+            // Selecteur d'icone de monde : aucun PugText, juste un sprite -> muet en
+            // l'etat. On synthetise un index lisible (les icones n'ont pas de nom).
+            if (option is SelectWorldIconOption iconOpt)
+            {
+                var iconLabel = Strings.L("worldinfo.icon");
+                int iconCount = iconOpt.worldInfoTable != null ? iconOpt.worldInfoTable.worldIcons.Count : 0;
+                AddPart(iconCount > 0
+                    ? iconLabel + " " + (iconOpt.activeIconIndex + 1) + " / " + iconCount
+                    : iconLabel);
             }
 
             if (option.labelText != null)
@@ -92,7 +105,44 @@ namespace CoreKeeperAccess.Patches
                     AddPart(translated);
             }
 
+            // Dernier recours pour un bouton-icone sans aucun texte (bandeau "ID de
+            // jeu" du menu pause : rafraichir / copier / masquer...) : son libelle vit
+            // dans le texte d'info partage PauseMenuIconSelectionInfoText, hors de la
+            // hierarchie de l'option -> on le retrouve par correspondance d'option.
+            if (parts.Count == 0)
+                AddPart(ResolveIconInfoTerm(option));
+
             return parts.Count > 0 ? string.Join(", ", parts) : null;
+        }
+
+        // Cherche, dans les bandeaux d'icones du menu pause, le terme descriptif (on/off)
+        // associe a cette option. Chemin froid (seulement si l'option n'a aucun texte).
+        private static string ResolveIconInfoTerm(RadicalMenuOption option)
+        {
+            var infos = Object.FindObjectsByType<PauseMenuIconSelectionInfoText>(FindObjectsSortMode.None);
+            foreach (var info in infos)
+            {
+                if (info == null || info.options == null) continue;
+                foreach (var entry in info.options)
+                {
+                    if (entry.option != option) continue;
+                    bool on = true;
+                    try { on = option.IsOn(); } catch { }
+                    var term = on ? entry.on : entry.off;
+                    var key = term != null ? term.mTerm : null;
+                    if (string.IsNullOrEmpty(key)) return null;
+                    try
+                    {
+                        var r = PugText.ProcessText(key, null, true, false);
+                        if (!string.IsNullOrEmpty(r)
+                            && !r.StartsWith("missing:", System.StringComparison.OrdinalIgnoreCase))
+                            return r.Trim();
+                    }
+                    catch { }
+                    return null;
+                }
+            }
+            return null;
         }
 
         private static IEnumerable<PugText> GetReflectedPugTexts(RadicalMenuOption option, HashSet<PugText> alreadySeen)
@@ -264,6 +314,9 @@ namespace CoreKeeperAccess.Patches
         {
             MenuTtsState.SuppressDuringActivate = false;
             MenuTtsState.LastInstanceId = 0;
+            // Toute (re)activation de menu rearme l'en-tete de section "gerer les
+            // joueurs" : la premiere liste survolee reannonce sa section.
+            ManagePlayersState.LastListInstanceId = 0;
 
             var title = MenuTtsCore.FindMenuTitle(__instance);
             var option = __instance.GetSelectedMenuOption();
@@ -364,6 +417,164 @@ namespace CoreKeeperAccess.Patches
         public static void Postfix()
         {
             TtsText.Say(Strings.L("cinematic.skipped"), true);
+        }
+    }
+
+    // ----- Ecran "Gerer les joueurs" (multijoueur) -----
+    // Cause racine du trou : les boutons par joueur sont des PlayerListEntryButton
+    // (heritent de ButtonUIElement), classe SOEUR de RadicalMenuOption sous UIelement.
+    // Notre patch standard ne hooke que RadicalMenuOption.OnSelected -> ces boutons
+    // passaient a travers, l'ecran etait totalement muet a l'interieur.
+
+    internal static class ManagePlayersState
+    {
+        // Instance de la liste (ListConnectedPlayers) dont on a annonce la section
+        // en dernier. Rearme a 0 a chaque (re)activation de menu.
+        public static int LastListInstanceId;
+    }
+
+    internal static class ManagePlayersTts
+    {
+        // L'etat admin vit dans le champ prive `player` (struct PlayerUIEntry).
+        private static readonly FieldInfo PlayerField =
+            AccessTools.Field(typeof(PlayerListEntry), "player");
+
+        public static void Announce(PlayerListEntryButton button)
+        {
+            if (button == null) return;
+            var entry = button.playerListEntry;
+            if (entry == null) return;
+
+            // Nom du joueur : chaine litterale, pas une cle I2 -> on lit le brut
+            // (ProcessText risquerait un "missing:" sur un pseudo).
+            var name = entry.realCurrentName;
+            if (string.IsNullOrEmpty(name) || name == "...")
+            {
+                var fromText = entry.nameText != null ? entry.nameText.GetText() : null;
+                if (!string.IsNullOrEmpty(fromText) && fromText != "...") name = fromText;
+            }
+
+            // Options de gestion annoncees PARTOUT ou ces boutons apparaissent : ecran
+            // dedie "gerer les joueurs" ET panneau "Joueurs connectes" du menu pause
+            // (comportement choisi par l'utilisateur).
+            var list = entry.listConnectedPlayers;
+            var listType = list != null ? list.menuType : PlayersListType.ACTIVE_PLAYERS;
+
+            var parts = new List<string>();
+
+            // En-tete de section quand on entre dans une nouvelle liste.
+            if (list != null)
+            {
+                int listId = list.GetInstanceID();
+                if (listId != ManagePlayersState.LastListInstanceId)
+                {
+                    ManagePlayersState.LastListInstanceId = listId;
+                    // Titre exact affiche a l'ecran (« Joueurs administrateurs »,
+                    // « Joueurs exclus »...) plutot qu'un libelle devine.
+                    var section = TtsText.ResolvePugText(list.labelText);
+                    if (!string.IsNullOrEmpty(section)) parts.Add(section);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(name)) parts.Add(name);
+
+            // Action : identifiee par reference (l'enum buttonType ne couvre pas les 5
+            // boutons), avec le sens contextuel (bannir/debannir, donner/retirer admin).
+            var action = ActionLabel(button, entry, listType);
+            if (!string.IsNullOrEmpty(action)) parts.Add(action);
+
+            var msg = TtsText.Compose(parts);
+            if (!string.IsNullOrEmpty(msg)) TtsText.Say(msg, true);
+        }
+
+        private static string ActionLabel(PlayerListEntryButton button, PlayerListEntry entry, PlayersListType listType)
+        {
+            if (button == entry.banButton)
+                return Strings.L(listType == PlayersListType.UNBAN ? "manageplayers.unban" : "manageplayers.ban");
+            if (button == entry.inviteButton)
+                return Strings.L("manageplayers.invite");
+            if (button == entry.showPlayerInfoButton)
+                return Strings.L("manageplayers.profile");
+            if (button == entry.pvpTeamButton)
+                return Strings.L("manageplayers.pvpteam");
+            if (button == entry.adminButton)
+                return Strings.L(IsAdmin(entry) ? "manageplayers.admin.remove" : "manageplayers.admin.make");
+            return null;
+        }
+
+        private static bool IsAdmin(PlayerListEntry entry)
+        {
+            if (PlayerField == null) return false;
+            try
+            {
+                if (PlayerField.GetValue(entry) is ListConnectedPlayers.PlayerUIEntry p)
+                    return p.isAdmin;
+            }
+            catch { }
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(PlayerListEntryButton), nameof(PlayerListEntryButton.OnSelected))]
+    internal static class PlayerListEntryButtonOnSelectedPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(PlayerListEntryButton __instance)
+        {
+            ManagePlayersTts.Announce(__instance);
+        }
+    }
+
+    // ----- Pop-ups de confirmation (PopUpText) -----
+    // Les dialogues oui/annuler (bannir, admin, inviter, abandonner les changements...)
+    // et les avis transitoires passent tous par Manager.menu.centerPopUpText, jamais
+    // lus jusqu'ici. On lit la question + les libelles d'options dans une seule phrase :
+    // le menu d'options s'ouvre AVANT que le texte de question soit pose, donc son
+    // annonce serait ecrasee par la notre (postfix, en dernier, interrupt).
+    [HarmonyPatch(typeof(PopUpText), nameof(PopUpText.StartNewDisplaySequence))]
+    internal static class PopUpStartPatch
+    {
+        private static string _lastText;
+        private static float _lastTime;
+
+        [HarmonyPostfix]
+        public static void Postfix(PopUpText __instance, List<string> options)
+        {
+            var question = TtsText.ResolvePugText(__instance.pugText);
+            if (string.IsNullOrEmpty(question)) return;
+
+            // Un appel supprime par la garde de priorite laisse le pugText inchange et
+            // peut se repeter chaque frame : on etouffe le meme texte sur une fenetre
+            // courte (temps non mis a l'echelle car le jeu peut etre en pause).
+            if (question == _lastText && (Time.unscaledTime - _lastTime) < 0.5f) return;
+            _lastText = question;
+            _lastTime = Time.unscaledTime;
+
+            var parts = new List<string> { question };
+            if (options != null)
+            {
+                foreach (var key in options)
+                {
+                    var label = ResolveKey(key);
+                    if (!string.IsNullOrEmpty(label)) parts.Add(label);
+                }
+            }
+
+            var msg = TtsText.Compose(parts);
+            if (!string.IsNullOrEmpty(msg)) TtsText.Say(msg, true);
+        }
+
+        private static string ResolveKey(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return null;
+            try
+            {
+                var r = PugText.ProcessText(key, null, true, false);
+                if (string.IsNullOrEmpty(r)) return key;
+                if (r.StartsWith("missing:", System.StringComparison.OrdinalIgnoreCase)) return null;
+                return r.Trim();
+            }
+            catch { return key; }
         }
     }
 }
