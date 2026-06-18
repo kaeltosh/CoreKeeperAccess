@@ -31,7 +31,7 @@ A mod that makes **Core Keeper** playable by **blind players**: everything goes 
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-3. Start NVDA, then the game. At the main menu you should hear: "Accessibility mod loaded", followed by the version (for example "alpha 1, build 51").
+3. Start NVDA, then the game. At the main menu you should hear: "Accessibility mod loaded", followed by the version (for example "alpha 2, build 1").
 
 Notes:
 - The `-ExecutionPolicy Bypass` part is required: by default Windows refuses to run downloaded PowerShell scripts. It only applies to this one command.
@@ -54,13 +54,15 @@ Pick the **Casual** mode **for both the character AND the world**. The reason ma
 
 ## What the mod covers today
 
-- **All menus**: titles, options, sliders, world/character selection and creation, read as you navigate.
+- **All menus**: titles, options, sliders, world/character selection and creation, read as you navigate; multiplayer menus (player management, confirmation pop-ups).
 - **Name input**: edit mode entry and exit announced, content read aloud, confirm with Cross.
 - **Intro and ending cinematics**: text read slide by slide, skip announced.
-- **Inventory and crafting**: section-based navigation, recipes with missing materials, stats sheet, talents, souls, tabs.
-- **Exploration**: sonified tile cursor, ore prospecting, announcements for placed objects and nearby interactions, the game's floating messages.
-- **Combat**: laser scanning cane, aggro sentinel (beeps when a monster is attacking you).
-- **Teleportation and map**: waypoints navigable as a list (direction, distance, biome), points of interest.
+- **Inventory and crafting**: section-based navigation, recipes with missing materials, stats sheet, talents (state and points to spend), souls (each slot's state), tabs, merchant and pouches.
+- **Exploration**: sonified tile cursor, ore prospecting, announcements for placed objects and nearby interactions, the game's floating messages, proximity sonar for tight spaces.
+- **Building and farming**: multi-tile placement at the cursor with directional snapping and rotation, ground and plant reading, processing stations and automation basics (conveyors, electricity) read at the cursor.
+- **Combat**: laser scanning cane, aggro sentinel (beeps when a monster is attacking you), accessible boss fights (symmetrical slow-motion, arena center, fire zones), automatic mortar aiming.
+- **Dialogue**: the Core's lines are read, and a journal archives them for re-reading.
+- **Teleportation, map and navigation**: waypoints navigable as a list (direction, distance, biome), points of interest, personal beacons, and audio guidance to any point (torch network or as the crow flies).
 
 ## Controls guide
 
@@ -85,13 +87,17 @@ Inventory open, kept as-is: Cross (pick up / put down, take all), RT (quick move
 
 ### The access key: Triangle
 
-Triangle is taken over by the mod as its **accessibility modifier** (its native "open map" action is relocated; see double-tap). While Triangle is held, the D-pad triggers commands:
+Triangle is taken over by the mod as its **accessibility modifier** (its native "open map" action is relocated; see double-tap). While Triangle is held, the D-pad, sticks and bumpers trigger commands:
 
-- **Triangle + up**: contextual details on the current element (cursor tile, map destination, repair cost…).
-- **Triangle + down**: outside inventory, health / hunger / mana / barrier. Inventory open: transfer the selected item.
-- **Triangle + right**: outside inventory, character position. Repair station open: repair the selected item.
-- **Triangle + left**: outside inventory, prospecting — direction and distance of the nearest ore vein, with a positional ding. Station open: salvage everything.
+- **Triangle + up**: your **location** in the world (position, coordinates, biome); on the detached cursor, on the map, or in a station, the **details** of the current element (pointed tile, destination, repair cost…).
+- **Triangle + down**: inventory open, transfer the selected item. (In the world, health / hunger / mana have moved to the stats wheel.)
+- **Triangle + right**: **upgrade** the item placed in the forge; otherwise, **repair** the selected item at the repair station.
+- **Triangle + left**: **sell everything** at a merchant; otherwise, **salvage everything** at the station. (Ore prospecting has moved to the stats wheel.)
 - **Triangle + L1**: ping sonar — a sound snapshot of everything notable around you (12-tile radius): one beep per target, nearest to farthest, with three timbres (hostile, peaceful creature, find). "Nothing around" if empty. While Triangle is held, L1 does not switch hotbar slot.
+- **Triangle + left stick**: stats wheel — push the stick toward a sector to read one piece of data without opening a menu (movement is paused while you check): health and barrier, hunger, mana and minions, active conditions (poisoned, burning…), world progress, ore prospecting around you. Health/mana regeneration is appended at the end.
+- **Triangle + R1**: for a field tool (hoe, watering can, shovel, seeder), switches to the next effect-zone size (announced). For a placeable object, rotates it.
+- **Triangle + L3**: toggles **direction assist** — your movement snaps to the four cardinal directions, handy to walk straight and line up a build. Stays on until toggled again.
+- **Triangle + Back (Select)**: open the accessibility settings panel (volumes, direction assist, combat slow-motion, proximity sonar, audio normalization…). D-pad navigation, settings remembered and preserved across versions.
 - **Double-tap Triangle**: open the map anywhere (points-of-interest category).
 
 A combo outside its context says nothing: if it is silent, it has no meaning here.
@@ -124,6 +130,22 @@ Two complementary tools to perceive space, and they speak the same sound languag
 - **Laser cane on the right stick**: a beam sweeps in the stick's direction, plays the sound of the first blocking tile (the "wall ahead") and flags enemies along the path with a positional beep plus their name. Peaceful creatures and placed objects get their own softer timbres (a hostile always overrides them). Chasms and water do not stop the beam: you hear the edge (plop / splash), then what lies beyond — aim across and shoot.
 - **Aggro sentinel**: automatic. Queued beeps = that many monsters currently attacking you. A **boss** gets its own deep, fast beep on a dedicated channel — unmistakable.
 - Automatic announcements: held item on slot change, "interaction available" when a usable object is in range, the game's floating messages (tutorials, "too hard", energy needed…), pickups.
+- **Proximity sonar** (enable it in the settings panel): an aid for tight spaces. Sheets of noise mark the walls around you in all four directions (left/right via panning, a dull timbre for a wall, a splash for water or a chasm), and a small "ding" marks nearby objects tile by tile.
+
+### Building, placement and farming
+
+- **Placing**: aim the tile cursor at the tile and **LT** drops the held item. **Triangle + R1** rotates what you place; **Triangle + L3** (direction assist) snaps your movement to the axes for clean alignment.
+- **Multi-tile placement**: for objects that span several tiles, the cursor states the footprint (e.g. "zone 3x3"); for field tools (hoe, watering can, shovel, seeder), **Triangle + R1** changes the effect-zone size.
+- **Cursor reading**: tilled or watered ground, plant state (ready to harvest, thirsty, growing), processing stations (input and output slots, progress percentage), and automation basics (conveyors, electricity, machines).
+
+### Boss fights
+
+During a boss fight, several aids kick in:
+
+- **Symmetrical slow-motion** (enable it in the settings panel): slows time down — the boss too, so it's not an advantage — to give you room to react.
+- **Arena center cue**: a sound locates the center of the combat zone for you.
+- **Fire zone detector**: fire zones on the ground are flagged.
+- **Automatic mortar aiming**: with a mortar (lobbed weapon), the reticle locks on by itself to the enemy you're aiming at with the laser cane.
 
 ### Repair and salvage station
 
@@ -136,14 +158,37 @@ The station is crafted at the workbench (wood + copper bars) and opens by intera
 
 These commands are silent when the station is not open.
 
-### Map and teleportation
+### Merchant
 
-Interacting with an ancient waypoint (or double-tapping Triangle anywhere) opens the accessible map:
+Interacting with a merchant opens the panel with two sections (bumpers): **Buy** and **Sell**. Each item is read with its price; on the Sell side, the resale value of an item in your bag is announced.
 
-- **D-pad up / down**: browse the list (waypoints sorted from the world center outward, stable numbers — waypoint 1 is the Core).
-- **LB / RB**: switch between **destinations** (teleportable) and **points of interest** (scanned bosses, markers).
-- **Cross**: teleport to the selected destination.
-- **Triangle + up**: details (coordinates, biome, heading in degrees, distance).
+- **Cross**: buy / sell the selected item.
+- **Triangle + up**: your coin balance and the transaction total.
+- **Triangle + left**: sell everything at once.
+
+**Pouches** (storage bags) are supported: the panel expands automatically, contents are presented in rows, and you equip or unequip a pouch on the gamepad.
+
+### Upgrade forge
+
+Place an item in the forge, then:
+
+- **Triangle + right**: upgrade the placed item by one quality tier.
+- **Triangle + up**: the material cost of the upgrade.
+
+### Map, beacons and guidance
+
+Interacting with an ancient waypoint (or double-tapping Triangle anywhere) opens the accessible map. **LB / RB** cycle four categories; **D-pad up / down** browses the current category's list; **Triangle + up** gives the element's details (coordinates, biome, heading in degrees, distance).
+
+- **Destinations**: teleportable waypoints (sorted from the world center outward, stable numbers — waypoint 1 is the Core). **Cross** = teleport.
+- **Points of interest**: scanned bosses, grave, markers. **Cross** opens an action menu (see guidance).
+- **My beacons**: markers you drop by hand. A "new beacon" row drops one at your position; **Cross** on an existing beacon opens its menu (guidance, rename, delete). Names are remembered per world and per location.
+- **Journal**: what the Core told you, archived conversation by conversation (tutorials kept apart). **Cross** opens a conversation, **D-pad left** steps back to the list.
+
+**Audio guidance**: on a point of interest or a beacon, the Cross menu offers two modes:
+- **By network**: follows the path of your torches and beacons hop by hop (the mod automatically links torches that are within sight of one another).
+- **Direct**: as the crow flies.
+
+In both cases, a repeating chime gives you the direction (left/right via panning, ahead/behind via pitch) and rises in volume as you get closer. Arrival is announced.
 
 ## For testers
 
@@ -151,7 +196,7 @@ Interacting with an ancient waypoint (or double-tapping Triangle anywhere) opens
 - The **version and build number** are announced at startup — include both in every report. Each version's changes are listed in the [changelog](CHANGELOG.md).
 - The game log is at `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log`. Everything the mod speaks is traced there with the `[A11yTTS]` prefix; attach this file to bug reports.
 - **F9** (keyboard): gamepad diagnostic mode — announces every pressed button/axis with its identifier. Handy for reporting mapping issues.
-- Multiplayer: untested at this stage. The mod is client-side; please test in single player.
+- Multiplayer: tested and working. Since the mod is client-side, only you need to install it — your partners have nothing to do on their end.
 - Reports: open a GitHub issue with the build number, what you were doing, what you expected, what happened, and the Player.log.
 
 ## How it works (for the curious)

@@ -31,7 +31,7 @@ Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe p
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-3. Lancer NVDA, puis le jeu. Au menu principal vous devez entendre : « Mod accessibilité chargé », suivi de la version (par exemple « alpha 1, build 51 »).
+3. Lancer NVDA, puis le jeu. Au menu principal vous devez entendre : « Mod accessibilité chargé », suivi de la version (par exemple « alpha 2, build 1 »).
 
 Notes :
 - Le `-ExecutionPolicy Bypass` est nécessaire : par défaut Windows refuse d'exécuter les scripts PowerShell téléchargés. Il ne vaut que pour cette commande.
@@ -54,13 +54,15 @@ Choisissez le mode **Décontracté** (Casual) **pour le personnage ET pour le mo
 
 ## Ce que le mod couvre aujourd'hui
 
-- **Tous les menus** : titres, options, sliders, sélection et création de monde/personnage, lus à la navigation.
+- **Tous les menus** : titres, options, sliders, sélection et création de monde/personnage, lus à la navigation ; menus multijoueur (gestion des joueurs, pop-ups de confirmation).
 - **Saisie de nom** : entrée et sortie du mode édition annoncées, contenu lu, validation à la Croix.
 - **Cinématiques** d'intro et de fin : texte lu slide par slide, skip annoncé.
-- **Inventaire et artisanat** : navigation par sections, recettes avec matériaux manquants, fiche de stats, talents, âmes, onglets.
-- **Exploration** : curseur de tuile sonifié, prospection de minerai, annonce des objets posés et des interactions à portée, messages flottants du jeu.
-- **Combat** : canne laser de repérage, sentinelle d'aggro (bips quand un monstre vous attaque).
-- **Téléportation et carte** : relais navigables en liste (direction, distance, biome), points d'intérêt.
+- **Inventaire et artisanat** : navigation par sections, recettes avec matériaux manquants, fiche de stats, talents (état et points à dépenser), âmes (état de chaque emplacement), onglets, marchand et bourses.
+- **Exploration** : curseur de tuile sonifié, prospection de minerai, annonce des objets posés et des interactions à portée, messages flottants du jeu, sonar de proximité pour les zones confinées.
+- **Construction et agriculture** : pose multi-cases au curseur avec calage directionnel et rotation, lecture du sol et des plantes, stations de transformation et bases d'industrie (convoyeurs, électricité) lues au curseur.
+- **Combat** : canne laser de repérage, sentinelle d'aggro (bips quand un monstre vous attaque), combat de boss accessible (ralenti symétrique, centre d'arène, zones de feu), visée du mortier automatique.
+- **Dialogue** : les répliques du Cœur sont lues, et un journal les archive pour les relire.
+- **Téléportation, carte et navigation** : relais navigables en liste (direction, distance, biome), points d'intérêt, balises personnelles, et guidage sonore vers n'importe quel point (réseau de torches ou vol d'oiseau).
 
 ## Guide des commandes
 
@@ -85,13 +87,17 @@ Inventaire ouvert, conservés tels quels : Croix (prendre/poser, tout ramasser),
 
 ### La touche access : Triangle
 
-Triangle est réquisitionné par le mod comme **modificateur d'accessibilité** (son action native « ouvrir la carte » est relogée, voir double-tap). Tant que Triangle est tenu, le D-pad déclenche des commandes :
+Triangle est réquisitionné par le mod comme **modificateur d'accessibilité** (son action native « ouvrir la carte » est relogée, voir double-tap). Tant que Triangle est tenu, le D-pad, les sticks et les bumpers déclenchent des commandes :
 
-- **Triangle + haut** : détails contextuels sur l'élément courant (case du curseur, destination sur la carte, coût de réparation…).
-- **Triangle + bas** : hors inventaire, vie / faim / mana / barrière. Inventaire ouvert : transférer l'objet sélectionné.
-- **Triangle + droite** : hors inventaire, position du personnage. Station de réparation ouverte : réparer l'objet sélectionné.
-- **Triangle + gauche** : hors inventaire, prospection — direction et distance du filon de minerai le plus proche, avec un ding positionnel. Station ouverte : tout recycler.
+- **Triangle + haut** : votre **localisation** en jeu (position, coordonnées, biome) ; sur le curseur détaché, sur la carte ou dans une station, les **détails** de l'élément courant (case pointée, destination, coût de réparation…).
+- **Triangle + bas** : inventaire ouvert, transférer l'objet sélectionné. (En jeu, vie / faim / mana sont passés sur la roue de stats.)
+- **Triangle + droite** : **améliorer** l'objet déposé dans la forge ; sinon, **réparer** l'objet sélectionné à la station de réparation.
+- **Triangle + gauche** : **tout vendre** chez un marchand ; sinon, **tout recycler** à la station. (La prospection de minerai est passée sur la roue de stats.)
 - **Triangle + L1** : ping sonar — une photo sonore de ce qui est notable autour de toi (rayon de 12 cases) : un bip par cible, du plus proche au plus lointain, avec trois timbres (hostile, créature paisible, trouvaille). « Rien autour » si c'est vide. Tant que Triangle est tenu, L1 ne change pas de slot de barre rapide.
+- **Triangle + stick gauche** : roue de stats — poussez le stick vers un secteur pour lire une donnée sans ouvrir de menu (la marche est gelée le temps de consulter) : vie et barrière, faim, mana et serviteurs, conditions actives (empoisonné, en feu…), avancement dans le monde, prospection de minerai autour de vous. La régénération de vie/mana s'ajoute en fin d'annonce.
+- **Triangle + R1** : pour un outil de terrain (houe, arrosoir, pelle, semoir), passe à la taille de zone suivante (annoncée). Pour un objet posable, le fait pivoter.
+- **Triangle + L3** : bascule l'**aide à la direction** — votre déplacement est calé sur les quatre directions cardinales, pratique pour avancer droit et aligner une construction. Reste actif jusqu'à re-bascule.
+- **Triangle + Back (Select)** : ouvrir le panneau de réglages d'accessibilité (volumes, aide à la direction, ralenti de combat, sonar de proximité, normalisation audio…). Navigation au D-pad, réglages mémorisés et conservés d'une version à l'autre.
 - **Double-tap Triangle** : ouvrir la carte n'importe où (catégorie points d'intérêt).
 
 Un combo hors contexte ne dit rien : s'il est muet, c'est qu'il n'a pas de sens ici.
@@ -124,6 +130,22 @@ Deux outils complémentaires pour percevoir l'espace, et ils parlent la même la
 - **Canne laser au stick droit** : un faisceau balaye dans la direction du stick, joue le son de la première case bloquante (le « mur d'en face ») et signale les ennemis sur le trajet par un bip positionnel plus leur nom. Les créatures paisibles et les objets posés ont leurs propres timbres, plus doux (un hostile les écrase toujours). Les gouffres et l'eau n'arrêtent pas le faisceau : vous entendez le bord (plop / splash), puis ce qu'il y a au-delà — visez au travers et tirez.
 - **Sentinelle d'aggro** : automatique. Des bips en file = autant de monstres en train de vous attaquer. Un **boss** a son propre bip grave et rapide sur un canal dédié — impossible à confondre.
 - Annonces automatiques : objet en main au changement de slot, « interaction disponible » quand un objet utilisable est à portée, messages flottants du jeu (tutoriels, « trop dur », besoin d'énergie…), ramassages.
+- **Sonar de proximité** (à activer dans le panneau de réglages) : une aide pour les zones confinées. Des nappes de bruit signalent les murs autour de vous dans les quatre directions (gauche/droite au panoramique, timbre mat pour un mur, clapotis pour l'eau ou un gouffre), et un petit « ding » marque les objets proches case par case.
+
+### Construction, pose et agriculture
+
+- **Poser** : visez la case avec le curseur de tuile et **LT** pose l'objet en main. **Triangle + R1** fait pivoter ce que vous posez ; **Triangle + L3** (aide à la direction) cale vos déplacements sur les axes pour aligner proprement.
+- **Pose multi-cases** : pour les objets qui couvrent plusieurs tuiles, le curseur indique l'emprise (par exemple « zone 3x3 ») ; pour les outils de terrain (houe, arrosoir, pelle, semoir), **Triangle + R1** change la taille de la zone d'effet.
+- **Lecture au curseur** : sol labouré ou arrosé, état des plantes (prête à récolter, a soif, en croissance), stations de transformation (slots d'entrée et de sortie, progression en pourcentage), et bases d'industrie (convoyeurs, électricité, machines).
+
+### Combat de boss
+
+Pendant un combat de boss, plusieurs aides entrent en jeu :
+
+- **Ralenti symétrique** (à activer dans le panneau de réglages) : ralentit le temps — le boss aussi, donc ce n'est pas un avantage — pour vous laisser réagir.
+- **Repère du centre de l'arène** : un son vous situe le centre de la zone de combat.
+- **Détecteur de zones de feu** : les zones de feu au sol sont signalées.
+- **Visée du mortier automatique** : avec un mortier (arme lobée), le viseur se cale tout seul sur l'ennemi que vous visez à la canne laser.
 
 ### Station de réparation et de recyclage
 
@@ -136,14 +158,37 @@ La station se fabrique à l'établi (bois + barres de cuivre) et s'ouvre en inte
 
 Ces commandes sont muettes si la station n'est pas ouverte.
 
-### Carte et téléportation
+### Marchand
 
-Interagir avec un relais ancien (ou double-tap Triangle n'importe où) ouvre la carte accessible :
+En interagissant avec un marchand, le panneau s'ouvre avec deux sections (bumpers) : **Acheter** et **Vendre**. Chaque article est lu avec son prix ; côté Vendre, la valeur de revente d'un objet de votre sac est annoncée.
 
-- **D-pad haut / bas** : parcourir la liste (relais triés du centre du monde vers l'extérieur, numéros stables — le relais 1 est le Core).
-- **LB / RB** : basculer entre **destinations** (téléportables) et **points d'intérêt** (boss scannés, marqueurs).
-- **Croix** : se téléporter à la destination sélectionnée.
-- **Triangle + haut** : détails (coordonnées, biome, cap en degrés, distance).
+- **Croix** : acheter / vendre l'article sélectionné.
+- **Triangle + haut** : votre solde de pièces et le total de la transaction.
+- **Triangle + gauche** : tout vendre d'un coup.
+
+Les **bourses** (pochettes de rangement) sont gérées : le panneau se déploie automatiquement, le contenu est présenté en lignes, et vous équipez ou déséquipez une bourse à la manette.
+
+### Forge d'amélioration
+
+Déposez un objet dans la forge, puis :
+
+- **Triangle + droite** : améliorer l'objet déposé d'un cran de qualité.
+- **Triangle + haut** : le coût en matériaux de l'amélioration.
+
+### Carte, balises et guidage
+
+Interagir avec un relais ancien (ou double-tap Triangle n'importe où) ouvre la carte accessible. **LB / RB** font défiler quatre catégories ; **D-pad haut / bas** parcourt la liste de la catégorie courante ; **Triangle + haut** donne les détails de l'élément (coordonnées, biome, cap en degrés, distance).
+
+- **Destinations** : les relais téléportables (triés du centre du monde vers l'extérieur, numéros stables — le relais 1 est le Cœur). **Croix** = se téléporter.
+- **Points d'intérêt** : boss scannés, tombe, marqueurs. **Croix** ouvre un menu d'actions (voir guidage).
+- **Mes balises** : vos repères posés à la main. Une ligne « nouvelle balise » en pose un à votre position ; **Croix** sur une balise existante ouvre son menu (guidage, renommer, supprimer). Les noms sont mémorisés par monde et par emplacement.
+- **Journal** : ce que le Cœur vous a dit, archivé conversation par conversation (les tutoriels à part). **Croix** ouvre une conversation, **D-pad gauche** revient à la liste.
+
+**Guidage sonore** : sur un point d'intérêt ou une balise, le menu Croix propose deux modes :
+- **Par le réseau** : suit le chemin de vos torches et balises de proche en proche (le mod relie automatiquement les torches qui se voient l'une l'autre).
+- **Direct** : à vol d'oiseau.
+
+Dans les deux cas, un carillon répété vous donne la direction (gauche/droite au panoramique, devant/derrière à la hauteur) et monte en volume à mesure que vous approchez. L'arrivée est annoncée.
 
 ## Pour les testeurs
 
@@ -151,7 +196,7 @@ Interagir avec un relais ancien (ou double-tap Triangle n'importe où) ouvre la 
 - La **version et le numéro de build** sont annoncés au démarrage — donnez les deux dans tout rapport. Les nouveautés de chaque version sont dans le [journal des versions](CHANGELOG.fr.md).
 - Le journal du jeu est dans `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log`. Tout ce que le mod prononce y est tracé avec le préfixe `[A11yTTS]` ; joignez ce fichier aux rapports de bug.
 - **F9** (clavier) : mode diagnostic manette — annonce chaque bouton/axe pressé avec son identifiant. Pratique pour signaler un problème de mapping.
-- Multijoueur : non testé à ce stade. Le mod est client-side ; jouez en solo pour les tests.
+- Multijoueur : testé et fonctionnel. Le mod étant côté client, vous seul avez besoin de l'installer — vos partenaires n'ont rien à faire de leur côté.
 - Rapports : ouvrez une issue GitHub avec le build, ce que vous faisiez, ce que vous attendiez, ce qui s'est passé, et le Player.log.
 
 ## Comment ça marche (pour les curieux)
