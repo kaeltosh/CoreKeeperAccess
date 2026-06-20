@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using Rewired;
@@ -19,6 +18,7 @@ namespace CoreKeeperAccess.Controls
     //  - Haut/Bas : naviguer. CYCLAGE + son de BUTEE au franchissement de la couture.
     //  - Croix : executer l'action focalisee (puis fermeture).
     //  - Rond ou Back : fermer sans rien faire.
+    // Earcons : grammaire de nav PARTAGEE (UiSfx) commune a tous les menus maison.
     internal static class ActionMenu
     {
         internal struct Item
@@ -43,7 +43,7 @@ namespace CoreKeeperAccess.Controls
             _items.Clear();
             _items.AddRange(items);
             _index = 0;
-            Tone(1.2f);
+            UiSfx.Validate();   // ouverture d'un menu = validation
             TtsText.Say(_title + ", " + _items[0].Label, true);
         }
 
@@ -52,7 +52,7 @@ namespace CoreKeeperAccess.Controls
             if (!_active) return;
             _active = false;
             _items.Clear();
-            Tone(0.7f);
+            UiSfx.Entry();   // fermeture
         }
 
         // A ticker tot dans l'Update, AVANT les consommateurs de carte / D-pad.
@@ -78,7 +78,7 @@ namespace CoreKeeperAccess.Controls
             if (ni < 0) { ni = n - 1; wrapped = true; }
             else if (ni >= n) { ni = 0; wrapped = true; }
             _index = ni;
-            Tone(wrapped ? 0.6f : 1f); // butee grave au bord, clic neutre sinon
+            if (wrapped) UiSfx.Cycle(); else UiSfx.Entry(); // butee au bord, survol sinon
             TtsText.Say(_items[ni].Label, true);
         }
 
@@ -86,11 +86,15 @@ namespace CoreKeeperAccess.Controls
         {
             if (_index < 0 || _index >= _items.Count) return;
             var run = _items[_index].Run;
+            // Entree INFORMATIVE (Run null, ex. rappel d'un geste dans le menu d'aide) : pas
+            // d'action a lancer -> on relit le libelle et on RESTE ouvert (pas de fermeture).
+            if (run == null) { UiSfx.Entry(); TtsText.Say(_items[_index].Label, true); return; }
             // On ferme AVANT d'executer : l'action peut rearmer un input (fermer la carte)
             // qui ne doit plus etre gele par ActionMenu.Active.
             _active = false;
             _items.Clear();
-            run?.Invoke();
+            UiSfx.Validate();   // execution d'une action = validation
+            run.Invoke();
         }
 
         // --- Lecture bouton physique par id d'element (meme template que SettingsMenu) ---
@@ -102,7 +106,5 @@ namespace CoreKeeperAccess.Controls
                 if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButtonDown(i);
             return false;
         }
-
-        private static void Tone(float pitch) => GameplayAudio.PlayTone(0f, pitch, 0.3f);
     }
 }

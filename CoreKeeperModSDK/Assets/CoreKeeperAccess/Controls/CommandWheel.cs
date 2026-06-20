@@ -32,6 +32,7 @@ namespace CoreKeeperAccess.Controls
 
         private readonly int _axisXId, _axisYId, _confirmId;
         private readonly bool _runOnHover;
+        private readonly bool _tickSound;
         private readonly Entry?[] _bySector = new Entry?[8];
         private int _autoIndex;
         private int _lastSector = -1;
@@ -40,12 +41,16 @@ namespace CoreKeeperAccess.Controls
         // EXECUTE (roue d'actions). runOnHover=true : survol = EXECUTION directe, pas de
         // bouton (roue de lecture, ou Run() annonce lui-meme la valeur ; confirmButtonId
         // ignore, passer -1).
-        public CommandWheel(int axisXId, int axisYId, int confirmButtonId, bool runOnHover = false)
+        // tickSound (defaut true) : clic de cran a chaque changement de secteur. Le couper
+        // (roue de LECTURE qui annonce deja la valeur en TTS au survol, ex. roue de stats) :
+        // le clic y serait redondant et indesirable.
+        public CommandWheel(int axisXId, int axisYId, int confirmButtonId, bool runOnHover = false, bool tickSound = true)
         {
             _axisXId = axisXId;
             _axisYId = axisYId;
             _confirmId = confirmButtonId;
             _runOnHover = runOnHover;
+            _tickSound = tickSound;
         }
 
         // Remplissage par priorite : le 1er Add prend le nord, le 2e l'est, etc.
@@ -92,11 +97,11 @@ namespace CoreKeeperAccess.Controls
                 _lastSector = sector;
                 if (sector >= 0)
                 {
-                    // Clic de cran facon "roue a boutons" a chaque changement de secteur.
-                    // FIXME_menu_select = le son de navigation de menu du jeu (choix utilisateur).
-                    // pitchDev=0 : on annule le random pitch que SfxUI applique par defaut (0.15),
-                    // sinon chaque cran sonne a une hauteur differente. Args : pitch, reuse, volume, pitchDev.
-                    AudioManager.SfxUI(SfxID.FIXME_menu_select, 1f, true, 1f, 0f);
+                    // Clic de cran facon "roue a boutons" a chaque changement de secteur, via la
+                    // grammaire de nav PARTAGEE (UiSfx.Entry) : NORMALISE et pilote par le volume
+                    // general, comme tous les menus maison. (Avant : AudioManager.SfxUI direct,
+                    // hors master.)
+                    if (_tickSound) UiSfx.Entry();
                     var e = _bySector[sector];
                     if (e.HasValue)
                     {

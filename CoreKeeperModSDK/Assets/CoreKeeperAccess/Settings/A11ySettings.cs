@@ -93,6 +93,11 @@ namespace CoreKeeperAccess.Gameplay
             // 0.40, critique <= 0.35) -> le critique reste toujours sous l'alerte, sans clamp croise.
             public float healthAlertThreshold = 0.60f;  // 0.40..0.90
             public float healthCritThreshold = 0.20f;   // 0.10..0.35
+            // Nomenclature des boutons dans le menu d'aide : false = PlayStation
+            // (Croix/Triangle/L2...), true = Xbox (A/Y/LT...). Defaut PlayStation.
+            public bool xboxButtons = false;
+            // Mode decouverte de la manette deja vu : force UNE fois a la 1re entree en jeu.
+            public bool controllerTutorialSeen = false;
         }
 
         private static Data _d = new Data();
@@ -134,6 +139,8 @@ namespace CoreKeeperAccess.Gameplay
         public static float HealthBeatVolume => _d.healthBeatVolume;
         public static float HealthAlertThreshold => _d.healthAlertThreshold;
         public static float HealthCritThreshold => _d.healthCritThreshold;
+        public static bool XboxButtons => _d.xboxButtons;
+        public static bool ControllerTutorialSeen => _d.controllerTutorialSeen;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -165,6 +172,8 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetHealthBeatVolume(float v) { _d.healthBeatVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetHealthAlertThreshold(float v) { _d.healthAlertThreshold = Mathf.Clamp(v, 0.4f, 0.9f); Save(); }
         public static void SetHealthCritThreshold(float v) { _d.healthCritThreshold = Mathf.Clamp(v, 0.1f, 0.35f); Save(); }
+        public static void SetXboxButtons(bool v) { _d.xboxButtons = v; Save(); }
+        public static void SetControllerTutorialSeen(bool v) { _d.controllerTutorialSeen = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

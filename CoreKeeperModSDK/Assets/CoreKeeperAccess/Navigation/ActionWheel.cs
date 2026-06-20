@@ -29,14 +29,14 @@ namespace CoreKeeperAccess.Navigation
             // Secteur 6 = Ouest (cardinal libre). Lacher l'objet du slot survole au sol.
             // Le drop natif est un geste a deux boutons (maintien L2 + Croix) lu en continu,
             // donc PAS armable : appel direct du canal serveur officiel (comme le transfert).
-            w.AddAtSector(6, "wheel.drop", DropSelectedToWorld);
+            w.AddAtSector(6, "wheel.drop", DropSelected);
             return w;
         }
 
         // Reproduit UIMouse.DropSelectedObjectToWorld (private cote jeu) : DropItem passe
         // par QueueInputAction -> server-authoritative respecte. Gardes natives reprises :
         // pas de coffre verrouille en place, pas l'inventaire d'achat du marchand.
-        private static void DropSelectedToWorld()
+        internal static void DropSelected()
         {
             var slot = (Manager.ui != null ? Manager.ui.currentSelectedUIElement : null) as InventorySlotUI;
             var player = Manager.main != null ? Manager.main.player : null;

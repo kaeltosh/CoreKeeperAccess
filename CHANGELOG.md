@@ -50,6 +50,14 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 
 - **In-game accessibility settings panel** (Triangle + Back): navigable and fully voiced, modal, with settings that survive updates (volumes, direction assist, combat slow-motion, normalization, etc.).
 - **Audio overhaul**: more accurate volume normalization (it no longer misses short, snappy sounds), volumes adjustable up to 200%, and a dedicated volume for navigation (tile cursor and laser cane).
+- **Unified menu sounds**: every mod menu (settings panel, context menus, wheels, map reader and its journal) now shares the same navigation sounds, normalized and driven by the master volume. The stats wheel stays silent on hover (it already announces the value).
+- **Button name style**: an "Xbox-style button names" setting (PlayStation by default) — the help menu and anything that names a button show Cross / Triangle / L2 or A / Y / LT depending on your choice.
+
+### Help menu and controller discovery
+
+- **Contextual help menu** (hold Triangle, tap up twice): the list of everything you can do where you are. Mod commands (with their shortcut), runnable straight from the list, and the game's own commands read from your real key bindings — correct even if you remap. The list changes with context (gameplay, inventory, map).
+- **Controller discovery mode**: on your very first time entering gameplay, a learning mode starts — press a button or move a stick and the mod tells you its name and physical position (and reminds you once that the sticks can be clicked). You leave it with a double-press of Circle, and a final message teaches you how to reopen help. You can relaunch it anytime from the first entry of the help menu. Since the main menu stays keyboard-accessible, a beginner can create their character then learn the controller once in game.
+- **Inventory trigger shortcuts**: in the inventory, R2 transfers the selected item, L2 drops it on the ground, and Triangle + L2 throws it in the trash.
 
 ### Installation
 

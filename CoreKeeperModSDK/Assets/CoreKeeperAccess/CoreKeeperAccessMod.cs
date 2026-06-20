@@ -141,6 +141,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
+        CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (force 1re fois en jeu, modal)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)

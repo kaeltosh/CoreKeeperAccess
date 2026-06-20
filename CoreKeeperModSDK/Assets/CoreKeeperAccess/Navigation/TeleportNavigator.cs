@@ -119,7 +119,7 @@ namespace CoreKeeperAccess.Navigation
             bool open = InputContext.MapOpen;
 
             if (open && !_active) Enter();
-            else if (!open && _active) { _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _groups.Clear(); _hasPendingSelect = false; ActionMenu.Close(); }
+            else if (!open && _active) { UiSfx.Entry(); _active = false; _dests.Clear(); _pois.Clear(); _beacons.Clear(); _groups.Clear(); _hasPendingSelect = false; ActionMenu.Close(); }
             if (!_active) return;
 
             // Selection differee d'une balise fraichement posee (le temps que MapUI cree
@@ -141,6 +141,7 @@ namespace CoreKeeperAccess.Navigation
         private static void Enter()
         {
             _active = true;
+            UiSfx.Validate();   // ouverture du menu carte (le menu central du mod)
             ResolveReflection();
             BuildDestinations();
             _index = 0;
@@ -312,6 +313,7 @@ namespace CoreKeeperAccess.Navigation
             BuildDestinations();
             _category = (_category + dir + CategoryCount) % CategoryCount;
             _index = 0;
+            UiSfx.Validate();   // changer de SECTION (bumpers) : son distinct de la nav d'entrees
             AnnounceCategory();
         }
 
@@ -320,7 +322,10 @@ namespace CoreKeeperAccess.Navigation
             if (_category == 3) { JournalMove(step); return; }
             int n = RowCount();
             if (n == 0) return;
-            _index = (_index + step + n) % n;
+            int raw = _index + step;
+            bool wrapped = raw < 0 || raw >= n;
+            _index = (raw + n) % n;
+            if (wrapped) UiSfx.Cycle(); else UiSfx.Entry();
             Select(_index);
         }
 
@@ -333,14 +338,22 @@ namespace CoreKeeperAccess.Navigation
             if (_groups.Count == 0) return;
             if (_jLevel == 0)
             {
-                _jGroup = (_jGroup + step + _groups.Count) % _groups.Count;
+                int n = _groups.Count;
+                int raw = _jGroup + step;
+                bool wrapped = raw < 0 || raw >= n;
+                _jGroup = (raw + n) % n;
+                if (wrapped) UiSfx.Cycle(); else UiSfx.Entry();
                 AnnounceGroup(interrupt: true);
             }
             else
             {
                 var g = _groups[_jGroup];
                 if (g.lines.Count == 0) return;
-                _jItem = (_jItem + step + g.lines.Count) % g.lines.Count;
+                int n = g.lines.Count;
+                int raw = _jItem + step;
+                bool wrapped = raw < 0 || raw >= n;
+                _jItem = (raw + n) % n;
+                if (wrapped) UiSfx.Cycle(); else UiSfx.Entry();
                 AnnounceItem(interrupt: true);
             }
         }
@@ -354,15 +367,16 @@ namespace CoreKeeperAccess.Navigation
             {
                 if (_groups[_jGroup].lines.Count == 0) return;
                 _jLevel = 1; _jItem = 0;
+                UiSfx.Validate();   // ouvrir une conversation = entrer dans une section
                 AnnounceItem(interrupt: true);
             }
-            else AnnounceItem(interrupt: true); // relire
+            else { UiSfx.Entry(); AnnounceItem(interrupt: true); } // relire
         }
 
         // D-pad gauche : REVIENT a la liste des conversations (niveau 1 -> 0). Butee au niveau 0.
         private static void JournalBack()
         {
-            if (_jLevel == 1) { _jLevel = 0; AnnounceGroup(interrupt: true); }
+            if (_jLevel == 1) { _jLevel = 0; UiSfx.Entry(); AnnounceGroup(interrupt: true); }
         }
 
         // Niveau 0 : titre de la conversation + nombre de repliques.
@@ -399,13 +413,14 @@ namespace CoreKeeperAccess.Navigation
             {
                 if (IsVirtualRow(_index, out int kind))
                 {
+                    UiSfx.Validate();   // action directe (creer / rejoindre / recalculer)
                     if (kind == VrowNew) PlaceBeaconAtPlayer();
                     else if (kind == VrowJoin) JoinNearestNetwork();
                     else RecalcNetwork();
                     return;
                 }
                 var bm = MarkerAt(_index);
-                if (bm != null) OpenMarkerMenu(bm);
+                if (bm != null) OpenMarkerMenu(bm); // OpenMarkerMenu -> ActionMenu joue son propre earcon
                 return;
             }
             // Points d'interet : menu d'actions (guidage). Pas de teleportation.
@@ -416,6 +431,7 @@ namespace CoreKeeperAccess.Navigation
             }
             // Destinations / relais : Croix = teleportation directe (inchange).
             if (_index < 0 || _index >= _dests.Count) return;
+            UiSfx.Validate();   // teleportation lancee
             _dests[_index].OnLeftClicked(false, false);
         }
 

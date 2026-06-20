@@ -27,7 +27,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private static CommandWheel Build()
         {
-            var w = new CommandWheel(0, 0, -1, runOnHover: true);
+            var w = new CommandWheel(0, 0, -1, runOnHover: true, tickSound: false);
             w.AddAtSector(0, "stats.health", () =>
             {
                 var p = Player();

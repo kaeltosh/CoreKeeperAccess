@@ -35,10 +35,18 @@ namespace CoreKeeperAccess.Controls
         public static bool ForgeOpen { get; private set; }           // forge d'amelioration (1 slot)
         public static bool InventoryNavActive { get; private set; }  // notre nav inventaire tient la main
         public static bool SettingsOpen { get; private set; }        // panneau de reglages a11y ouvert
+        public static bool ActionMenuOpen { get; private set; }      // menu contextuel / menu d'aide ouvert
+        public static bool PadLearnActive { get; private set; }      // mode decouverte de la manette
 
         // Composites des anciennes gardes.
         public static bool UiBusy { get; private set; }     // nav inventaire OU menu : combos gameplay muets
         public static bool InGameFree { get; private set; } // gameplay nu : ni fenetre, ni fiche perso, ni carte, ni menu
+
+        // Un menu MODAL a11y est ouvert (panneau de reglages, menu contextuel / menu d'aide,
+        // saisie de nom) : tout navigateur du mod qui lit le D-pad EN DIRECT doit s'effacer
+        // (le modal lit les boutons physiques lui-meme). Lecture VIVE (pas de retard d'une
+        // frame a l'ouverture). UiBusy ne suffit pas en inventaire : il y est deja vrai.
+        public static bool ModalA11yOpen => Settings.SettingsMenu.Active || ActionMenu.Active || TextEntry.Active || PadLearn.Active;
 
         public static void Refresh()
         {
@@ -52,20 +60,25 @@ namespace CoreKeeperAccess.Controls
             ForgeOpen = InWorld && ui.isUpgradeForgeUIShowing;
             InventoryNavActive = Navigation.InventoryNavState.SuppressNativeInput;
             SettingsOpen = Settings.SettingsMenu.Active;
+            ActionMenuOpen = ActionMenu.Active;
+            PadLearnActive = PadLearn.Active;
 
-            // Panneau de reglages ouvert : modal. On le compte dans UiBusy ET on retire
-            // InGameFree -> laser, curseur, sentinelle... se taisent pendant le reglage.
-            UiBusy = InventoryNavActive || MenuOpen || SettingsOpen;
+            // Modaux a11y (panneau de reglages, menu contextuel / menu d'aide) : on les
+            // compte dans UiBusy ET on retire InGameFree -> laser, curseur, sentinelle,
+            // sonar, feu... se taisent tant qu'un de ces menus est ouvert (y compris en jeu
+            // libre, ou le menu d'aide peut s'ouvrir hors carte).
+            UiBusy = InventoryNavActive || MenuOpen || SettingsOpen || ActionMenuOpen || PadLearnActive;
             // !MenuOpen : un menu overlay qui ne gele pas le jeu (ex. "gerer les
             // joueurs", pousse par-dessus le monde) laissait laser/curseur/feu tourner
             // par-dessus. Un menu pause normal gelait le jeu -> trou masque jusqu'ici.
-            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen && !SettingsOpen && !MenuOpen;
+            InGameFree = InWorld && !AnyInventoryOpen && !CharacterWindowOpen && !MapOpen && !SettingsOpen && !MenuOpen && !ActionMenuOpen && !PadLearnActive;
         }
 
         // Proprietaire COURANT du D-pad (vif, voir note de classe sur l'ordre de lecture).
         public static PadOwner Owner =>
             !InWorld ? PadOwner.None
             : Settings.SettingsMenu.Active ? PadOwner.Settings
+            : ActionMenu.Active ? PadOwner.Settings // modal a11y : possede le D-pad comme le panneau
             : InfoKey.ModifierHeld ? PadOwner.AccessKey
             : MenuOpen ? PadOwner.Menu
             : MapOpen ? PadOwner.Map

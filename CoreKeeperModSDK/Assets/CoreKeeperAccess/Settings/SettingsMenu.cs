@@ -182,6 +182,9 @@ namespace CoreKeeperAccess.Settings
 
             _root.Children.Add(Tg("settings.normalize", "settings.desc.normalize",
                 () => A11ySettings.NormalizeAudio, A11ySettings.SetNormalizeAudio));
+
+            _root.Children.Add(Tg("settings.xboxbuttons", "settings.desc.xboxbuttons",
+                () => A11ySettings.XboxButtons, A11ySettings.SetXboxButtons));
         }
 
         // --- Ouverture / fermeture ---
@@ -192,7 +195,7 @@ namespace CoreKeeperAccess.Settings
             Active = true;
             _stack.Clear();
             _stack.Add(new Level { Cat = _root, Idx = 0 });
-            ClickValidate();   // ouverture = entree dans le panneau
+            UiSfx.Validate();   // ouverture = entree dans le panneau
             TtsText.Say(Strings.L("settings.title") + ", " + Describe(Cur), true);
         }
 
@@ -202,7 +205,7 @@ namespace CoreKeeperAccess.Settings
             Active = false;
             _stack.Clear();
             StopSonarPreview();   // coupe une nappe d'apercu encore en cours
-            ClickEntry();   // fermeture
+            UiSfx.Entry();   // fermeture
             TtsText.Say(Strings.L("settings.closed"), true);
         }
 
@@ -257,23 +260,23 @@ namespace CoreKeeperAccess.Settings
             if (ni < 0) { ni = n - 1; wrapped = true; }
             else if (ni >= n) { ni = 0; wrapped = true; }
             Index = ni;
-            if (wrapped) ClickCycle(); else ClickEntry(); // cyclage debut/fin sinon survol d'entree
+            if (wrapped) UiSfx.Cycle(); else UiSfx.Entry(); // cyclage debut/fin sinon survol d'entree
             TtsText.Say(Describe(items[ni]), true);
         }
 
         private static void OnRight()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, s.Min, s.Max)); ClickEntry(); SayValue(s); }
-            else if (n is Toggle t) { if (!t.Get()) t.Set(true); ClickValidate(); SayValue(t); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
+            else if (n is Toggle t) { if (!t.Get()) t.Set(true); UiSfx.Validate(); SayValue(t); }
             else if (n is Category c) Enter(c);
         }
 
         private static void OnLeft()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, s.Min, s.Max)); ClickEntry(); SayValue(s); }
-            else if (n is Toggle t) { if (t.Get()) t.Set(false); ClickValidate(); SayValue(t); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
+            else if (n is Toggle t) { if (t.Get()) t.Set(false); UiSfx.Validate(); SayValue(t); }
             else Back(); // categorie focalisee : gauche = remonter
         }
 
@@ -281,15 +284,15 @@ namespace CoreKeeperAccess.Settings
         {
             var n = Cur;
             if (n is Category c) Enter(c);
-            else if (n is Toggle t) { t.Set(!t.Get()); ClickValidate(); SayValue(t); }
+            else if (n is Toggle t) { t.Set(!t.Get()); UiSfx.Validate(); SayValue(t); }
             else SayValue(n); // slider : re-annonce la valeur
         }
 
         private static void Enter(Category c)
         {
-            if (c.Children.Count == 0) { ClickCycle(); TtsText.Say(Describe(c), true); return; }
+            if (c.Children.Count == 0) { UiSfx.Cycle(); TtsText.Say(Describe(c), true); return; }
             _stack.Add(new Level { Cat = c, Idx = 0 });
-            ClickValidate();   // entrer un sous-menu = validation
+            UiSfx.Validate();   // entrer un sous-menu = validation
             TtsText.Say(Strings.L(c.LabelKey) + ", " + Describe(Cur), true);
         }
 
@@ -297,7 +300,7 @@ namespace CoreKeeperAccess.Settings
         {
             if (_stack.Count <= 1) { Close(); return; }
             _stack.RemoveAt(_stack.Count - 1);
-            ClickEntry();   // remonter = navigation entre entrees
+            UiSfx.Entry();   // remonter = navigation entre entrees
             TtsText.Say(Strings.L(Current.LabelKey) + ", " + Describe(Cur), true);
         }
 
@@ -327,16 +330,9 @@ namespace CoreKeeperAccess.Settings
         // Pas de Clamp01 : un slider d'amplification peut afficher au-dela de 100 % (ex. 150 %).
         private static string Pct(float v) => Mathf.RoundToInt(Mathf.Max(0f, v) * 100f).ToString();
 
-        // --- Earcons du panneau (sons natifs du jeu, choix utilisateur) ---
-        // Trois sons DISTINCTS, un par type d'action (pitchDev = 0 : pas de random pitch) :
-        //  - naviguer entre les entrees (haut/bas, remonter, fermer) + cran de slider = FIXME_menu_select (roue) ;
-        //  - CYCLAGE : revenir au debut / aller a la fin de la liste = switch_click ;
-        //  - valider / entrer un sous-menu / bascule / ouvrir = inventory_select.
-        // Joues via GameplayAudio.PlayUi : NORMALISES (3 clics natifs tres inegaux) ET pilotes
-        // par le volume general (le master gouverne tout ; le TTS NVDA porte la nav si maitre bas).
-        private static void ClickEntry() => GameplayAudio.PlayUi(SfxID.FIXME_menu_select);
-        private static void ClickCycle() => GameplayAudio.PlayUi(SfxID.switch_click_1_01);
-        private static void ClickValidate() => GameplayAudio.PlayUi(SfxID.inventory_select);
+        // --- Earcons du panneau : grammaire de nav PARTAGEE (UiSfx), commune a tous les menus
+        // maison (panneau, menu contextuel, roues, lecteur de carte). Definie une seule fois
+        // dans Controls/UiSfx.cs (entree / butee de cyclage / validation), normalisee + master. ---
 
         // --- Lecture bouton physique par id d'element (template Rewired Gamepad) ---
         private const int IdUp = 16, IdRight = 17, IdDown = 18, IdLeft = 19;

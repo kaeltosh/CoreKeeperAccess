@@ -50,6 +50,14 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 
 - **Panneau de réglages d'accessibilité in-game** (Triangle + Back) : navigable et entièrement vocalisé, modal, avec des réglages qui survivent aux mises à jour (volumes, aide à la direction, ralenti de combat, normalisation, etc.).
 - **Refonte audio** : normalisation du volume plus juste (elle ne rate plus les sons brefs et claquants), volumes réglables jusqu'à 200 %, et un volume dédié à la navigation (curseur de tuile et canne laser).
+- **Sons de menus unifiés** : tous les menus du mod (panneau de réglages, menus contextuels, roues, lecteur de carte et son journal) partagent désormais les mêmes sons de navigation, normalisés et pilotés par le volume général. La roue de stats reste silencieuse au survol (elle annonce déjà la valeur).
+- **Noms de boutons au choix** : un réglage « Noms de boutons façon Xbox » (PlayStation par défaut) — le menu d'aide et tout ce qui cite un bouton s'affichent en Croix / Triangle / L2 ou en A / Y / LT selon ton choix.
+
+### Menu d'aide et découverte de la manette
+
+- **Menu d'aide contextuel** (maintiens Triangle, tape deux fois vers le haut) : la liste de tout ce que tu peux faire là où tu te trouves. Les commandes du mod (avec leur raccourci), que tu peux lancer directement depuis la liste, et les commandes du jeu lues sur ta vraie configuration de touches — justes même si tu remappes. La liste change selon le contexte (jeu, inventaire, carte).
+- **Mode découverte de la manette** : à ta toute première entrée en jeu, un mode d'apprentissage se lance — presse un bouton ou bouge un stick, le mod te dit son nom et sa position physique (et te rappelle une fois qu'on peut cliquer les sticks). On en sort par un double-appui sur Rond, et un dernier message t'apprend comment rouvrir l'aide. Tu peux le relancer à tout moment depuis la première entrée du menu d'aide. Le menu principal restant accessible au clavier, un débutant peut créer son personnage puis apprendre la manette une fois en jeu.
+- **Raccourcis d'inventaire aux gâchettes** : dans l'inventaire, R2 transfère l'objet sélectionné, L2 le lâche au sol, et Triangle + L2 le jette à la poubelle.
 
 ### Installation
 
