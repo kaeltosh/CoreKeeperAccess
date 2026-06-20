@@ -254,6 +254,7 @@
   "cond.radiation": "irradié",
   "cond.void": "rongé par le vide",
   "settings.conditionearcons": "Alertes sonores d'états",
+  "settings.healthalerts": "Alertes de vie faible",
   "progress.core": "Cœur",
   "progress.core.on": "activé",
   "progress.core.off": "non activé",

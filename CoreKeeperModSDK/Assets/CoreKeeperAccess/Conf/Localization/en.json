@@ -253,6 +253,7 @@
   "cond.radiation": "irradiated",
   "cond.void": "void damage",
   "settings.conditionearcons": "Status sound alerts",
+  "settings.healthalerts": "Low health alerts",
   "progress.core": "Core",
   "progress.core.on": "activated",
   "progress.core.off": "not activated",

@@ -116,6 +116,11 @@ namespace CoreKeeperAccess.Settings
             });
             _root.Children.Add(new Toggle
             {
+                LabelKey = "settings.healthalerts",
+                Get = () => A11ySettings.HealthAlerts, Set = A11ySettings.SetHealthAlerts,
+            });
+            _root.Children.Add(new Toggle
+            {
                 LabelKey = "settings.normalize",
                 Get = () => A11ySettings.NormalizeAudio, Set = A11ySettings.SetNormalizeAudio,
             });

@@ -70,6 +70,9 @@ namespace CoreKeeperAccess.Gameplay
             // Earcons d'alerte a l'apparition d'un etat subi (DoT feu/acide/radiation, stun).
             // Une alerte sonore au front montant, cf. ConditionAlerts. Actif par defaut.
             public bool conditionEarcons = true;
+            // Alertes SONORES de vie faible : sirene au seuil d'alerte (60 %, une fois) + battement
+            // de coeur repete au seuil critique (20 %). Earcons generes, cf. VitalsReadout. Actif.
+            public bool healthAlerts = true;
         }
 
         private static Data _d = new Data();
@@ -99,6 +102,7 @@ namespace CoreKeeperAccess.Gameplay
         public static bool PickupFilterBlocks => _d.pickupFilterBlocks;
         public static bool PickupTotal => _d.pickupTotal;
         public static bool ConditionEarcons => _d.conditionEarcons;
+        public static bool HealthAlerts => _d.healthAlerts;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -118,6 +122,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetPickupFilterBlocks(bool v) { _d.pickupFilterBlocks = v; Save(); }
         public static void SetPickupTotal(bool v) { _d.pickupTotal = v; Save(); }
         public static void SetConditionEarcons(bool v) { _d.conditionEarcons = v; Save(); }
+        public static void SetHealthAlerts(bool v) { _d.healthAlerts = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

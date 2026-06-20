@@ -27,6 +27,7 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 - **Combat de boss accessible** : ralenti de combat symétrique (qui ralentit aussi le boss, donc pas un avantage), repère sonore du centre de l'arène, détecteur des zones de feu au sol.
 - **Visée du mortier automatique** : le viseur se cale tout seul sur l'ennemi que tu vises à la canne laser.
 - **Alertes sonores d'états** : quand un état dangereux t'atteint, un son t'avertit aussitôt — un signal grave et menaçant pour les dégâts dans la durée (feu, acide, radiation), un autre pour l'étourdissement qui te bloque. Et la roue de stats (Triangle + stick gauche, secteur est) te donne désormais le dégât par seconde exact de chaque effet. Activable dans le panneau de réglages.
+- **Alertes de vie faible** : quand ta vie descend, deux paliers te préviennent sans que tu aies à consulter quoi que ce soit. Sous 60 %, un double bip sec puis un battement de cœur lent qui revient régulièrement ; sous 20 %, une sirène montante puis le même battement de cœur, mais bien plus rapide — impossible à manquer. En te soignant, le cœur ralentit puis se tait dès que tu repasses au-dessus de 60 %. Activable dans le panneau de réglages.
 
 ### Personnage et progression
 

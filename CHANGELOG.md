@@ -27,6 +27,7 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 - **Accessible boss fights**: symmetrical combat slow-motion (it slows the boss too, so it's not an advantage), an audio cue for the arena center, and a detector for fire zones on the ground.
 - **Automatic mortar aiming**: the reticle locks on by itself to the enemy you're aiming at with the laser cane.
 - **Status sound alerts**: when a dangerous status hits you, a sound warns you right away — a deep, ominous cue for damage over time (fire, acid, radiation), another for the stun that locks you. And the stats wheel (Triangle + left stick, East sector) now gives you the exact damage-per-second of each effect. Toggleable from the settings panel.
+- **Low-health alerts**: as your health drops, two tiers warn you without having to check anything. Below 60%, a dry double beep then a slow heartbeat that comes back at a steady pace; below 20%, a rising siren then the same heartbeat, but much faster — impossible to miss. As you heal, the heartbeat slows down then goes silent as soon as you're back above 60%. Toggleable from the settings panel.
 
 ### Character and progression
 

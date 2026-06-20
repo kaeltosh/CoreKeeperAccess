@@ -441,6 +441,141 @@ namespace CoreKeeperAccess.Gameplay
             return MonoClip("A11yCondDot", data);
         }
 
+        // --- Earcons d'ALERTE DE VIE (seuils de sante) ---
+        // TROIS earcons GENERES (aucun asset), choisis par l'utilisateur a l'oreille, sur une
+        // source DEDIEE (ne vole pas le pitch des earcons de condition / sentinelle). Buffers
+        // normalises a -6 dBFS de crete (les tons generes n'ont pas la marge des sons normalises).
+        //  - WARN (seuil ~60 %) : DEUX bips serres a onde presque carree, joues UNE fois.
+        //  - ALERTE (entree ~20 %) : sirene saturee MONTANTE, jouee UNE fois au passage critique.
+        //  - CRITIQUE (sous ~20 %) : battement de coeur grave resonant, REPETE par VitalsReadout
+        //    (la CADENCE de repetition est pilotee par l'appelant, jamais par la duree du clip).
+        private static AudioSource _healthSource;
+        private static AudioClip _healthWarnClip, _healthAlertClip, _healthCritClip;
+
+        public static void PlayHealthWarn(float volume = 1f)
+        {
+            EnsureInit();
+            if (_healthSource == null) return;
+            if (_healthWarnClip == null) _healthWarnClip = BuildHealthWarnClip();
+            if (_healthWarnClip == null) return;
+            _healthSource.pitch = 1f;
+            _healthSource.PlayOneShot(_healthWarnClip, volume * A11ySettings.MasterVolume);
+        }
+
+        public static void PlayHealthAlert(float volume = 1f)
+        {
+            EnsureInit();
+            if (_healthSource == null) return;
+            if (_healthAlertClip == null) _healthAlertClip = BuildHealthAlertClip();
+            if (_healthAlertClip == null) return;
+            _healthSource.pitch = 1f;
+            _healthSource.PlayOneShot(_healthAlertClip, volume * A11ySettings.MasterVolume);
+        }
+
+        public static void PlayHealthCritical(float volume = 1f)
+        {
+            EnsureInit();
+            if (_healthSource == null) return;
+            if (_healthCritClip == null) _healthCritClip = BuildHealthCritClip();
+            if (_healthCritClip == null) return;
+            _healthSource.pitch = 1f;
+            _healthSource.PlayOneShot(_healthCritClip, volume * A11ySettings.MasterVolume);
+        }
+
+        // ALERTE : chirp (sweep de frequence) 500 -> 1050 Hz, sature tanh, 300 ms, attaque 10 ms /
+        // sortie 50 ms. La montee de hauteur dit "ca se degrade", la saturation donne de la
+        // presence sans tomber dans le TTS. "Urgent mais pas pressant" (one-shot).
+        private static AudioClip BuildHealthAlertClip()
+        {
+            const int rate = 44100;
+            int len = rate * 300 / 1000;
+            int atk = rate * 10 / 1000, rel = rate * 50 / 1000;
+            var data = new float[len];
+            double phase = 0.0;
+            for (int i = 0; i < len; i++)
+            {
+                double frac = (double)i / len;
+                double f = 500.0 + (1050.0 - 500.0) * frac;
+                phase += 2.0 * System.Math.PI * f / rate;
+                double v = System.Math.Tanh(2.0 * System.Math.Sin(phase));
+                float env = 1f;
+                if (i < atk) env = i / (float)atk;
+                else if (i >= len - rel) env = (len - 1 - i) / (float)rel;
+                data[i] = (float)v * env;
+            }
+            NormalizePeak(data, 0.5f);
+            return MonoClip("A11yHealthAlert", data);
+        }
+
+        // WARN (seuil 60 %) : DEUX bips serres a onde presque carree (medium 550 Hz), joues UNE
+        // fois. Signal sec et synthetique - ni melodique ni alarmant, distinct de la sirene
+        // (montante) et du battement (grave). Variante D1 retenue a l'oreille.
+        private static AudioClip BuildHealthWarnClip()
+        {
+            const int rate = 44100;
+            int len = rate * 180 / 1000;
+            var data = new float[len];
+            AddSqBip(data, rate, 0,                550.0, rate * 50 / 1000);
+            AddSqBip(data, rate, rate * 90 / 1000, 550.0, rate * 50 / 1000);
+            NormalizePeak(data, 0.5f);
+            return MonoClip("A11yHealthWarn", data);
+        }
+
+        // Un bip a onde PRESQUE CARREE : tanh(5 x sin) aplatit la sinusoide vers le carre sans
+        // l'aliasing dur d'un vrai signe, attaque 3 ms / sortie 20 ms anti-clic.
+        private static void AddSqBip(float[] data, int rate, int startSample, double freq, int durSamples)
+        {
+            int atk = rate * 3 / 1000, rel = rate * 20 / 1000;
+            for (int i = 0; i < durSamples; i++)
+            {
+                int idx = startSample + i;
+                if (idx < 0 || idx >= data.Length) continue;
+                double t = (double)i / rate;
+                double v = System.Math.Tanh(5.0 * System.Math.Sin(2.0 * System.Math.PI * freq * t));
+                float env = 1f;
+                if (i < atk) env = i / (float)atk;
+                else if (i >= durSamples - rel) env = (durSamples - 1 - i) / (float)rel;
+                data[idx] += (float)v * env;
+            }
+        }
+
+        // CRITIQUE : "battement de coeur" - deux thumps GRAVES resonants (lub-dub) RESSERRES
+        // (variante B2 retenue a l'oreille : dub a 160 ms, ~340 ms au total). Grave et corporel
+        // = "impossible a ignorer", repete par l'appelant tant que la vie reste critique.
+        private static AudioClip BuildHealthCritClip()
+        {
+            const int rate = 44100;
+            int len = rate * 340 / 1000;
+            int rel = rate * 110 / 1000;
+            var data = new float[len];
+            AddThump(data, rate, 0,                 rate * 160 / 1000, rel, 1.00); // lub
+            AddThump(data, rate, rate * 160 / 1000, rate * 150 / 1000, rel, 0.85); // dub (resserre)
+            NormalizePeak(data, 0.5f);
+            return MonoClip("A11yHealthCrit", data);
+        }
+
+        // Un "thump" cardiaque : chirp descendant 110 -> 44 Hz sature tanh (le pitch qui plonge =
+        // l'impact organique), attaque 3 ms puis longue resonance (sortie rel). Additionne dans
+        // data a partir de startSample.
+        private static void AddThump(float[] data, int rate, int startSample, int durSamples, int relSamples, double gain)
+        {
+            int atk = rate * 3 / 1000;
+            double phase = 0.0;
+            for (int i = 0; i < durSamples; i++)
+            {
+                int idx = startSample + i;
+                if (idx < 0 || idx >= data.Length) continue;
+                double frac = (double)i / durSamples;
+                double f = 110.0 + (44.0 - 110.0) * frac;
+                phase += 2.0 * System.Math.PI * f / rate;
+                double v = System.Math.Tanh(2.0 * System.Math.Sin(phase));
+                float env = 1f;
+                if (i < atk) env = i / (float)atk;
+                else if (i >= durSamples - relSamples) env = (durSamples - 1 - i) / (float)relSamples;
+                data[idx] += (float)(v * gain) * env;
+            }
+        }
+
         // --- Drone CONTINU du repere de centre (placeholder, 13 juin) ---
         // Sinus doux joue en BOUCLE. Le pan se fait par BALANCE de volume entre deux
         // sources hard-pannees (puissance constante), pas par panStereo (inoperant ici,
@@ -610,6 +745,10 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee des earcons d'alerte d'etat (DoT / stun), non spatialises.
             _condSource = go.AddComponent<AudioSource>();
             ConfigureSource(_condSource);
+
+            // Source dediee des earcons d'alerte de VIE (sirene + battement de coeur), non spatialises.
+            _healthSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_healthSource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.
