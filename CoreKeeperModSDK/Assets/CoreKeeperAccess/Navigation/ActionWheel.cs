@@ -26,7 +26,25 @@ namespace CoreKeeperAccess.Navigation
             w.AddAtSector(3, "wheel.hotbarprev", () => Arm(PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR));
             w.AddAtSector(4, "wheel.pickuphalf", () => Arm(PlayerInput.InputType.PICK_UP_HALF));
             w.AddAtSector(5, "wheel.trash", () => Arm(PlayerInput.InputType.TRASH_ITEM));
+            // Secteur 6 = Ouest (cardinal libre). Lacher l'objet du slot survole au sol.
+            // Le drop natif est un geste a deux boutons (maintien L2 + Croix) lu en continu,
+            // donc PAS armable : appel direct du canal serveur officiel (comme le transfert).
+            w.AddAtSector(6, "wheel.drop", DropSelectedToWorld);
             return w;
+        }
+
+        // Reproduit UIMouse.DropSelectedObjectToWorld (private cote jeu) : DropItem passe
+        // par QueueInputAction -> server-authoritative respecte. Gardes natives reprises :
+        // pas de coffre verrouille en place, pas l'inventaire d'achat du marchand.
+        private static void DropSelectedToWorld()
+        {
+            var slot = (Manager.ui != null ? Manager.ui.currentSelectedUIElement : null) as InventorySlotUI;
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (slot == null || player == null) return;
+            var handler = slot.GetInventoryHandler();
+            if (handler == null || handler.objectsGetLockedInPlace || handler.isBuyInventory) return;
+            handler.DropItem(player, slot.inventorySlotIndex,
+                EntityMonoBehaviour.ToWorldFromRender(player.transform.position), player.entity);
         }
 
         public static void Tick()
