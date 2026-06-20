@@ -111,6 +111,11 @@ namespace CoreKeeperAccess.Settings
             });
             _root.Children.Add(new Toggle
             {
+                LabelKey = "settings.conditionearcons",
+                Get = () => A11ySettings.ConditionEarcons, Set = A11ySettings.SetConditionEarcons,
+            });
+            _root.Children.Add(new Toggle
+            {
                 LabelKey = "settings.normalize",
                 Get = () => A11ySettings.NormalizeAudio, Set = A11ySettings.SetNormalizeAudio,
             });

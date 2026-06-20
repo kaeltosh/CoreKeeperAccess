@@ -67,6 +67,9 @@ namespace CoreKeeperAccess.Gameplay
             // Suffixe la quantite TOTALE possedee a l'annonce de ramassage ("47 en tout").
             // Inactif par defaut (plus verbeux).
             public bool pickupTotal = false;
+            // Earcons d'alerte a l'apparition d'un etat subi (DoT feu/acide/radiation, stun).
+            // Une alerte sonore au front montant, cf. ConditionAlerts. Actif par defaut.
+            public bool conditionEarcons = true;
         }
 
         private static Data _d = new Data();
@@ -95,6 +98,7 @@ namespace CoreKeeperAccess.Gameplay
         public static bool PickupAnnounce => _d.pickupAnnounce;
         public static bool PickupFilterBlocks => _d.pickupFilterBlocks;
         public static bool PickupTotal => _d.pickupTotal;
+        public static bool ConditionEarcons => _d.conditionEarcons;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -113,6 +117,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetPickupAnnounce(bool v) { _d.pickupAnnounce = v; Save(); }
         public static void SetPickupFilterBlocks(bool v) { _d.pickupFilterBlocks = v; Save(); }
         public static void SetPickupTotal(bool v) { _d.pickupTotal = v; Save(); }
+        public static void SetConditionEarcons(bool v) { _d.conditionEarcons = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

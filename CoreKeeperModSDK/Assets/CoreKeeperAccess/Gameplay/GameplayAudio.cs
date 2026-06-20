@@ -357,6 +357,90 @@ namespace CoreKeeperAccess.Gameplay
             _toneSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
         }
 
+        // --- Earcons d'ALERTE d'etat (conditions subies) ---
+        // NON spatialises (c'est TOI qui subis -> centre). Source DEDIEE pour ne pas voler le
+        // pitch des bips de la sentinelle (_toneSource sequence ses bips). Deux timbres GENERES
+        // (aucun asset) choisis par l'utilisateur a l'oreille, construits paresseusement et
+        // gardes en RAM. Le buffer est normalise a -6 dBFS de crete (anti-clip + niveau coherent
+        // avec le mastering du mod : les tons generes n'ont pas la marge des sons normalises).
+        private static AudioSource _condSource;
+        private static AudioClip _stunBuzzClip, _dotMinorClip;
+
+        // stun = buzz (porteuse grave hachee). DoT = accord grave mineur dissonant.
+        public static void PlayConditionEarcon(bool stun, float volume = 1f)
+        {
+            EnsureInit();
+            if (_condSource == null) return;
+            AudioClip clip;
+            if (stun) { if (_stunBuzzClip == null) _stunBuzzClip = BuildBuzzClip(); clip = _stunBuzzClip; }
+            else { if (_dotMinorClip == null) _dotMinorClip = BuildMinorChordClip(); clip = _dotMinorClip; }
+            if (clip == null) return;
+            _condSource.pitch = 1f;
+            _condSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
+        }
+
+        private static void NormalizePeak(float[] data, float target)
+        {
+            float peak = 1e-9f;
+            for (int i = 0; i < data.Length; i++) { float a = data[i] < 0f ? -data[i] : data[i]; if (a > peak) peak = a; }
+            float g = target / peak;
+            for (int i = 0; i < data.Length; i++) data[i] *= g;
+        }
+
+        private static AudioClip MonoClip(string name, float[] data)
+        {
+            var clip = AudioClip.Create(name, data.Length, 1, 44100, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        // Earcon STUN : porteuse 180 Hz hachee par un tremolo carre a 40 Hz (1 / 0.3), 250 ms,
+        // attaque 3 ms / sortie 30 ms. "Buzz d'immobilisation".
+        private static AudioClip BuildBuzzClip()
+        {
+            const int rate = 44100;
+            int len = rate * 250 / 1000;
+            int atk = rate * 3 / 1000, rel = rate * 30 / 1000;
+            var data = new float[len];
+            for (int i = 0; i < len; i++)
+            {
+                double t = (double)i / rate;
+                double car = System.Math.Sin(2.0 * System.Math.PI * 180.0 * t);
+                double tr = System.Math.Sin(2.0 * System.Math.PI * 40.0 * t) > 0.0 ? 1.0 : 0.3;
+                float env = 1f;
+                if (i < atk) env = i / (float)atk;
+                else if (i >= len - rel) env = (len - 1 - i) / (float)rel;
+                data[i] = (float)(car * tr) * env;
+            }
+            NormalizePeak(data, 0.5f);
+            return MonoClip("A11yCondStun", data);
+        }
+
+        // Earcon DoT : accord grave MINEUR dissonant (165 + 196 + 247 Hz), sature (tanh),
+        // montee progressive (swell 120 ms), 460 ms, sortie 130 ms - le plus dramatique du lot.
+        private static AudioClip BuildMinorChordClip()
+        {
+            const int rate = 44100;
+            int len = rate * 460 / 1000;
+            int rel = rate * 130 / 1000;
+            int swell = rate * 120 / 1000;
+            var data = new float[len];
+            for (int i = 0; i < len; i++)
+            {
+                double t = (double)i / rate;
+                double mix = System.Math.Sin(2.0 * System.Math.PI * 165.0 * t)
+                           + 0.8 * System.Math.Sin(2.0 * System.Math.PI * 196.0 * t)
+                           + 0.7 * System.Math.Sin(2.0 * System.Math.PI * 247.0 * t);
+                double v = System.Math.Tanh(2.2 * mix);
+                float env = 1f;
+                if (i < swell) env = i / (float)swell;
+                if (i >= len - rel) { float r = (len - 1 - i) / (float)rel; if (r < env) env = r; }
+                data[i] = (float)v * env;
+            }
+            NormalizePeak(data, 0.5f);
+            return MonoClip("A11yCondDot", data);
+        }
+
         // --- Drone CONTINU du repere de centre (placeholder, 13 juin) ---
         // Sinus doux joue en BOUCLE. Le pan se fait par BALANCE de volume entre deux
         // sources hard-pannees (puissance constante), pas par panStereo (inoperant ici,
@@ -522,6 +606,10 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee du beacon de navigation (coupee/relancee a chaque ping).
             _beaconSource = go.AddComponent<AudioSource>();
             ConfigureSource(_beaconSource);
+
+            // Source dediee des earcons d'alerte d'etat (DoT / stun), non spatialises.
+            _condSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_condSource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.

@@ -167,6 +167,11 @@ namespace CoreKeeperAccess.Gameplay
         // .value != 0 = condition active) et n'en retient que les debuffs de la liste blanche.
         internal static void AnnounceConditions(PlayerController player)
         {
+            // Degat-par-seconde exact des DoT (0 si inactif) : le modele du jeu n'en fait PAS
+            // une regen negative (canal separe), d'ou cette lecture dediee. cf. ConditionAlerts.
+            int feu, acid, radio, vide;
+            ConditionAlerts.ReadDps(player, out feu, out acid, out radio, out vide);
+
             var actives = new List<string>();
             try
             {
@@ -179,11 +184,22 @@ namespace CoreKeeperAccess.Gameplay
                     {
                         int idx = (int)DebuffIds[i];
                         if (idx >= 0 && idx < buf.Length && buf[idx].value != 0)
-                            actives.Add(Strings.L(DebuffKeys[i]));
+                        {
+                            string label = Strings.L(DebuffKeys[i]);
+                            // Suffixe le DPS aux DoT chiffrables de la liste blanche (feu, acide).
+                            if (DebuffIds[i] == ConditionID.Burning && feu > 0) label += " " + feu + "/s";
+                            else if (DebuffIds[i] == ConditionID.AcidDamage && acid > 0) label += " " + acid + "/s";
+                            actives.Add(label);
+                        }
                     }
                 }
             }
             catch { }
+
+            // Radiation et vide : hors liste blanche (detectes par leur montant), ajoutes avec
+            // leur DPS. Le vide est aussi sonore nativement, mais on le CHIFFRE ici a la demande.
+            if (radio > 0) actives.Add(Strings.L("cond.radiation") + " " + radio + "/s");
+            if (vide > 0) actives.Add(Strings.L("cond.void") + " " + vide + "/s");
 
             TtsText.Say(actives.Count == 0
                 ? Strings.L("stats.conditions.none")
