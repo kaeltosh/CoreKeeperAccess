@@ -1,3 +1,5 @@
+using CoreKeeperAccess.Controls;
+using CoreKeeperAccess.Settings;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -59,6 +61,15 @@ namespace CoreKeeperAccess.Gameplay
         // distance. Espace ouvert = 4 directions libres = silence total.
         public static void Tick(PlayerController player)
         {
+            // Apercu en cours (panneau) : NE PAS toucher aux sources, sinon le Tick couperait
+            // la nappe d'apercu des la frame suivante (sonar desactive ou panneau ouvert font
+            // tous deux un Stop ci-dessous). StopPreview les coupera a la fin de la fenetre.
+            if (_previewing) return;
+            // Panneau de reglages ouvert (hors apercu) : sonar EN PAUSE (le joueur ne bouge pas,
+            // l'input est gele) -> pas de nappe parasite pendant qu'on regle.
+            if (SettingsMenu.Active) { Stop(); return; }
+            // Menu principal (pas encore en jeu) ou menu pause (monde fige) : sonar EN PAUSE.
+            if (!InputContext.InWorld || InputContext.MenuOpen) { Stop(); _hasCell = false; return; }
             if (!A11ySettings.ProximitySonar || player == null) { Stop(); _hasCell = false; return; }
             if (Time.unscaledTime >= _nextScan)
             {
@@ -124,6 +135,25 @@ namespace CoreKeeperAccess.Gameplay
             if (_src == null) return;
             for (int d = 0; d < 4; d++) if (_src[d] != null && _src[d].isPlaying) _src[d].Stop();
         }
+
+        // --- Apercu (panneau de reglages) ---
+        // Joue une nappe au volume actuellement regle. which : 0 = medium (avant/cotes, nord
+        // centre), 1 = grave (arriere, sud centre), 2 = les deux (volume general). Le drapeau
+        // _previewing empeche Tick de couper la nappe ; StopPreview() la coupe en fin de fenetre.
+        private static bool _previewing;
+        public static void StartPreview(int which)
+        {
+            EnsureInit();
+            _previewing = true;
+            if (which == 0 || which == 2) SetLayer(0, 1, NearVol * A11ySettings.SonarVolMedium);
+            if (which == 1 || which == 2) SetLayer(2, 1, NearVol * A11ySettings.SonarVolGrave);
+        }
+
+        public static void StopPreview() { _previewing = false; Stop(); }
+
+        // Apercu du ding d'objet (couche objets) au centre, au volume regle.
+        public static void PreviewDing()
+            => GameplayAudio.PlaySpatial(ObjectDingSfx, 0f, 1f, DingNearVol * A11ySettings.SonarVolume);
 
         // --- Construction des nappes (4 directions x mur/trou) au 1er besoin ---
         private static void EnsureInit()

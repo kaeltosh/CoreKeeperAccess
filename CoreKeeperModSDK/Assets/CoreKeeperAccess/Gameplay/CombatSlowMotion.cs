@@ -16,8 +16,9 @@ namespace CoreKeeperAccess.Gameplay
     // Activable/desactivable par l'utilisateur via le panneau (A11ySettings.CombatSlowMo).
     internal static class CombatSlowMotion
     {
-        private const float SlowScale = 0.5f; // mi-vitesse ; a regler a l'oreille en jeu
-
+        // Vitesse du temps en combat reglable par l'utilisateur (A11ySettings.SlowMoSpeed,
+        // 0.30..0.70). Reappliquee a chaque tick tant que le combat dure -> un ajustement
+        // au panneau s'entend immediatement, sans attendre la fin du combat.
         private static bool _applied;
 
         public static void Tick()
@@ -34,7 +35,8 @@ namespace CoreKeeperAccess.Gameplay
 
             if (worldRunning && inCombat)
             {
-                if (!_applied) { Time.timeScale = SlowScale; _applied = true; }
+                Time.timeScale = A11ySettings.SlowMoSpeed;
+                _applied = true;
                 return;
             }
 

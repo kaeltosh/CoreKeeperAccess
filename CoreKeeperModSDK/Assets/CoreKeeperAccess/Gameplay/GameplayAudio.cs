@@ -51,6 +51,26 @@ namespace CoreKeeperAccess.Gameplay
             src.PlayOneShot(clip, volume * gain * A11ySettings.MasterVolume);
         }
 
+        // Son d'UI 2D (clics du panneau de reglages) : NORMALISE (egalise les niveaux natifs
+        // tres inegaux des clics) ET pilote par le volume maitre comme tout le reste du mod -
+        // le general est le master, il gouverne tout. Couper le maitre n'enferme pas l'utilisateur :
+        // le TTS (NVDA) reste audible et porte la navigation du panneau.
+        public static void PlayUi(SfxID id, float pitch = 1f, float volume = 1f)
+        {
+            EnsureInit();
+            if (_pool == null || _fields == null) return;
+            int idx = (int)id;
+            if (idx < 0 || idx >= _fields.Length || _fields[idx] == null) return;
+            var clip = _fields[idx].GetNextAudioClip();
+            if (clip == null) return;
+            float gain = NormalizeGain(idx, ref clip);
+            var src = _pool[_poolIdx];
+            _poolIdx = (_poolIdx + 1) % PoolSize;
+            src.panStereo = 0f;
+            src.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            src.PlayOneShot(clip, volume * gain * A11ySettings.MasterVolume);
+        }
+
         private static AudioSource _beaconSource;
 
         // Earcon de guidage REPETE (beacon de navigation) : source DEDIEE qu'on COUPE et

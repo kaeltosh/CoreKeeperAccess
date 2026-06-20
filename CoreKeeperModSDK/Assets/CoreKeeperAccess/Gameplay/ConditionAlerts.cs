@@ -64,8 +64,8 @@ namespace CoreKeeperAccess.Gameplay
             catch { _wasDot = _wasStun = false; return; }
 
             // Front montant uniquement : une alerte a l'apparition, pas de rappel.
-            if (dot && !_wasDot) { GameplayAudio.PlayConditionEarcon(false); Diag.Log("A11yCondAlert", "DoT apparu"); }
-            if (stun && !_wasStun) { GameplayAudio.PlayConditionEarcon(true); Diag.Log("A11yCondAlert", "Stun apparu"); }
+            if (dot && !_wasDot) { GameplayAudio.PlayConditionEarcon(false, A11ySettings.ConditionEarconsVolume); Diag.Log("A11yCondAlert", "DoT apparu"); }
+            if (stun && !_wasStun) { GameplayAudio.PlayConditionEarcon(true, A11ySettings.ConditionEarconsVolume); Diag.Log("A11yCondAlert", "Stun apparu"); }
             _wasDot = dot;
             _wasStun = stun;
         }

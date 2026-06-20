@@ -22,11 +22,9 @@ namespace CoreKeeperAccess.Gameplay
     //  - Alerte de FAIM (TTS) : faim sous 20 -> "Faim critique", une fois, rearmee au-dessus.
     internal static class VitalsReadout
     {
-        // Seuils de vie (ratio des PV max) et cadences du battement. Defauts choisis par
-        // l'utilisateur ; les timbres sont des earcons generes valides a l'oreille.
-        private const float AlertHealthRatio = 0.60f;
-        private const float CritHealthRatio = 0.20f;
-        private const float WarnRepeatInterval = 1.0f;   // battement LENT (tranche 20-60 %)
+        // Seuils de vie reglables au panneau (A11ySettings.HealthAlertThreshold / CritThreshold).
+        // Cadences du battement ; les timbres sont des earcons generes valides a l'oreille.
+        private const float WarnRepeatInterval = 1.0f;   // battement LENT (tranche alerte-critique)
         private const float CritRepeatInterval = 0.6f;   // battement RAPIDE (sous 20 %)
         private const float CritEntryDelay = 0.4f;       // delai avant le 1er battement (laisse le bip/sirene finir)
         private const float LowHungerValue = 20f;
@@ -234,19 +232,19 @@ namespace CoreKeeperAccess.Gameplay
 
             // CRITIQUE (sous 20 %) : sirene UNE fois a l'entree (marqueur de bascule), puis
             // battement REPETE a cadence rapide tant qu'on y reste.
-            if (ratio <= CritHealthRatio)
+            if (ratio <= A11ySettings.HealthCritThreshold)
             {
                 if (!_critArmed)
                 {
                     _critArmed = true;
                     _healthWarnArmed = true;           // on est sous 60 aussi : pas de re-warn au retour entre seuils
-                    GameplayAudio.PlayHealthAlert();    // sirene = bascule en zone critique
+                    GameplayAudio.PlayHealthAlert(A11ySettings.HealthAlertsVolume);    // sirene = bascule en zone critique
                     _nextCritBeat = Time.unscaledTime + CritEntryDelay; // laisse la sirene finir avant le 1er battement
                 }
                 if (Time.unscaledTime >= _nextCritBeat)
                 {
                     _nextCritBeat = Time.unscaledTime + CritRepeatInterval;
-                    GameplayAudio.PlayHealthCritical();
+                    GameplayAudio.PlayHealthCritical(A11ySettings.HealthBeatVolume);
                 }
                 return;
             }
@@ -255,18 +253,18 @@ namespace CoreKeeperAccess.Gameplay
             // ALERTE (sous 60 %) : deux bips au FRANCHISSEMENT, puis battement de coeur LENT en
             // boucle. En remontant du critique, le battement continue ici a cadence ralentie - le
             // coeur ne se tait qu'au-dessus de 60 %.
-            if (ratio <= AlertHealthRatio)
+            if (ratio <= A11ySettings.HealthAlertThreshold)
             {
                 if (!_healthWarnArmed)
                 {
                     _healthWarnArmed = true;
-                    GameplayAudio.PlayHealthWarn();
+                    GameplayAudio.PlayHealthWarn(A11ySettings.HealthAlertsVolume);
                     _nextCritBeat = Time.unscaledTime + CritEntryDelay; // laisse les bips finir avant le 1er battement
                 }
                 if (Time.unscaledTime >= _nextCritBeat)
                 {
                     _nextCritBeat = Time.unscaledTime + WarnRepeatInterval;
-                    GameplayAudio.PlayHealthCritical();
+                    GameplayAudio.PlayHealthCritical(A11ySettings.HealthBeatVolume);
                 }
             }
             else
