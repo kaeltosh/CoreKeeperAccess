@@ -147,6 +147,10 @@ namespace CoreKeeperAccess.Gameplay
             _lastPing = Time.unscaledTime;
         }
 
+        // Apercu sonore (panneau de reglages) : un ping de guidage au centre, hauteur neutre,
+        // au volume actuellement regle -> regler a l'oreille sans itineraire actif.
+        public static void Preview() => GameplayAudio.PlayBeacon(GuideSfx, 0f, PitchMid, BaseVolume * A11ySettings.GuideVolume);
+
         // Résout le point à viser en mode RÉSEAU : d'abord rejoindre le réseau, puis SUIVRE LA
         // ROUTE par poursuite à carotte. Sort aussi le niveau de cadence 0..1 (0 = rapide).
         private static void ResolveRouted(float2 me, float2 targetF, out float2 aim, out float cadence01)

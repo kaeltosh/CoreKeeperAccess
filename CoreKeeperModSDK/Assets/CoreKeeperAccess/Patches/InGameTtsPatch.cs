@@ -555,6 +555,10 @@ namespace CoreKeeperAccess.Patches
             ChatWindow.MessageTextType.GainedSoul,
             ChatWindow.MessageTextType.TalkToTheCore,     // indice d'objectif natif ("va parler au Coeur")
             ChatWindow.MessageTextType.DiedFromStarvation, // mort de FAIM (vs tue par un ennemi)
+            ChatWindow.MessageTextType.EnemiesScaledUp,    // difficulte dynamique en hausse (surtout multi)
+            ChatWindow.MessageTextType.EnemiesScaledDown,  // difficulte dynamique en baisse (surtout multi)
+            ChatWindow.MessageTextType.ReconnectAttempt,   // tentative de reconnexion reseau (multi)
+            ChatWindow.MessageTextType.ReconnectSuccess,   // reconnexion reseau reussie (multi)
         };
 
         [HarmonyPostfix]

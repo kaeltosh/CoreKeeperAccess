@@ -245,6 +245,10 @@ namespace CoreKeeperAccess.Gameplay
         // aux autres sons positionnels) : ce son confirme l'ALIGNEMENT du tir, pas la distance (la
         // distance est deja portee par le bip boss / la sentinelle). Le faire faiblir avec
         // l'eloignement rendait le "t'es dessus" inaudible sur une cible lointaine -> volume plein.
+        // Apercu sonore (panneau de reglages) : le son du VISEUR (cible ennemie au stick droit),
+        // au centre, au volume de navigation actuellement regle.
+        public static void Preview() => GameplayAudio.PlaySpatial(EnemySfxPlaceholder, 0f, 1f, EnemyVolume * A11ySettings.NavigationVolume);
+
         private static void PlayEnemy(float2 worldPos)
         {
             var p = Manager.main != null ? Manager.main.player : null;

@@ -67,6 +67,32 @@ namespace CoreKeeperAccess.Gameplay
             // Suffixe la quantite TOTALE possedee a l'annonce de ramassage ("47 en tout").
             // Inactif par defaut (plus verbeux).
             public bool pickupTotal = false;
+            // Sentinelle d'aggro : bips sur les monstres qui nous ont repere. Coupe-circuit +
+            // volumes DEDIES SEPARES (multiplicateurs sur le BaseVolume du bip, 0..2 ; defaut 1)
+            // pour les monstres ordinaires et pour les boss (timbres distincts -> reglages a part).
+            public bool sentinelEnabled = true;
+            public float sentinelVolume = 1f;       // monstres ordinaires
+            public float sentinelBossVolume = 1f;   // boss (dent de scie)
+            // Detecteur de zones de feu (AoE/pieges). Coupe-circuit + volume dedie (0..2).
+            public bool fireEnabled = true;
+            public float fireVolume = 1f;
+            // Vitesse du jeu pendant le ralenti de combat (Time.timeScale applique quand des
+            // ennemis chassent). 0.30..0.70 (defaut 0.50 = mi-vitesse) : plus bas = plus lent.
+            // Bornee a 0.30 mini pour ne jamais figer le jeu.
+            public float slowMoSpeed = 0.5f;
+            // Earcons d'alerte a l'apparition d'un etat subi (DoT feu/acide/radiation, stun).
+            // Une alerte sonore au front montant, cf. ConditionAlerts. Actif par defaut.
+            public bool conditionEarcons = true;
+            public float conditionEarconsVolume = 1f;   // 0..2
+            // Alertes SONORES de vie faible : sirene au seuil d'alerte (une fois) + battement
+            // de coeur repete au seuil critique. Earcons generes, cf. VitalsReadout. Actif.
+            public bool healthAlerts = true;
+            public float healthAlertsVolume = 1f;       // sirene (60 %) + bips d'avertissement, 0..2
+            public float healthBeatVolume = 1f;         // battement de coeur repete, volume SEPARE, 0..2
+            // Seuils de declenchement (ratio de PV), reglables. Plages disjointes (alerte >=
+            // 0.40, critique <= 0.35) -> le critique reste toujours sous l'alerte, sans clamp croise.
+            public float healthAlertThreshold = 0.60f;  // 0.40..0.90
+            public float healthCritThreshold = 0.20f;   // 0.10..0.35
         }
 
         private static Data _d = new Data();
@@ -95,6 +121,19 @@ namespace CoreKeeperAccess.Gameplay
         public static bool PickupAnnounce => _d.pickupAnnounce;
         public static bool PickupFilterBlocks => _d.pickupFilterBlocks;
         public static bool PickupTotal => _d.pickupTotal;
+        public static bool SentinelEnabled => _d.sentinelEnabled;
+        public static float SentinelVolume => _d.sentinelVolume;
+        public static float SentinelBossVolume => _d.sentinelBossVolume;
+        public static bool FireEnabled => _d.fireEnabled;
+        public static float FireVolume => _d.fireVolume;
+        public static float SlowMoSpeed => _d.slowMoSpeed;
+        public static bool ConditionEarcons => _d.conditionEarcons;
+        public static float ConditionEarconsVolume => _d.conditionEarconsVolume;
+        public static bool HealthAlerts => _d.healthAlerts;
+        public static float HealthAlertsVolume => _d.healthAlertsVolume;
+        public static float HealthBeatVolume => _d.healthBeatVolume;
+        public static float HealthAlertThreshold => _d.healthAlertThreshold;
+        public static float HealthCritThreshold => _d.healthCritThreshold;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -113,6 +152,19 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetPickupAnnounce(bool v) { _d.pickupAnnounce = v; Save(); }
         public static void SetPickupFilterBlocks(bool v) { _d.pickupFilterBlocks = v; Save(); }
         public static void SetPickupTotal(bool v) { _d.pickupTotal = v; Save(); }
+        public static void SetSentinelEnabled(bool v) { _d.sentinelEnabled = v; Save(); }
+        public static void SetSentinelVolume(float v) { _d.sentinelVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetSentinelBossVolume(float v) { _d.sentinelBossVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetFireEnabled(bool v) { _d.fireEnabled = v; Save(); }
+        public static void SetFireVolume(float v) { _d.fireVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetSlowMoSpeed(float v) { _d.slowMoSpeed = Mathf.Clamp(v, 0.3f, 0.7f); Save(); }
+        public static void SetConditionEarcons(bool v) { _d.conditionEarcons = v; Save(); }
+        public static void SetConditionEarconsVolume(float v) { _d.conditionEarconsVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetHealthAlerts(bool v) { _d.healthAlerts = v; Save(); }
+        public static void SetHealthAlertsVolume(float v) { _d.healthAlertsVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetHealthBeatVolume(float v) { _d.healthBeatVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetHealthAlertThreshold(float v) { _d.healthAlertThreshold = Mathf.Clamp(v, 0.4f, 0.9f); Save(); }
+        public static void SetHealthCritThreshold(float v) { _d.healthCritThreshold = Mathf.Clamp(v, 0.1f, 0.35f); Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et
@@ -161,6 +213,15 @@ namespace CoreKeeperAccess.Gameplay
             d.sonarVolume = Mathf.Clamp(d.sonarVolume, 0f, 2f);
             d.sonarVolMedium = Mathf.Clamp(d.sonarVolMedium, 0f, 2f);
             d.sonarVolGrave = Mathf.Clamp(d.sonarVolGrave, 0f, 2f);
+            d.sentinelVolume = Mathf.Clamp(d.sentinelVolume, 0f, 2f);
+            d.sentinelBossVolume = Mathf.Clamp(d.sentinelBossVolume, 0f, 2f);
+            d.fireVolume = Mathf.Clamp(d.fireVolume, 0f, 2f);
+            d.slowMoSpeed = Mathf.Clamp(d.slowMoSpeed, 0.3f, 0.7f);
+            d.conditionEarconsVolume = Mathf.Clamp(d.conditionEarconsVolume, 0f, 2f);
+            d.healthAlertsVolume = Mathf.Clamp(d.healthAlertsVolume, 0f, 2f);
+            d.healthBeatVolume = Mathf.Clamp(d.healthBeatVolume, 0f, 2f);
+            d.healthAlertThreshold = Mathf.Clamp(d.healthAlertThreshold, 0.4f, 0.9f);
+            d.healthCritThreshold = Mathf.Clamp(d.healthCritThreshold, 0.1f, 0.35f);
             _d = d;
         }
 

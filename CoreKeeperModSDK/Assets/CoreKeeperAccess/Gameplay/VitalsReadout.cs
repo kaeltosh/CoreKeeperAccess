@@ -14,16 +14,25 @@ namespace CoreKeeperAccess.Gameplay
     //  - AnnounceMana : mana + serviteurs, toujours annonces (roue, secteur nord-est).
     //  - AnnouncePosition : coordonnees monde + biome courant. Cable sur Triangle + D-pad
     //    haut (localisation) quand le curseur est attache, cf. ComboBindings.
-    //  - Alertes automatiques : vie sous 30 % -> "Vie faible", faim sous 20 ->
-    //    "Faim critique". Une annonce au franchissement du seuil, rearmee quand on
-    //    repasse au-dessus (pas de spam), muette a la mort (vie 0).
+    //  - Alertes de VIE automatiques (earcons SONORES, pas du TTS - cf. GameplayAudio) :
+    //    * sous 60 % -> WARN (deux bips serres) au passage + battement de coeur LENT en boucle ;
+    //    * sous 20 % -> sirene (bascule) au passage + battement de coeur RAPIDE en boucle ;
+    //    warn/sirene ne sonnent qu'au FRANCHISSEMENT ; le battement tourne tant qu'on reste bas
+    //    (sa cadence dit la gravite). Muettes a la mort (vie 0). Togglables (HealthAlerts).
+    //  - Alerte de FAIM (TTS) : faim sous 20 -> "Faim critique", une fois, rearmee au-dessus.
     internal static class VitalsReadout
     {
-        private const float LowHealthRatio = 0.30f;
+        // Seuils de vie reglables au panneau (A11ySettings.HealthAlertThreshold / CritThreshold).
+        // Cadences du battement ; les timbres sont des earcons generes valides a l'oreille.
+        private const float WarnRepeatInterval = 1.0f;   // battement LENT (tranche alerte-critique)
+        private const float CritRepeatInterval = 0.6f;   // battement RAPIDE (sous 20 %)
+        private const float CritEntryDelay = 0.4f;       // delai avant le 1er battement (laisse le bip/sirene finir)
         private const float LowHungerValue = 20f;
         private const float AlertPollInterval = 0.5f;
 
-        private static bool _lowHealthAnnounced;
+        private static bool _healthWarnArmed;    // le warn 60 % a deja sonne (one-shot)
+        private static bool _critArmed;          // la sirene d'entree critique a deja sonne (one-shot)
+        private static float _nextCritBeat;      // prochain battement critique (timer a la frame)
         private static bool _lowHungerAnnounced;
         private static float _nextPoll;
 
@@ -32,18 +41,22 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null)
             {
-                _lowHealthAnnounced = _lowHungerAnnounced = false;
+                _healthWarnArmed = _critArmed = _lowHungerAnnounced = false;
+                _nextCritBeat = 0f;
                 return;
             }
 
             // Les combos Triangle + bas (vitals) / + droite (position) sont routes par
             // ComboDispatcher (cf. ComboBindings). Ici ne restent que les alertes.
 
-            // Alertes a seuil : poll espace, actif meme inventaire ouvert (le jeu
-            // continue en temps reel).
+            // Vie : earcons geres A LA FRAME (la cadence du battement critique doit etre fluide,
+            // pas alignee sur le poll). Actif meme inventaire ouvert (le jeu continue).
+            CheckHealthAlerts(player);
+
+            // Faim : poll espace, TTS.
             if (Time.unscaledTime < _nextPoll) return;
             _nextPoll = Time.unscaledTime + AlertPollInterval;
-            CheckAlerts(player);
+            CheckHungerAlert(player);
         }
 
         // Vie (roue, secteur nord) : points de vie + barriere magique RANGEE ICI (un
@@ -167,6 +180,11 @@ namespace CoreKeeperAccess.Gameplay
         // .value != 0 = condition active) et n'en retient que les debuffs de la liste blanche.
         internal static void AnnounceConditions(PlayerController player)
         {
+            // Degat-par-seconde exact des DoT (0 si inactif) : le modele du jeu n'en fait PAS
+            // une regen negative (canal separe), d'ou cette lecture dediee. cf. ConditionAlerts.
+            int feu, acid, radio, vide;
+            ConditionAlerts.ReadDps(player, out feu, out acid, out radio, out vide);
+
             var actives = new List<string>();
             try
             {
@@ -179,53 +197,99 @@ namespace CoreKeeperAccess.Gameplay
                     {
                         int idx = (int)DebuffIds[i];
                         if (idx >= 0 && idx < buf.Length && buf[idx].value != 0)
-                            actives.Add(Strings.L(DebuffKeys[i]));
+                        {
+                            string label = Strings.L(DebuffKeys[i]);
+                            // Suffixe le DPS aux DoT chiffrables de la liste blanche (feu, acide).
+                            if (DebuffIds[i] == ConditionID.Burning && feu > 0) label += " " + feu + "/s";
+                            else if (DebuffIds[i] == ConditionID.AcidDamage && acid > 0) label += " " + acid + "/s";
+                            actives.Add(label);
+                        }
                     }
                 }
             }
             catch { }
+
+            // Radiation et vide : hors liste blanche (detectes par leur montant), ajoutes avec
+            // leur DPS. Le vide est aussi sonore nativement, mais on le CHIFFRE ici a la demande.
+            if (radio > 0) actives.Add(Strings.L("cond.radiation") + " " + radio + "/s");
+            if (vide > 0) actives.Add(Strings.L("cond.void") + " " + vide + "/s");
 
             TtsText.Say(actives.Count == 0
                 ? Strings.L("stats.conditions.none")
                 : Strings.L("stats.conditions") + " : " + string.Join(", ", actives), true);
         }
 
-        private static void CheckAlerts(PlayerController player)
+        // Earcons de vie : sirene au seuil d'alerte (one-shot) + battement de coeur repete au
+        // seuil critique. Appele a chaque frame (timer du battement gere ici), gate par le toggle.
+        private static void CheckHealthAlerts(PlayerController player)
         {
+            if (!A11ySettings.HealthAlerts) { _healthWarnArmed = _critArmed = false; _nextCritBeat = 0f; return; }
+
             int max = player.GetMaxHealth();
-            if (max > 0)
+            if (max <= 0) return;
+            float ratio = (float)player.currentHealth / max;
+            if (ratio <= 0f) { _healthWarnArmed = _critArmed = false; _nextCritBeat = 0f; return; } // mort : silence
+
+            // CRITIQUE (sous 20 %) : sirene UNE fois a l'entree (marqueur de bascule), puis
+            // battement REPETE a cadence rapide tant qu'on y reste.
+            if (ratio <= A11ySettings.HealthCritThreshold)
             {
-                float ratio = (float)player.currentHealth / max;
-                if (ratio <= LowHealthRatio && ratio > 0f)
+                if (!_critArmed)
                 {
-                    if (!_lowHealthAnnounced)
-                    {
-                        _lowHealthAnnounced = true;
-                        TtsText.Say(Strings.L("vitals.lowhealth") + ", " + player.currentHealth
-                            + " " + Strings.L("vitals.outof") + " " + max, true);
-                    }
+                    _critArmed = true;
+                    _healthWarnArmed = true;           // on est sous 60 aussi : pas de re-warn au retour entre seuils
+                    GameplayAudio.PlayHealthAlert(A11ySettings.HealthAlertsVolume);    // sirene = bascule en zone critique
+                    _nextCritBeat = Time.unscaledTime + CritEntryDelay; // laisse la sirene finir avant le 1er battement
                 }
-                else
+                if (Time.unscaledTime >= _nextCritBeat)
                 {
-                    _lowHealthAnnounced = false;
+                    _nextCritBeat = Time.unscaledTime + CritRepeatInterval;
+                    GameplayAudio.PlayHealthCritical(A11ySettings.HealthBeatVolume);
+                }
+                return;
+            }
+            _critArmed = false;
+
+            // ALERTE (sous 60 %) : deux bips au FRANCHISSEMENT, puis battement de coeur LENT en
+            // boucle. En remontant du critique, le battement continue ici a cadence ralentie - le
+            // coeur ne se tait qu'au-dessus de 60 %.
+            if (ratio <= A11ySettings.HealthAlertThreshold)
+            {
+                if (!_healthWarnArmed)
+                {
+                    _healthWarnArmed = true;
+                    GameplayAudio.PlayHealthWarn(A11ySettings.HealthAlertsVolume);
+                    _nextCritBeat = Time.unscaledTime + CritEntryDelay; // laisse les bips finir avant le 1er battement
+                }
+                if (Time.unscaledTime >= _nextCritBeat)
+                {
+                    _nextCritBeat = Time.unscaledTime + WarnRepeatInterval;
+                    GameplayAudio.PlayHealthCritical(A11ySettings.HealthBeatVolume);
                 }
             }
-
-            float hunger = ReadHunger(player);
-            if (hunger >= 0f)
+            else
             {
-                if (hunger <= LowHungerValue)
+                _healthWarnArmed = false;
+                _nextCritBeat = 0f;
+            }
+        }
+
+        // Alerte de faim (TTS) : une annonce au passage sous le seuil, rearmee au-dessus.
+        private static void CheckHungerAlert(PlayerController player)
+        {
+            float hunger = ReadHunger(player);
+            if (hunger < 0f) return;
+            if (hunger <= LowHungerValue)
+            {
+                if (!_lowHungerAnnounced)
                 {
-                    if (!_lowHungerAnnounced)
-                    {
-                        _lowHungerAnnounced = true;
-                        TtsText.Say(Strings.L("vitals.lowhunger") + ", " + Mathf.RoundToInt(hunger), true);
-                    }
+                    _lowHungerAnnounced = true;
+                    TtsText.Say(Strings.L("vitals.lowhunger") + ", " + Mathf.RoundToInt(hunger), true);
                 }
-                else
-                {
-                    _lowHungerAnnounced = false;
-                }
+            }
+            else
+            {
+                _lowHungerAnnounced = false;
             }
         }
 

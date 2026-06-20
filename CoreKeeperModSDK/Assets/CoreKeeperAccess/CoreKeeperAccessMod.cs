@@ -142,6 +142,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
+        CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
         CoreKeeperAccess.Gameplay.PickupAnnouncer.Tick(); // diff inventaire -> annonce des ramassages
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
