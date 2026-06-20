@@ -37,12 +37,22 @@ namespace CoreKeeperAccess.Gameplay
         private const int VoidPercentCondition = 249;  // pourcentage de PV max perdu par tick
 
         private static bool _wasDot, _wasStun;
+        private static float _nextPoll;
+        private const float PollInterval = 0.1f; // 10 Hz
 
         public static void Tick()
         {
             if (!A11ySettings.ConditionEarcons) { _wasDot = _wasStun = false; return; }
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null) { _wasDot = _wasStun = false; return; }
+
+            // Detection d'APPARITION (front montant) : un poll a 10 Hz suffit (≤100 ms de
+            // latence sur l'alerte, imperceptible) -> on evite 2 lectures de buffer ECS PAR
+            // FRAME. NB : les earcons de vie de VitalsReadout, eux, RESTENT a la frame (la
+            // cadence du battement de coeur doit etre fluide). Temps non mis a l'echelle :
+            // le poll reste regulier meme en ralenti de combat.
+            if (Time.unscaledTime < _nextPoll) return;
+            _nextPoll = Time.unscaledTime + PollInterval;
 
             bool dot = false, stun = false;
             try
