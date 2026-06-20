@@ -51,6 +51,10 @@ A big batch since Alpha 1. Most of the game beyond the menus becomes playable: b
 - **In-game accessibility settings panel** (Triangle + Back): navigable and fully voiced, modal, with settings that survive updates (volumes, direction assist, combat slow-motion, normalization, etc.).
 - **Audio overhaul**: more accurate volume normalization (it no longer misses short, snappy sounds), volumes adjustable up to 200%, and a dedicated volume for navigation (tile cursor and laser cane).
 
+### Installation
+
+- **Double-click install**: no command line, no need to know where the game lives. Download the zip, extract it, double-click `Installer.cmd`, done. Your Steam install of Core Keeper is found automatically, on any drive. The window stays open at the end so your screen reader can read the result, and if a write is denied it tells you clearly to re-run as administrator.
+
 ## Alpha 1, build 54 — June 2026
 
 - **Bosses now have their own beep in the aggro sentinel**: a deep, longer tone repeated about three times per second on a dedicated channel, instead of blending into the regular one-beep-per-second queue. Same positional language (pan, vertical pitch, distance volume).

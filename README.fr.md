@@ -22,22 +22,29 @@ Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe p
 
 ## Installation
 
-### Avec le script (recommandé)
+### Double-clic (recommandé)
 
-1. Cloner ou télécharger ce dépôt.
-2. Ouvrir une invite de commandes ou PowerShell **dans le dossier du dépôt** et lancer :
+1. Télécharger le zip de la version depuis la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.
+2. L'extraire n'importe où (clic droit sur le zip → « Extraire tout »).
+3. **Double-cliquer sur `Installer.cmd`.** C'est tout — pas de ligne de commande, aucun chemin à taper. Votre installation Steam de Core Keeper est trouvée automatiquement, sur n'importe quel disque.
+4. Une fenêtre s'ouvre, indique ce qui a été fait, et attend une touche pour que votre lecteur d'écran lise le résultat.
+5. Lancer NVDA, puis le jeu. Au menu principal vous devez entendre : « Mod accessibilité chargé », suivi de la version (par exemple « alpha 2, build 1 »).
+
+Notes :
+- **Avertissement au 1er lancement.** Windows peut signaler que le fichier « provient d'un autre ordinateur » (Mark of the Web / SmartScreen). C'est normal pour tout script téléchargé. Choisir « Informations complémentaires » → « Exécuter quand même », ou clic droit sur `Installer.cmd` → Propriétés → cocher « Débloquer ».
+- **« Accès refusé » ?** Si l'installeur signale une écriture refusée (jeu sous `Program Files` avec permissions strictes), clic droit sur `Installer.cmd` → « Exécuter en tant qu'administrateur », puis relancer. Il ne demande jamais les droits admin de lui-même quand ce n'est pas nécessaire.
+- **Jeu introuvable ?** Dans le rare cas où la détection échoue, lancer depuis une console : `powershell -ExecutionPolicy Bypass -File .\install.ps1 -GamePath "<chemin de Core Keeper>"`.
+- Pour mettre à jour plus tard, télécharger le nouveau zip et redouble-cliquer sur `Installer.cmd` (jeu fermé).
+
+### Avec le script directement (alternative)
+
+Ouvrir PowerShell **dans le dossier extrait** et lancer :
 
 ```
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-3. Lancer NVDA, puis le jeu. Au menu principal vous devez entendre : « Mod accessibilité chargé », suivi de la version (par exemple « alpha 2, build 1 »).
-
-Notes :
-- Le `-ExecutionPolicy Bypass` est nécessaire : par défaut Windows refuse d'exécuter les scripts PowerShell téléchargés. Il ne vaut que pour cette commande.
-- Si le jeu n'est pas à l'emplacement Steam par défaut, ajouter `-GamePath "<chemin de Core Keeper>"` en fin de commande.
-- En cas d'erreur « accès refusé » (jeu sous Program Files avec permissions strictes), relancer la même commande depuis une console ouverte **en administrateur**.
-- Pour mettre à jour après un `git pull`, relancer simplement le script (jeu fermé).
+Le `-ExecutionPolicy Bypass` est nécessaire : par défaut Windows refuse d'exécuter les scripts PowerShell téléchargés. Il ne vaut que pour cette commande.
 
 ### Installation manuelle (alternative)
 

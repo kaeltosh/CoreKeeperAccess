@@ -51,6 +51,10 @@ Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des me
 - **Panneau de réglages d'accessibilité in-game** (Triangle + Back) : navigable et entièrement vocalisé, modal, avec des réglages qui survivent aux mises à jour (volumes, aide à la direction, ralenti de combat, normalisation, etc.).
 - **Refonte audio** : normalisation du volume plus juste (elle ne rate plus les sons brefs et claquants), volumes réglables jusqu'à 200 %, et un volume dédié à la navigation (curseur de tuile et canne laser).
 
+### Installation
+
+- **Installation par double-clic** : plus besoin de ligne de commande ni de connaître l'emplacement du jeu. Tu télécharges le zip, tu l'extrais, tu double-cliques `Installer.cmd`, et c'est fini. Ton installation Steam de Core Keeper est trouvée toute seule, sur n'importe quel disque. La fenêtre reste ouverte à la fin pour que ton lecteur d'écran lise le résultat, et si une écriture est refusée, elle te dit clairement de relancer en administrateur.
+
 ## Alpha 1, build 54 — juin 2026
 
 - **Les boss ont désormais leur propre bip dans la sentinelle d'aggro** : un ton grave et plus long, répété environ trois fois par seconde sur un canal dédié, au lieu de se fondre dans la file normale à un bip par seconde. Même langage positionnel (pan, hauteur verticale, volume-distance).

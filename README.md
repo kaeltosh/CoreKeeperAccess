@@ -22,22 +22,29 @@ A mod that makes **Core Keeper** playable by **blind players**: everything goes 
 
 ## Installation
 
-### With the script (recommended)
+### Double-click (recommended)
 
-1. Clone or download this repository.
-2. Open a command prompt or PowerShell **in the repository folder** and run:
+1. Download the release zip from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.
+2. Extract it anywhere (right-click the zip → "Extract All").
+3. **Double-click `Installer.cmd`.** That's it — no command line, no path to type. Your Steam install of Core Keeper is found automatically, on any drive.
+4. A window opens, reports what it did, and waits for you to press a key so your screen reader can read the result.
+5. Start NVDA, then the game. At the main menu you should hear: "Accessibility mod loaded", followed by the version (for example "alpha 2, build 1").
+
+Notes:
+- **First launch warning.** Windows may say the file "came from another computer" (Mark of the Web / SmartScreen). This is normal for any downloaded script. Choose "More info" → "Run anyway", or right-click `Installer.cmd` → Properties → tick "Unblock".
+- **"Access denied"?** If the installer reports a denied write (game under `Program Files` with strict permissions), right-click `Installer.cmd` → "Run as administrator", and run it again. It does not ask for admin on its own when it isn't needed.
+- **Game not found?** In the rare case auto-detection fails, run from a console: `powershell -ExecutionPolicy Bypass -File .\install.ps1 -GamePath "<path to Core Keeper>"`.
+- To update later, just download the new zip and double-click `Installer.cmd` again (game closed).
+
+### With the script directly (alternative)
+
+Open PowerShell **in the extracted folder** and run:
 
 ```
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-3. Start NVDA, then the game. At the main menu you should hear: "Accessibility mod loaded", followed by the version (for example "alpha 2, build 1").
-
-Notes:
-- The `-ExecutionPolicy Bypass` part is required: by default Windows refuses to run downloaded PowerShell scripts. It only applies to this one command.
-- If the game is not in the default Steam location, add `-GamePath "<path to Core Keeper>"` at the end of the command.
-- If you get an "access denied" error (game installed under Program Files with strict permissions), re-run the same command from a console opened **as administrator**.
-- To update after a `git pull`, just run the script again (game closed).
+The `-ExecutionPolicy Bypass` part is required: by default Windows refuses to run downloaded PowerShell scripts. It only applies to this one command.
 
 ### Manual install (alternative)
 
