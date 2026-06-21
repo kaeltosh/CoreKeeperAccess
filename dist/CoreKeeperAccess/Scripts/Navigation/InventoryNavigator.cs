@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Controls;
+using CoreKeeperAccess.Gameplay;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
 using Rewired;
@@ -92,8 +93,14 @@ namespace CoreKeeperAccess.Navigation
             // Slot de contenu de bourse sous masque : on l'expose au patch d'input AVANT
             // de lire les boutons, pour qu'il etouffe le Croix natif cette frame.
             InventoryNavState.OnMaskedSlot = IsMaskedSlot(_current);
-            HandleInput();
-            ActionWheel.Tick();
+            // Menu modal a11y (menu d'aide / reglages / saisie de nom) ouvert PAR-DESSUS
+            // l'inventaire : il a la main et lit le D-pad / stick lui-meme -> on gele NOTRE
+            // nav ET la roue d'actions pour ne pas piloter les deux a la fois.
+            if (!InputContext.ModalA11yOpen)
+            {
+                HandleInput();
+                ActionWheel.Tick();
+            }
             WatchSlotChange();
             WatchHandChange();
         }
@@ -163,10 +170,10 @@ namespace CoreKeeperAccess.Navigation
         {
             if (_current == null) return;
             string info = BuildRecipeComponents(_current);
-            string station = Gameplay.GameplayInput.BuildStationDetail(_current);
+            string station = Gameplay.StationCommands.BuildStationDetail(_current);
             if (!string.IsNullOrEmpty(station))
                 info = string.IsNullOrEmpty(info) ? station : info + ". " + station;
-            string forge = Gameplay.GameplayInput.BuildForgeDetail();
+            string forge = Gameplay.StationCommands.BuildForgeDetail();
             if (!string.IsNullOrEmpty(forge))
                 info = string.IsNullOrEmpty(info) ? forge : info + ". " + forge;
             string merchant = InGameTtsCore.BuildMerchantDetail();
@@ -260,10 +267,43 @@ namespace CoreKeeperAccess.Navigation
             return true;
         }
 
+        // --- Gachettes (AXES, demi-axe + : 4 = LT, 5 = RT) : raccourcis inventaire ---
+        private const int IdLeftTrigger = 4, IdRightTrigger = 5;
+        private const float TriggerThreshold = 0.5f;
+        private static bool _ltHeld, _rtHeld;
+
+        private static float TriggerAxis(Joystick joy, int id)
+        {
+            for (int i = 0; i < joy.axisCount; i++)
+                if (joy.AxisElementIdentifiers[i].id == id) return joy.GetAxis(i);
+            return 0f;
+        }
+
         private static void HandleInput()
         {
             var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
             if (joy == null) return;
+
+            // Gachettes = raccourcis vanilla de l'inventaire, recables sur NOS canaux fiables
+            // (le natif manette ne s'accroche pas dans notre nav, comme tri/empiler) :
+            //   RT = transfert rapide ; LT = lacher au sol ; Triangle + LT = jeter a la poubelle.
+            // Lecture au FRONT montant du demi-axe. (Hors inventaire, Update sort tot -> RT/LT
+            // gardent leur role vanilla d'attaque/usage.)
+            float lt = TriggerAxis(joy, IdLeftTrigger), rt = TriggerAxis(joy, IdRightTrigger);
+            bool ltNow = lt > TriggerThreshold, rtNow = rt > TriggerThreshold;
+            bool ltEdge = ltNow && !_ltHeld, rtEdge = rtNow && !_rtHeld;
+            _ltHeld = ltNow; _rtHeld = rtNow;
+            if (ltEdge)
+            {
+                if (InfoKey.ModifierHeld)
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.TRASH_ITEM;
+                    InventoryNavState.ArmedTtl = 2;
+                }
+                else ActionWheel.DropSelected();
+                return;
+            }
+            if (rtEdge && !InfoKey.ModifierHeld) { StationCommands.TransferSelected(); return; }
 
             // Touche access tenue : le D-pad est reserve aux commandes (pas la nav).
             // Les combos eux-memes sont routes par ComboDispatcher (cf. ComboBindings).

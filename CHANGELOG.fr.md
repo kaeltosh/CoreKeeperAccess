@@ -2,6 +2,19 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0 (bêta ouverte) — juin 2026
+
+CoreKeeperAccess sort de l'alpha et s'ouvre à un public plus large. Cette 1.0 consolide l'Alpha 2 : correctifs, finitions, et une grosse refonte interne pour la pérennité — tout le contenu de l'Alpha 2 ci-dessous est inclus.
+
+### Correctifs et finitions
+
+- **Le menu pause ne s'ouvre plus par-dessus les menus du mod.** Appuyer sur Start alors qu'un menu du mod était ouvert (apprentissage manette, panneau de réglages, menu contextuel, saisie de nom) ouvrait le menu pause du jeu par-dessus. Il attend maintenant que vous fermiez le menu du mod.
+- **Les directions de la croix directionnelle sont nommées clairement.** Dans le menu d'aide et le mode découverte de la manette, les quatre directions sont annoncées « croix directionnelle haut/bas/gauche/droite » (ou « D-pad … » en style Xbox), pour ne plus les confondre avec le stick.
+
+### Sous le capot
+
+- **Grosse refonte interne** : le moteur de menus est désormais partagé entre le panneau de réglages et les menus contextuels, et le lecteur de carte est restructuré en sections autonomes. Rien d'audible — c'est le terrain préparé pour ajouter proprement de futurs menus (un codex, un tutoriel guidé) et garder le mod robuste face aux mises à jour du jeu.
+
 ## Alpha 2 — juin 2026
 
 Grosse fournée depuis l'Alpha 1. Le gros du jeu devient jouable au-delà des menus : construction, commerce, agriculture, combat de boss, multijoueur, et une nouvelle aide à la navigation.

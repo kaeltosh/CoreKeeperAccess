@@ -77,7 +77,7 @@ namespace CoreKeeperAccess.Patches
             // l'input gameplay est gele (modal). Ces modaux lisent les boutons physiques de
             // leur cote. NB : le menu contextuel se ferme AVANT de rearmer un input (fermeture
             // de carte) -> l'armement passe ensuite, ActionMenu.Active etant deja faux.
-            if (TextEntry.Active || SettingsMenu.Active || ActionMenu.Active) { __result = false; return false; }
+            if (InputContext.ModalA11yOpen) { __result = false; return false; }
             // Action gameplay armee (pose / mine / interagir) : on simule l'appui SANS
             // consommer. SendClientInputSystem lit ce bouton plusieurs fois dans la meme
             // passe (ex. INTERACT) ; consommer a la 1re lecture casserait la 2e (celle
@@ -106,7 +106,7 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(PlayerInput.InputType inputType, ref bool __result)
         {
-            if (TextEntry.Active || SettingsMenu.Active || ActionMenu.Active) { __result = false; return false; }
+            if (InputContext.ModalA11yOpen) { __result = false; return false; }
             // Bouton "maintenu" arme par une action gameplay (ex. SECOND_INTERACT pour
             // poser, qui exige le held). Non consomme : desarme par PlayerMoveToSystem.
             if (GameplayAction.Held.HasValue && GameplayAction.Held.Value == inputType)
@@ -133,7 +133,7 @@ namespace CoreKeeperAccess.Patches
             PlayerInput.InputAxisType verticalAxisType, ref Vector2 __result)
         {
             // Saisie, panneau de reglages OU menu contextuel : axes a deux canaux geles.
-            if (TextEntry.Active || SettingsMenu.Active || ActionMenu.Active) { __result = Vector2.zero; return false; }
+            if (InputContext.ModalA11yOpen) { __result = Vector2.zero; return false; }
             if (GameplayAction.AimActive
                 && horizontalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_HORIZONTAL
                 && verticalAxisType == PlayerInput.InputAxisType.CHARACTER_AIM_VERTICAL)
@@ -156,9 +156,25 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static bool Prefix(ref float __result)
         {
-            if (!TextEntry.Active && !SettingsMenu.Active && !ActionMenu.Active) return true;
+            if (!InputContext.ModalA11yOpen) return true;
             __result = 0f;
             return false;
+        }
+    }
+
+    // Le menu PAUSE (bouton Start) ne passe PAS par PlayerInput.WasButtonPressedDownThisFrame
+    // (notre gel d'input) mais par MenuManager via Manager.input.IsMenuStartButtonDown -> Start
+    // ouvrait le menu pause PAR-DESSUS un modal a11y (apprentissage manette, panneau de reglages,
+    // menu contextuel, saisie de nom). On se greffe sur la methode DEDIEE du jeu IsPauseDisabled
+    // (deja vraie en carte / inventaire) : tant qu'un modal a11y est ouvert, la pause est
+    // desactivee. Couvre tous les modaux d'un coup (ModalA11yOpen). Postfix trivial -> pas de garde.
+    [HarmonyPatch(typeof(MenuManager), "IsPauseDisabled")]
+    internal static class PauseSuppressionPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(ref bool __result)
+        {
+            if (InputContext.ModalA11yOpen) __result = true;
         }
     }
 

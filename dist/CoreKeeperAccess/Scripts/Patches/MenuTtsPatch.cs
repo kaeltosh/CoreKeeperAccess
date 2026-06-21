@@ -198,9 +198,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix(RadicalMenuOption __instance)
-        {
-            MenuTtsCore.AnnounceOption(__instance, force: false);
-        }
+            => PatchGuard.Run("A11yMenuOnSelected", () => MenuTtsCore.AnnounceOption(__instance, force: false));
     }
 
     [HarmonyPatch(typeof(RadicalMenuOption), nameof(RadicalMenuOption.OnSkimLeft))]
@@ -208,9 +206,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix(RadicalMenuOption __instance)
-        {
-            MenuTtsCore.AnnounceOption(__instance, force: true);
-        }
+            => PatchGuard.Run("A11yMenuOnSkimLeft", () => MenuTtsCore.AnnounceOption(__instance, force: true));
     }
 
     [HarmonyPatch(typeof(RadicalMenuOption), nameof(RadicalMenuOption.OnSkimRight))]
@@ -218,9 +214,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix(RadicalMenuOption __instance)
-        {
-            MenuTtsCore.AnnounceOption(__instance, force: true);
-        }
+            => PatchGuard.Run("A11yMenuOnSkimRight", () => MenuTtsCore.AnnounceOption(__instance, force: true));
     }
 
     // En mode edition de texte (nom de monde/perso), le jeu n'accepte que Entree
@@ -239,7 +233,7 @@ namespace CoreKeeperAccess.Patches
             AccessTools.Field(typeof(MenuManager), "isShowingControllerTextInput");
 
         [HarmonyPostfix]
-        public static void Postfix(MenuManager __instance, bool __result)
+        public static void Postfix(MenuManager __instance, bool __result) => PatchGuard.Run("A11yTypingCross", () =>
         {
             if (!__result) return; // pas en mode edition
             var field = Manager.input != null ? Manager.input.activeInputField : null;
@@ -251,7 +245,7 @@ namespace CoreKeeperAccess.Patches
             // Meme garde-fou que TrySetInputText : evite que l'appui soit retraite
             // par le menu juste apres la fermeture du champ.
             Manager.input.StartMenuActivationInputCooldown();
-        }
+        });
 
         private static bool CrossPressedThisFrame()
         {
@@ -272,13 +266,13 @@ namespace CoreKeeperAccess.Patches
     internal static class TextInputOnActivatedPatch
     {
         [HarmonyPostfix]
-        public static void Postfix(RadicalMenuOptionTextInput __instance)
+        public static void Postfix(RadicalMenuOptionTextInput __instance) => PatchGuard.Run("A11yEditOpen", () =>
         {
             if (__instance.readOnly) return;
             var current = __instance.GetInputText();
             if (string.IsNullOrEmpty(current)) current = Strings.L("edit.empty");
             TtsText.Say(Strings.L("edit.open") + ", " + current, false);
-        }
+        });
     }
 
     // Annonce la sortie du mode edition : valide (avec le texte retenu) ou annule.
@@ -286,7 +280,7 @@ namespace CoreKeeperAccess.Patches
     internal static class TextInputDeactivatePatch
     {
         [HarmonyPostfix]
-        public static void Postfix(RadicalMenuOptionTextInput __instance, bool commit)
+        public static void Postfix(RadicalMenuOptionTextInput __instance, bool commit) => PatchGuard.Run("A11yEditClose", () =>
         {
             if (__instance.readOnly) return;
             if (!commit)
@@ -297,7 +291,7 @@ namespace CoreKeeperAccess.Patches
             var text = __instance.GetInputText();
             if (string.IsNullOrEmpty(text)) text = Strings.L("edit.empty");
             TtsText.Say(Strings.L("edit.confirmed") + ", " + text, true);
-        }
+        });
     }
 
     [HarmonyPatch(typeof(RadicalMenu), nameof(RadicalMenu.Activate))]
@@ -312,28 +306,35 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPostfix]
         public static void Postfix(RadicalMenu __instance)
         {
+            // Remises a zero d'etat HORS du garde : assignations triviales (ne peuvent pas
+            // throw) qui DOIVENT toujours passer. Sinon une exception dans la construction
+            // d'annonce laisserait SuppressDuringActivate coince a true (arme par le prefix)
+            // -> tous les menus suivants deviendraient muets.
             MenuTtsState.SuppressDuringActivate = false;
             MenuTtsState.LastInstanceId = 0;
             // Toute (re)activation de menu rearme l'en-tete de section "gerer les
             // joueurs" : la premiere liste survolee reannonce sa section.
             ManagePlayersState.LastListInstanceId = 0;
 
-            var title = MenuTtsCore.FindMenuTitle(__instance);
-            var option = __instance.GetSelectedMenuOption();
-            var optionText = MenuTtsCore.BuildAnnouncementPublic(option);
+            PatchGuard.Run("A11yMenuActivate", () =>
+            {
+                var title = MenuTtsCore.FindMenuTitle(__instance);
+                var option = __instance.GetSelectedMenuOption();
+                var optionText = MenuTtsCore.BuildAnnouncementPublic(option);
 
-            string announcement;
-            if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(optionText))
-                announcement = title + ". " + optionText;
-            else if (!string.IsNullOrEmpty(title))
-                announcement = title;
-            else
-                announcement = optionText;
+                string announcement;
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(optionText))
+                    announcement = title + ". " + optionText;
+                else if (!string.IsNullOrEmpty(title))
+                    announcement = title;
+                else
+                    announcement = optionText;
 
-            if (string.IsNullOrEmpty(announcement)) return;
+                if (string.IsNullOrEmpty(announcement)) return;
 
-            if (option != null) MenuTtsState.LastInstanceId = option.GetInstanceID();
-            TtsText.Say(announcement, true);
+                if (option != null) MenuTtsState.LastInstanceId = option.GetInstanceID();
+                TtsText.Say(announcement, true);
+            });
         }
     }
 
@@ -347,12 +348,13 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPrefix]
         public static bool Prefix(CharacterTypeOption_Selection __instance)
-        {
-            var current = TtsText.ResolvePugText(__instance.typeText);
-            var help = Strings.L("chartype.help");
-            TtsText.Say(string.IsNullOrEmpty(current) ? help : current + ", " + help, true);
-            return false; // Croix ne defile plus le carrousel
-        }
+            => PatchGuard.Run("A11yCharType", () =>
+            {
+                var current = TtsText.ResolvePugText(__instance.typeText);
+                var help = Strings.L("chartype.help");
+                TtsText.Say(string.IsNullOrEmpty(current) ? help : current + ", " + help, true);
+                return false; // Croix ne defile plus le carrousel
+            }, fallback: true); // exception -> laisser l'original (carrousel defile, comportement vanilla)
     }
 
     // TTS de la cinematique d'intro de nouveau perso (et de l'outro de fin, meme
@@ -364,9 +366,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix()
-        {
-            TtsText.Say(Strings.L("cinematic.start"), false);
-        }
+            => PatchGuard.Run("A11yIntroStart", () => TtsText.Say(Strings.L("cinematic.start"), false));
     }
 
     // StartText est appele chaque frame de fondu mais ne rend le texte qu'une fois
@@ -383,11 +383,14 @@ namespace CoreKeeperAccess.Patches
         [HarmonyPrefix]
         public static void Prefix(IntroHandler __instance, out bool __state)
         {
-            __state = TextStarted != null && (bool)TextStarted.GetValue(__instance);
+            // out param -> incompatible avec le lambda de PatchGuard : try/catch inline.
+            // Exception -> __state=true (= "texte deja demarre") pour que le Postfix s'abstienne.
+            try { __state = TextStarted != null && (bool)TextStarted.GetValue(__instance); }
+            catch (System.Exception ex) { Diag.Error("A11yIntroText", ex); __state = true; }
         }
 
         [HarmonyPostfix]
-        public static void Postfix(IntroHandler __instance, bool __state)
+        public static void Postfix(IntroHandler __instance, bool __state) => PatchGuard.Run("A11yIntroText", () =>
         {
             if (__state) return; // texte deja demarre avant cet appel
             if (TextStarted == null || SlideIndex == null) return;
@@ -405,7 +408,7 @@ namespace CoreKeeperAccess.Patches
             if (string.IsNullOrEmpty(resolved)
                 || resolved.StartsWith("missing:", System.StringComparison.OrdinalIgnoreCase)) return;
             TtsText.Say(resolved, true);
-        }
+        });
     }
 
     // Skip (Croix maintenue 1 s) : confirme que le maintien a marche et coupe la
@@ -415,9 +418,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix()
-        {
-            TtsText.Say(Strings.L("cinematic.skipped"), true);
-        }
+            => PatchGuard.Run("A11yIntroSkip", () => TtsText.Say(Strings.L("cinematic.skipped"), true));
     }
 
     // ----- Ecran "Gerer les joueurs" (multijoueur) -----
@@ -520,9 +521,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix(PlayerListEntryButton __instance)
-        {
-            ManagePlayersTts.Announce(__instance);
-        }
+            => PatchGuard.Run("A11yManagePlayers", () => ManagePlayersTts.Announce(__instance));
     }
 
     // ----- Pop-ups de confirmation (PopUpText) -----
@@ -538,7 +537,7 @@ namespace CoreKeeperAccess.Patches
         private static float _lastTime;
 
         [HarmonyPostfix]
-        public static void Postfix(PopUpText __instance, List<string> options)
+        public static void Postfix(PopUpText __instance, List<string> options) => PatchGuard.Run("A11yPopUp", () =>
         {
             var question = TtsText.ResolvePugText(__instance.pugText);
             if (string.IsNullOrEmpty(question)) return;
@@ -562,7 +561,7 @@ namespace CoreKeeperAccess.Patches
 
             var msg = TtsText.Compose(parts);
             if (!string.IsNullOrEmpty(msg)) TtsText.Say(msg, true);
-        }
+        });
 
         private static string ResolveKey(string key)
         {

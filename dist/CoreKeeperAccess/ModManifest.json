@@ -22,7 +22,7 @@
                   },
                   {
                       "path":  "Scripts/Controls/ActionMenu.cs",
-                      "guid":  ""
+                      "guid":  "79966b5880a022542b8fa20c73afaa76"
                   },
                   {
                       "path":  "Scripts/Controls/ComboBindings.cs",
@@ -37,6 +37,18 @@
                       "guid":  "63b558acab1e3b4409ee36d57c1ecd61"
                   },
                   {
+                      "path":  "Scripts/Controls/Glyphs.cs",
+                      "guid":  "044a56d1c47062541bc59cce2a82d485"
+                  },
+                  {
+                      "path":  "Scripts/Controls/HelpCatalog.cs",
+                      "guid":  "1ffa5c78d66f52d4cbb131def0bde93e"
+                  },
+                  {
+                      "path":  "Scripts/Controls/HelpMenu.cs",
+                      "guid":  "4653c94ef8feec04396fd4092299e7eb"
+                  },
+                  {
                       "path":  "Scripts/Controls/InfoKey.cs",
                       "guid":  "56432c1c21d945b47b1efb9fa95286ce"
                   },
@@ -49,12 +61,28 @@
                       "guid":  "753c02ea84bd2c344b130d90e78a65ed"
                   },
                   {
+                      "path":  "Scripts/Controls/PadLearn.cs",
+                      "guid":  "330fc950073ea764b84e995a347a2f9b"
+                  },
+                  {
                       "path":  "Scripts/Controls/TextEntry.cs",
                       "guid":  "9f8a05aab8ead5d47bc5709c8419a49e"
                   },
                   {
+                      "path":  "Scripts/Controls/TreeMenu.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/TriangleModifier.cs",
                       "guid":  "814de3529b439a7419129776f9216640"
+                  },
+                  {
+                      "path":  "Scripts/Controls/UiSfx.cs",
+                      "guid":  "58cb3c1531e088e4a801bf1b0697c4e5"
+                  },
+                  {
+                      "path":  "Scripts/Controls/VanillaControls.cs",
+                      "guid":  "5a0a445e656baa84b908e4981e8f5a7f"
                   },
                   {
                       "path":  "Scripts/Gameplay/AggroSentinel.cs",
@@ -62,11 +90,11 @@
                   },
                   {
                       "path":  "Scripts/Gameplay/BeaconGuide.cs",
-                      "guid":  ""
+                      "guid":  "dde5a22b9ba46ba4386ee74a616e9ffe"
                   },
                   {
                       "path":  "Scripts/Gameplay/BeaconTracker.cs",
-                      "guid":  ""
+                      "guid":  "e45d8d7dd596ab744b85aa9f339291c6"
                   },
                   {
                       "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
@@ -79,6 +107,10 @@
                   {
                       "path":  "Scripts/Gameplay/CombatSlowMotion.cs",
                       "guid":  "637a9054aa64a094a88c15da282d4df9"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/ConditionAlerts.cs",
+                      "guid":  "b97af4cb7807b67468f0e6541f0eb81b"
                   },
                   {
                       "path":  "Scripts/Gameplay/DevTools.cs",
@@ -101,16 +133,36 @@
                       "guid":  "94f5e50c15b2008459d51093ac535f73"
                   },
                   {
+                      "path":  "Scripts/Gameplay/Locomotion.cs",
+                      "guid":  "b3d09b6239f64f8409db3868d2555519"
+                  },
+                  {
                       "path":  "Scripts/Gameplay/MovementReader.cs",
                       "guid":  "5e4c773ab5bd00f4682ae018f54f5b26"
                   },
                   {
+                      "path":  "Scripts/Gameplay/PickupAnnouncer.cs",
+                      "guid":  "42dd9a8908e75c443978992f247c3e8b"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/PingSonar.cs",
+                      "guid":  "63696b12f6756a34f807f8867567be2a"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/PlacementReader.cs",
+                      "guid":  "0135bc140932ce943a6288d45060cdfa"
+                  },
+                  {
                       "path":  "Scripts/Gameplay/ProximitySonar.cs",
-                      "guid":  ""
+                      "guid":  "5dcaef6fd331b804c871b755c6101b9f"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/StationCommands.cs",
+                      "guid":  "bc7f64148f329e04ebfad80f83359e00"
                   },
                   {
                       "path":  "Scripts/Gameplay/StatsWheel.cs",
-                      "guid":  ""
+                      "guid":  "7b3c6824ce175e9479add528e94eee24"
                   },
                   {
                       "path":  "Scripts/Gameplay/TileReader.cs",
@@ -122,7 +174,7 @@
                   },
                   {
                       "path":  "Scripts/Gameplay/WorldProgress.cs",
-                      "guid":  ""
+                      "guid":  "3c0f7ce90c55c9d49b139dab9a7ae073"
                   },
                   {
                       "path":  "Scripts/Localization/Strings.cs",
@@ -134,10 +186,14 @@
                   },
                   {
                       "path":  "Scripts/Navigation/BeaconGraph.cs",
-                      "guid":  ""
+                      "guid":  "5cea4abc080308249b0672a375e9ecfb"
                   },
                   {
                       "path":  "Scripts/Navigation/BeaconObjects.cs",
+                      "guid":  "256d936016716694e92471630b6fac39"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/BeaconsSection.cs",
                       "guid":  ""
                   },
                   {
@@ -145,8 +201,12 @@
                       "guid":  "b20ef2163d3ee884ea599c7976733ff7"
                   },
                   {
-                      "path":  "Scripts/Navigation/DialogueLog.cs",
+                      "path":  "Scripts/Navigation/DestinationsSection.cs",
                       "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/DialogueLog.cs",
+                      "guid":  "582e017bb4054db458e43780321944f8"
                   },
                   {
                       "path":  "Scripts/Navigation/InventoryNavigator.cs",
@@ -157,7 +217,27 @@
                       "guid":  "766173deeb207ed4797514f70d5b5243"
                   },
                   {
+                      "path":  "Scripts/Navigation/JournalSection.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/MapMarkerUtil.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/MapSection.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Navigation/MarkerMenu.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Navigation/NetworkWeaver.cs",
+                      "guid":  "8229b78013ec4414f860366e77bbce21"
+                  },
+                  {
+                      "path":  "Scripts/Navigation/PoiSection.cs",
                       "guid":  ""
                   },
                   {

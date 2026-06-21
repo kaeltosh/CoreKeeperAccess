@@ -505,7 +505,7 @@ namespace CoreKeeperAccess.Patches
     internal static class UIManagerOnUIElementSelectedPatch
     {
         [HarmonyPostfix]
-        public static void Postfix(UIelement uiElement)
+        public static void Postfix(UIelement uiElement) => PatchGuard.Run("A11yInGameSelect", () =>
         {
             // Quand notre navigation a11y force la selection, c'est elle qui annonce
             // (avec le contexte de section) : on etouffe l'annonce passive.
@@ -532,7 +532,7 @@ namespace CoreKeeperAccess.Patches
 
             InGameTtsState.LastSelectedInstanceId = id;
             TtsText.Say(announcement, true);
-        }
+        });
     }
 
     // Notifications de jeu (objet ramasse, item peche, point de talent, durabilite,
@@ -553,10 +553,16 @@ namespace CoreKeeperAccess.Patches
             ChatWindow.MessageTextType.ReceivedItems,
             ChatWindow.MessageTextType.PetLeveledUp,
             ChatWindow.MessageTextType.GainedSoul,
+            ChatWindow.MessageTextType.TalkToTheCore,     // indice d'objectif natif ("va parler au Coeur")
+            ChatWindow.MessageTextType.DiedFromStarvation, // mort de FAIM (vs tue par un ennemi)
+            ChatWindow.MessageTextType.EnemiesScaledUp,    // difficulte dynamique en hausse (surtout multi)
+            ChatWindow.MessageTextType.EnemiesScaledDown,  // difficulte dynamique en baisse (surtout multi)
+            ChatWindow.MessageTextType.ReconnectAttempt,   // tentative de reconnexion reseau (multi)
+            ChatWindow.MessageTextType.ReconnectSuccess,   // reconnexion reseau reussie (multi)
         };
 
         [HarmonyPostfix]
-        public static void Postfix(ChatWindow.MessageTextType type, PugText text)
+        public static void Postfix(ChatWindow.MessageTextType type, PugText text) => PatchGuard.Run("A11yChat", () =>
         {
             if (!AnnouncedTypes.Contains(type)) return;
 
@@ -566,7 +572,7 @@ namespace CoreKeeperAccess.Patches
             // File d'attente NVDA (interrupt = false) : les notifs s'enchainent sans
             // se couper entre elles ni ecraser une annonce de navigation en cours.
             TtsText.Say(announcement, false);
-        }
+        });
     }
 
     // Messages flottants contextuels (systeme Emote) : "trop dur, il me faut un
@@ -581,7 +587,7 @@ namespace CoreKeeperAccess.Patches
     internal static class EmoteOnOccupiedPatch
     {
         [HarmonyPostfix]
-        public static void Postfix(Emote.EmoteType ___emoteTypeInput, PugText ___text)
+        public static void Postfix(Emote.EmoteType ___emoteTypeInput, PugText ___text) => PatchGuard.Run("A11yEmote", () =>
         {
             if (___emoteTypeInput == Emote.EmoteType.__illegal__) return;
             if (___emoteTypeInput == Emote.EmoteType.ExclamationMark
@@ -595,7 +601,7 @@ namespace CoreKeeperAccess.Patches
             // dediee du journal (les autres emotes = feedback transitoire, non archive).
             if (___emoteTypeInput.ToString().StartsWith("Tutorial"))
                 Navigation.DialogueLog.AddTutorial(announcement);
-        }
+        });
     }
 
     // NOTE : l'annonce du resultat de craft "en main" est desormais geree de facon
@@ -611,9 +617,7 @@ namespace CoreKeeperAccess.Patches
     {
         [HarmonyPostfix]
         public static void Postfix(int presetIndex)
-        {
-            TtsText.Say(Strings.L("equip.preset") + " " + (presetIndex + 1), true);
-        }
+            => PatchGuard.Run("A11yEquipPreset", () => TtsText.Say(Strings.L("equip.preset") + " " + (presetIndex + 1), true));
     }
 
     // Dialogue scenarise du Core (TheCore). A chaque interaction, le Core choisit une
@@ -640,22 +644,22 @@ namespace CoreKeeperAccess.Patches
     internal static class TheCoreOnOccupiedPatch
     {
         [HarmonyPostfix]
-        public static void Postfix(TheCore __instance)
+        public static void Postfix(TheCore __instance) => PatchGuard.Run("A11yCoreOccupied", () =>
         {
             if (__instance.coreSpeechText != null)
                 CoreSpeechState.SpeechTexts.Add(__instance.coreSpeechText);
-        }
+        });
     }
 
     [HarmonyPatch(typeof(TheCore), nameof(TheCore.OnFree))]
     internal static class TheCoreOnFreePatch
     {
         [HarmonyPostfix]
-        public static void Postfix(TheCore __instance)
+        public static void Postfix(TheCore __instance) => PatchGuard.Run("A11yCoreFree", () =>
         {
             if (__instance.coreSpeechText != null)
                 CoreSpeechState.SpeechTexts.Remove(__instance.coreSpeechText);
-        }
+        });
     }
 
     // Render(string text, bool rewindEffectAnims, bool force, bool activate) : la
@@ -667,7 +671,7 @@ namespace CoreKeeperAccess.Patches
     internal static class PugTextRenderCoreSpeechPatch
     {
         [HarmonyPostfix]
-        public static void Postfix(PugText __instance)
+        public static void Postfix(PugText __instance) => PatchGuard.Run("A11yCoreSpeech", () =>
         {
             if (CoreSpeechState.SpeechTexts.Count == 0) return;
             if (!CoreSpeechState.SpeechTexts.Contains(__instance)) return;
@@ -691,7 +695,7 @@ namespace CoreKeeperAccess.Patches
             // ... et on l'archive (section Coeur, groupee par conversation) : repliques fugaces
             // et parfois ONE-SHOT par monde -> relisables dans l'onglet "Journal" de la carte.
             Navigation.DialogueLog.AddCore(announcement);
-        }
+        });
     }
 
     // Reconstruction du dialogue d'ACTIVATION du Core (coreSpeechStrings) pour l'injecter dans

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CoreKeeperAccess.Localization;
 
 namespace CoreKeeperAccess.Controls
 {
@@ -30,6 +31,7 @@ namespace CoreKeeperAccess.Controls
         {
             public Func<bool> When;
             public Action Run;
+            public string LabelKey;   // cle i18n du libelle (pour le menu d'aide)
         }
 
         private static readonly List<Entry>[] _table = BuildTable();
@@ -41,18 +43,59 @@ namespace CoreKeeperAccess.Controls
             return t;
         }
 
-        public static void Register(Combo combo, Func<bool> when, Action run)
+        public static void Register(Combo combo, Func<bool> when, Action run, string labelKey)
         {
-            _table[(int)combo].Add(new Entry { When = when, Run = run });
+            _table[(int)combo].Add(new Entry { When = when, Run = run, LabelKey = labelKey });
+        }
+
+        // AJOUTE (n'efface pas) a la liste les commandes ACTIVES ici et maintenant : pour
+        // chaque combo, la PREMIERE entree dont la garde passe (meme priorite que Fire). Le
+        // geste est COMPOSE via Glyphs -> il suit le reglage PS/Xbox comme tout le menu d'aide.
+        public static void CollectActive(List<HelpItem> outList)
+        {
+            for (int c = 0; c < _table.Length; c++)
+            {
+                var entries = _table[c];
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    if (!entries[i].When()) continue;
+                    outList.Add(new HelpItem
+                    {
+                        Gesture = ComboGesture((Combo)c),
+                        Label = Strings.L(entries[i].LabelKey),
+                        Run = entries[i].Run,
+                    });
+                    break; // un seul libelle par combo
+                }
+            }
+        }
+
+        // Libelle du combo "touche access + X", compose via Glyphs (touche access = bouton
+        // FaceUp = Triangle en PS / Y en Xbox).
+        private static string ComboGesture(Combo c)
+        {
+            switch (c)
+            {
+                case Combo.Detail: return Glyphs.Combo(Btn.FaceUp, Btn.Up);
+                case Combo.Right: return Glyphs.Combo(Btn.FaceUp, Btn.Right);
+                case Combo.Down: return Glyphs.Combo(Btn.FaceUp, Btn.Down);
+                case Combo.Left: return Glyphs.Combo(Btn.FaceUp, Btn.Left);
+                case Combo.BumperL: return Glyphs.Combo(Btn.FaceUp, Btn.L1);
+                case Combo.BumperR: return Glyphs.Combo(Btn.FaceUp, Btn.R1);
+                case Combo.LeftStick: return Glyphs.Combo(Btn.FaceUp, Btn.L3);
+                case Combo.Back: return Glyphs.Combo(Btn.FaceUp, Btn.Back);
+                case Combo.DoubleTap: return Strings.L("combo.doubletapprefix") + " " + Glyphs.Name(Btn.FaceUp);
+                default: return "";
+            }
         }
 
         // A appeler en FIN d'Update du mod, apres le tick de tous les modules : les
         // gardes lisent alors des etats frais (curseur detache, nav inventaire...).
         public static void Tick()
         {
-            // Panneau de reglages OU menu contextuel ouvert : ils ont pris la main sur le
-            // D-pad (Triangle relache), aucun combo touche access ne doit partir.
-            if (Settings.SettingsMenu.Active || ActionMenu.Active) return;
+            // Un modal a11y est ouvert (reglages, menu contextuel/aide, saisie, mode decouverte) :
+            // il a pris la main sur la manette, aucun combo touche access ne doit partir.
+            if (InputContext.ModalA11yOpen) return;
             if (InfoKey.DetailRequested) Fire(Combo.Detail);
             if (InfoKey.ComboRight) Fire(Combo.Right);
             if (InfoKey.ComboDown) Fire(Combo.Down);
@@ -62,6 +105,9 @@ namespace CoreKeeperAccess.Controls
             if (InfoKey.ComboL3) Fire(Combo.LeftStick);
             if (InfoKey.ComboBack) Fire(Combo.Back);
             if (InfoKey.DoubleTapped) Fire(Combo.DoubleTap);
+            // Menu d'aide : double-tap du D-pad haut sous Triangle. Special (global,
+            // s'auto-exclut de l'enumeration) -> appel direct, pas un binding de contexte.
+            if (InfoKey.RecallRequested) HelpMenu.Show();
         }
 
         private static void Fire(Combo combo)

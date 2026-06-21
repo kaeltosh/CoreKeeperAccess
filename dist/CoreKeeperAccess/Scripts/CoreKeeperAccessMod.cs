@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "alpha 2";
+    private const string ReleaseTag = "1.0 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -141,8 +141,11 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
+        CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (force 1re fois en jeu, modal)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
+        CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
+        CoreKeeperAccess.Gameplay.PickupAnnouncer.Tick(); // diff inventaire -> annonce des ramassages
         CoreKeeperAccess.Navigation.InventoryNavigator.Update();
         TeleportNavigator.Update();
         CoreKeeperAccess.Gameplay.LaserCane.Tick(); // avant le curseur : pose LaserCane.Active

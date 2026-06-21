@@ -2,7 +2,14 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of alpha 2 (build 1). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0 beta (build 1). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+
+> **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
+
+## Not finalized in this open beta
+
+- **Some sound cues are still placeholders** (proximity sonar, peaceful creatures and objects on the laser cane, the invalid-placement sound, beacon guidance): they work, but the final sounds aren't picked yet — they may change.
+- **Not yet validated in the field**: the multiplayer management menus in a real multiplayer session, the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
 
 ## Known bugs
 

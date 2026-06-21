@@ -71,6 +71,32 @@ namespace CoreKeeperAccess
         }
     }
 
+    // Garde-fou d'execution d'un patch Harmony. Une exception qui s'echappe d'un
+    // prefix/postfix REMONTE dans la methode du jeu decoree et casse la fonction vanilla
+    // (menu fige, selection UI perdue, texte non rendu...). Le DiagnosePatches du boot ne
+    // detecte que les patches NON APPLIQUES, pas ceux qui throw a l'EXECUTION : ce garde-fou
+    // ferme ce trou. On loggue via Diag (deduplique, plafonne) et on absorbe -> au pire notre
+    // annonce manque, le jeu continue. A enrouler autour du corps de tout patch qui touche du
+    // code faillible (reflection, GetComponent, API du jeu).
+    internal static class PatchGuard
+    {
+        // Prefix void / postfix : absorbe toute exception.
+        public static void Run(string site, Action body)
+        {
+            try { body(); }
+            catch (Exception ex) { Diag.Error(site, ex); }
+        }
+
+        // Prefix qui CONTROLE l'execution de l'original (retourne bool) : en cas d'exception,
+        // renvoie `fallback` - mettre la valeur SURE (en general true = laisser l'original du
+        // jeu s'executer normalement, comportement vanilla).
+        public static bool Run(string site, Func<bool> body, bool fallback)
+        {
+            try { return body(); }
+            catch (Exception ex) { Diag.Error(site, ex); return fallback; }
+        }
+    }
+
     // Cle d'identite stable d'une entite ECS : index + version packes en long.
     // L'index seul est RECYCLE par Unity (fix audit) : un mob mort puis un nouveau
     // spawn peuvent partager l'index -> deduplication erronee (annonce de nom ratee).

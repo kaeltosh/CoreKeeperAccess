@@ -1,6 +1,7 @@
 #pragma warning disable 0219
 #line 1 "C:/Users/flame/Documents/core keeper/CoreKeeperModSDK/Temp/GeneratedCode/CoreKeeperAccess//TileReader__System_10519468220.g.cs"
 using System.Collections.Generic;
+using CoreKeeperAccess.Navigation;
 using Pug.Automation;
 using Pug.Properties;
 using PugTilemap;

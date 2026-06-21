@@ -2,7 +2,14 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à l'alpha 2 (build 1). Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0 beta (build 1). Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+
+> **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
+
+## Non finalisé dans cette bêta ouverte
+
+- **Certains sons sont encore provisoires** (sonar de proximité, créatures et objets paisibles au laser, son de pose invalide, guidage par balises) : ils fonctionnent, mais les sons définitifs ne sont pas encore choisis — ils peuvent changer.
+- **Pas encore validé sur le terrain** : les menus de gestion multijoueur en vraie session multi, l'alerte d'étourdissement, et la lecture des machines d'automation avancée (industrie) au curseur. C'est codé mais pas confirmé en conditions réelles.
 
 ## Bugs connus
 

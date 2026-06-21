@@ -52,6 +52,9 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null) { Reset(); return; }
 
+            // Coupe-circuit utilisateur (panneau) : on coupe le scan ECS et les bips.
+            if (!A11ySettings.SentinelEnabled) { Reset(); return; }
+
             // Menu (pause...) ouvert : monde fige -> on suspend les bips sans perdre
             // l'etat. Inventaire/carte ouverts : on RESTE actif, le jeu continue en
             // temps reel et c'est precisement la qu'on se fait surprendre.
@@ -167,10 +170,18 @@ namespace CoreKeeperAccess.Gameplay
             float2 d = worldPos - playerPos;
             float pan = GameplayAudio.PanFromTiles(d.x);
             float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
-            float volume = BaseVolume * GameplayAudio.DistanceTrim(math.length(d));
-            if (boss) GameplayAudio.PlayBossTone(pan, pitch, volume * BossVolumeScale);
-            else GameplayAudio.PlayTone(pan, pitch, volume);
+            float trim = GameplayAudio.DistanceTrim(math.length(d));
+            // Volumes SEPARES (reglables a part) : monstres ordinaires vs boss. BossVolumeScale
+            // reste la compensation de timbre de base (la scie sort plus fort), multipliee par
+            // le volume boss de l'utilisateur.
+            if (boss) GameplayAudio.PlayBossTone(pan, pitch, BaseVolume * BossVolumeScale * A11ySettings.SentinelBossVolume * trim);
+            else GameplayAudio.PlayTone(pan, pitch, BaseVolume * A11ySettings.SentinelVolume * trim);
         }
+
+        // Apercus sonores (panneau de reglages) : bip de monstre ordinaire / de boss au centre,
+        // chacun au volume actuellement regle -> regler a l'oreille sans ennemi sous la main.
+        public static void PreviewMob() => GameplayAudio.PlayTone(0f, 1f, BaseVolume * A11ySettings.SentinelVolume);
+        public static void PreviewBoss() => GameplayAudio.PlayBossTone(0f, 1f, BaseVolume * BossVolumeScale * A11ySettings.SentinelBossVolume);
 
         private static void Reset()
         {

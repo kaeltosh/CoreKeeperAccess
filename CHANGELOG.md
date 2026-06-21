@@ -2,6 +2,19 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0 (open beta) — June 2026
+
+CoreKeeperAccess leaves alpha and opens to a wider audience. This 1.0 consolidates Alpha 2 with fixes, polish and a large internal rework for the long run — every Alpha 2 feature below is included.
+
+### Fixes and polish
+
+- **The pause menu no longer opens on top of the mod's own menus.** Pressing Start while a mod menu was open (controller learning, settings panel, context menu, name entry) used to pop the game's pause menu over it. It now waits until you close the mod menu.
+- **D-pad directions are named clearly.** In the help menu and the controller learning mode, the four directions are spoken as "directional pad up/down/left/right" (or "D-pad …" in Xbox style), so they're no longer confused with the stick.
+
+### Under the hood
+
+- **Large internal refactor**: the menu engine is now shared between the settings panel and the context menus, and the map reader is restructured into self-contained sections. Nothing you can hear — it's groundwork to add future menus (a codex, a guided tutorial) cleanly and to keep the mod robust against game updates.
+
 ## Alpha 2 — June 2026
 
 A big batch since Alpha 1. Most of the game beyond the menus becomes playable: building, trading, farming, boss fights, multiplayer, and a new navigation aid.

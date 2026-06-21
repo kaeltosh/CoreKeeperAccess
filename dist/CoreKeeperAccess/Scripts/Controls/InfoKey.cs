@@ -26,6 +26,7 @@ namespace CoreKeeperAccess.Controls
         public static bool ComboL3;         // Triangle + L3 (toggle direction assistee)
         public static bool ComboBack;       // Triangle + Back (ouvrir le panneau de reglages)
         public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
+        public static bool RecallRequested; // double-tap D-pad haut sous Triangle (menu d'aide)
 
         // Pose par la roue de stats (stick droit pousse pendant la tenue de Triangle) :
         // empeche le relachement d'etre lu comme un tap -> pas de double-tap parasite quand
@@ -41,6 +42,7 @@ namespace CoreKeeperAccess.Controls
         private static float _holdStart;
         private static bool _comboDuringHold;
         private static float _lastTap = -10f;
+        private static float _lastDpadUpTap = -10f; // pour le double-tap D-pad haut (menu d'aide)
 
         public static void Tick()
         {
@@ -48,6 +50,7 @@ namespace CoreKeeperAccess.Controls
             DetailRequested = false;
             ComboRight = ComboDown = ComboLeft = ComboLB = ComboR1 = ComboL3 = ComboBack = false;
             DoubleTapped = false;
+            RecallRequested = false;
             if (!ReInput.isReady) return;
             int tri = TriangleModifier.TriangleButtonId;
             if (tri < 0) return; // id Triangle pas encore capte
@@ -57,7 +60,22 @@ namespace CoreKeeperAccess.Controls
             ModifierHeld = GetButtonById(joy, tri);
             if (ModifierHeld)
             {
-                if (GetButtonDownById(joy, DpadUp)) DetailRequested = true;
+                if (GetButtonDownById(joy, DpadUp))
+                {
+                    // Double-tap du D-pad haut = menu d'aide. Le 1er tap reste "details"
+                    // (commande frequente -> aucune latence) ; un 2e tap rapide leve plutot
+                    // RecallRequested (qui interrompt l'annonce details a peine commencee).
+                    if (Time.unscaledTime - _lastDpadUpTap <= DoubleTapWindow)
+                    {
+                        RecallRequested = true;
+                        _lastDpadUpTap = -10f;
+                    }
+                    else
+                    {
+                        DetailRequested = true;
+                        _lastDpadUpTap = Time.unscaledTime;
+                    }
+                }
                 else if (GetButtonDownById(joy, DpadRight)) ComboRight = true;
                 else if (GetButtonDownById(joy, DpadDown)) ComboDown = true;
                 else if (GetButtonDownById(joy, DpadLeft)) ComboLeft = true;
@@ -68,8 +86,8 @@ namespace CoreKeeperAccess.Controls
             }
 
             // Suivi tap / double-tap (fronts montant et descendant de Triangle).
-            if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; StickEngagedDuringHold = false; }
-            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3 || ComboBack))
+            if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; StickEngagedDuringHold = false; _lastDpadUpTap = -10f; }
+            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3 || ComboBack || RecallRequested))
                 _comboDuringHold = true;
             // Stick droit pousse pendant la tenue (roue de stats) : ce n'est pas un tap.
             if (StickEngagedDuringHold) _comboDuringHold = true;

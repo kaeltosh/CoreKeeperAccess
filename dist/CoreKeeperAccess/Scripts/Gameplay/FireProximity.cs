@@ -29,6 +29,7 @@ namespace CoreKeeperAccess.Gameplay
         {
             var p = Manager.main != null ? Manager.main.player : null;
             if (p == null || !InputContext.InGameFree) return;
+            if (!A11ySettings.FireEnabled) return;   // coupe-circuit utilisateur (panneau)
             if (Time.unscaledTime < _nextScan) return;
             _nextScan = Time.unscaledTime + ScanInterval;
 
@@ -60,8 +61,11 @@ namespace CoreKeeperAccess.Gameplay
             // 2 cases) : plein pan a la portee max, ~1 octave de pitch a la portee max.
             float pan = Mathf.Clamp((float)dx / AlertRange, -1f, 1f);
             float pitch = Mathf.Clamp(Mathf.Pow(2f, dy / 2f), 0.5f, 2f);
-            GameplayAudio.PlaySpatial(FireSfx, pan, pitch, Volume * GameplayAudio.DistanceTrim(dist));
+            GameplayAudio.PlaySpatial(FireSfx, pan, pitch, Volume * A11ySettings.FireVolume * GameplayAudio.DistanceTrim(dist));
         }
+
+        // Apercu sonore (panneau de reglages) : le son de feu au centre, au volume regle.
+        public static void Preview() => GameplayAudio.PlaySpatial(FireSfx, 0f, 1f, Volume * A11ySettings.FireVolume);
 
         private static bool IsFire(ObjectID id)
             => id == ObjectID.FireAoeDamage
