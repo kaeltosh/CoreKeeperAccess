@@ -124,11 +124,17 @@ namespace CoreKeeperAccess.Controls
 
         private static void Say(string text) => Tolk.Output(text, true);
 
-        // "Croix, carre de droite en bas" (nom regle PS/Xbox + position physique).
+        // "Croix, carre de droite en bas" (nom regle PS/Xbox + position physique). Pour les
+        // directions du D-pad, Glyphs.Name compose deja "croix directionnelle haut" (nom +
+        // position) -> on n'ajoute PAS Pos (sinon "croix directionnelle haut, croix
+        // directionnelle, haut").
         private static string ButtonName(int id)
         {
             Btn? b = IdToBtn(id);
-            return b == null ? Strings.L("learn.unknown") : Glyphs.Name(b.Value) + ", " + Pos(b.Value);
+            if (b == null) return Strings.L("learn.unknown");
+            if (b == Btn.Up || b == Btn.Down || b == Btn.Left || b == Btn.Right)
+                return Glyphs.Name(b.Value);
+            return Glyphs.Name(b.Value) + ", " + Pos(b.Value);
         }
 
         private static string AxisName(int id, bool positive)

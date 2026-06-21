@@ -39,10 +39,13 @@ namespace CoreKeeperAccess.Controls
                 case Btn.Dpad: return Strings.L("btn." + s + ".dpad");
                 case Btn.L3: return Strings.L("btn.l3");
                 case Btn.R3: return Strings.L("btn.r3");
-                case Btn.Up: return Strings.L("btn.up");
-                case Btn.Down: return Strings.L("btn.down");
-                case Btn.Left: return Strings.L("btn.left");
-                case Btn.Right: return Strings.L("btn.right");
+                // Directions du D-pad : on prefixe le nom du D-pad (regle PS/Xbox) -> "Croix
+                // directionnelle haut" / "D-pad haut". Leve l'ambiguite avec le stick dans les
+                // combos ("Triangle plus croix directionnelle haut") et l'apprentissage.
+                case Btn.Up: return Strings.L("btn." + s + ".dpad") + " " + Strings.L("btn.up");
+                case Btn.Down: return Strings.L("btn." + s + ".dpad") + " " + Strings.L("btn.down");
+                case Btn.Left: return Strings.L("btn." + s + ".dpad") + " " + Strings.L("btn.left");
+                case Btn.Right: return Strings.L("btn." + s + ".dpad") + " " + Strings.L("btn.right");
                 case Btn.StickLeft: return Strings.L("btn.stickleft");
                 case Btn.StickRight: return Strings.L("btn.stickright");
                 default: return "";
