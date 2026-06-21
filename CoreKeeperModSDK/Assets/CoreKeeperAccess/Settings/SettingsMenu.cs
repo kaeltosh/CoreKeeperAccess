@@ -1,94 +1,48 @@
 using System;
-using System.Collections.Generic;
 using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Gameplay;
-using CoreKeeperAccess.Localization;
-using CoreKeeperAccess.Patches;
-using Rewired;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Settings
 {
     // Panneau de reglages MAISON, entierement TTS (aucun asset Unity, aucune greffe sur le
-    // menu options natif - verifie non injectable). Ouvre via Triangle + Back. MODAL : tant
-    // qu'il est ouvert, l'input jeu est gele (NativeInputSuppressionPatch, comme TextEntry),
-    // on lit les boutons PHYSIQUES en direct (Rewired) et on pilote une liste navigable.
+    // menu options natif - verifie non injectable). Ouvre via Triangle + Back.
     //
-    // Structure en ARBRE (categories imbricables, facon menu contextuel Windows) : la v1
-    // tient en une liste plate a la racine, mais le moteur descend/remonte deja par pile -
-    // ajouter une categorie plus tard = pure declaration dans Build(). Les reglages vivent
-    // dans A11ySettings (persistance immediate a chaque changement).
+    // Depuis le 21 juin 2026, ce n'est plus qu'un CLIENT du moteur generique TreeMenu
+    // (Controls/TreeMenu.cs) : SettingsMenu ne fait que DECLARER son arbre (EnsureBuilt) et
+    // gerer le specifique panneau (apercu sonar a fenetre temporisee). Toute la mecanique de
+    // navigation / TTS / earcons vit dans TreeMenu, partagee avec ActionMenu et, a venir, le
+    // lecteur de carte et le codex.
     //
-    // Controles (D-pad, panneau ouvert, Triangle relache) :
-    //  - Haut/Bas : naviguer le niveau courant. CYCLAGE (boucle) + son de BUTEE au
-    //    franchissement de la couture (debut<->fin) pour reperer les bords a l'oreille.
-    //  - Droite : feuille = +pas / activer ; categorie = entrer.
-    //  - Gauche : feuille = -pas / desactiver ; categorie = remonter d'un niveau.
-    //  - Croix : entrer une categorie / basculer une bascule.
-    //  - Rond ou Back : remonter d'un niveau ; a la racine = fermer.
-    // Les earcons (Tone) sont des PLACEHOLDERS (tons generes) : l'utilisateur choisira les
-    // sons definitifs (son domaine).
+    // Les reglages vivent dans A11ySettings (persistance immediate a chaque changement). Les
+    // earcons (Preview) jouent au volume regle (Triangle + D-pad haut) ; les options de pur
+    // comportement (snap, ralenti...) ont Preview null = pas de son.
     internal static class SettingsMenu
     {
-        // --- Modele d'arbre ---
-        // DescKey (optionnel) : courte explication lue APRES le nom a chaque survol (choix
-        // utilisateur : noms courts gardes, descriptif auto en plus). Rappelle le raccourci
-        // manette quand il en existe un (ex. snap aussi sur Triangle + L3).
-        // Preview (optionnel) : joue le son de l'option au volume regle (Triangle + D-pad haut).
-        // Null = pas de son (options de comportement : snap, ralenti, ramassage...).
-        internal abstract class Node { public string LabelKey; public string DescKey; public Action Preview; }
+        // Instance du moteur, configuree pour le panneau : annonce "ferme" a la fermeture,
+        // timer d'apercu sonar tickee en tete de boucle, coupure de l'apercu a la fermeture.
+        private static readonly TreeMenu _menu = new TreeMenu(
+            closedKey: "settings.closed",
+            onTick: SonarPreviewTick,
+            onClose: StopSonarPreview);
 
-        internal sealed class Category : Node { public readonly List<Node> Children = new List<Node>(); }
+        public static bool Active => _menu.Active;
 
-        internal sealed class Toggle : Node
-        {
-            public Func<bool> Get;
-            public Action<bool> Set;
-        }
-
-        internal sealed class Slider : Node
-        {
-            public Func<float> Get;
-            public Action<float> Set;
-            public float Step;        // increment (0.05 = 5 %)
-            public float Min = 0f;    // borne basse (defaut 0 ; > 0 pour un reglage qui ne doit pas s'annuler)
-            public float Max = 1f;    // borne haute : 1 = volume normal ; > 1 = amplification (ex. 2 = +6 dB)
-        }
-
-
-        // --- Etat ---
-        public static bool Active { get; private set; }
-
-        private static Category _root;
-
-        // Pile de navigation : un niveau ouvert = sa categorie + l'index focalise (la
-        // position est memorisee quand on entre/ressort, comme l'explorateur Windows).
-        private struct Level { public Category Cat; public int Idx; }
-        private static readonly List<Level> _stack = new List<Level>();
-
-        private static Category Current => _stack[_stack.Count - 1].Cat;
-
-        private static int Index
-        {
-            get => _stack[_stack.Count - 1].Idx;
-            set { var lv = _stack[_stack.Count - 1]; lv.Idx = value; _stack[_stack.Count - 1] = lv; }
-        }
-
-        private static Node Cur => Current.Children[Index];
+        private static TreeMenu.Category _root;
 
         // --- Helpers de declaration (gardent EnsureBuilt lisible) ---
         // Chaque entree porte sa cle de libelle, sa cle de descriptif (desc) lue en queue, et
         // un apercu sonore optionnel (preview) joue sur Triangle + D-pad haut.
-        private static Toggle Tg(string key, string desc, Func<bool> get, Action<bool> set, Action preview = null)
-            => new Toggle { LabelKey = key, DescKey = desc, Get = get, Set = set, Preview = preview };
+        private static TreeMenu.Toggle Tg(string key, string desc, Func<bool> get, Action<bool> set, Action preview = null)
+            => new TreeMenu.Toggle { LabelKey = key, DescKey = desc, Get = get, Set = set, Preview = preview };
 
         // Slider de volume : toujours pas de 5 %, 0..200 % (amplification). Cas par defaut.
-        private static Slider Vol(string key, string desc, Func<float> get, Action<float> set, Action preview = null)
-            => new Slider { LabelKey = key, DescKey = desc, Get = get, Set = set, Step = 0.05f, Max = 2f, Preview = preview };
+        private static TreeMenu.Slider Vol(string key, string desc, Func<float> get, Action<float> set, Action preview = null)
+            => new TreeMenu.Slider { LabelKey = key, DescKey = desc, Get = get, Set = set, Step = 0.05f, Max = 2f, Preview = preview };
 
-        private static Category Cat(string key, string desc, params Node[] children)
+        private static TreeMenu.Category Cat(string key, string desc, params TreeMenu.Node[] children)
         {
-            var c = new Category { LabelKey = key, DescKey = desc };
+            var c = new TreeMenu.Category { LabelKey = key, DescKey = desc };
             c.Children.AddRange(children);
             return c;
         }
@@ -99,7 +53,7 @@ namespace CoreKeeperAccess.Settings
         private static void EnsureBuilt()
         {
             if (_root != null) return;
-            _root = new Category { LabelKey = "settings.title" };
+            _root = new TreeMenu.Category { LabelKey = "settings.title" };
 
             _root.Children.Add(Vol("settings.mastervolume", "settings.desc.mastervolume",
                 () => A11ySettings.MasterVolume, A11ySettings.SetMasterVolume,
@@ -130,7 +84,7 @@ namespace CoreKeeperAccess.Settings
 
             _root.Children.Add(Cat("settings.cat.combat", "settings.desc.cat.combat",
                 Tg("settings.slowmo", "settings.desc.slowmo", () => A11ySettings.CombatSlowMo, A11ySettings.SetCombatSlowMo),
-                new Slider
+                new TreeMenu.Slider
                 {
                     LabelKey = "settings.slowmospeed", DescKey = "settings.desc.slowmospeed",
                     Get = () => A11ySettings.SlowMoSpeed, Set = A11ySettings.SetSlowMoSpeed,
@@ -158,7 +112,7 @@ namespace CoreKeeperAccess.Settings
                     () => GameplayAudio.PlayHealthAlert(A11ySettings.HealthAlertsVolume)),
                 Vol("settings.healthbeatvolume", "settings.desc.healthbeatvolume", () => A11ySettings.HealthBeatVolume, A11ySettings.SetHealthBeatVolume,
                     () => GameplayAudio.PlayHealthCritical(A11ySettings.HealthBeatVolume)),
-                new Slider
+                new TreeMenu.Slider
                 {
                     LabelKey = "settings.healththresholdalert", DescKey = "settings.desc.healththresholdalert",
                     Get = () => A11ySettings.HealthAlertThreshold, Set = A11ySettings.SetHealthAlertThreshold,
@@ -166,7 +120,7 @@ namespace CoreKeeperAccess.Settings
                     // Apercu = le son joue au franchissement du seuil d'alerte (les bips d'avertissement).
                     Preview = () => GameplayAudio.PlayHealthWarn(A11ySettings.HealthAlertsVolume),
                 },
-                new Slider
+                new TreeMenu.Slider
                 {
                     LabelKey = "settings.healththresholdcrit", DescKey = "settings.desc.healththresholdcrit",
                     Get = () => A11ySettings.HealthCritThreshold, Set = A11ySettings.SetHealthCritThreshold,
@@ -187,61 +141,31 @@ namespace CoreKeeperAccess.Settings
                 () => A11ySettings.XboxButtons, A11ySettings.SetXboxButtons));
         }
 
-        // --- Ouverture / fermeture ---
+        // --- Ouverture / fermeture / boucle (delegues au moteur) ---
         public static void Open()
         {
-            if (Active) return;
             EnsureBuilt();
-            Active = true;
-            _stack.Clear();
-            _stack.Add(new Level { Cat = _root, Idx = 0 });
-            UiSfx.Validate();   // ouverture = entree dans le panneau
-            TtsText.Say(Strings.L("settings.title") + ", " + Describe(Cur), true);
+            _menu.Open(_root);
         }
 
-        public static void Close()
-        {
-            if (!Active) return;
-            Active = false;
-            _stack.Clear();
-            StopSonarPreview();   // coupe une nappe d'apercu encore en cours
-            UiSfx.Entry();   // fermeture
-            TtsText.Say(Strings.L("settings.closed"), true);
-        }
+        public static void Close() => _menu.Close();
 
-        // --- Boucle (tickee tot dans l'Update, comme TextEntry) ---
-        public static void Tick()
-        {
-            if (!Active) return;
-            // Coupe l'apercu sonar (nappe continue) au bout de sa fenetre, meme si aucun bouton.
-            if (_sonarStopAt > 0f && Time.unscaledTime >= _sonarStopAt) StopSonarPreview();
-            if (!ReInput.isReady) return;
-            var joy = ReInput.controllers.GetLastActiveController<Joystick>();
-            if (joy == null) return;
+        public static void Tick() => _menu.Tick();
 
-            if (Down(joy, IdDown)) Move(+1);
-            // Triangle (physique) MAINTENU + haut = apercu du son de l'option ; sinon nav.
-            else if (Down(joy, IdUp)) { if (Held(joy, TriangleModifier.TriangleButtonId)) PreviewCurrent(); else Move(-1); }
-            else if (Down(joy, IdRight)) OnRight();
-            else if (Down(joy, IdLeft)) OnLeft();
-            else if (Down(joy, IdCross)) OnCross();
-            else if (Down(joy, IdCircle) || Down(joy, IdBack)) Back();
-        }
-
-        // --- Apercu sonore (Triangle + D-pad haut) ---
-        // Joue le son de l'option survolee au volume regle. Null (option de comportement :
-        // snap, ralenti, ramassage...) = rien, choix utilisateur "sans son = sans son".
-        private static void PreviewCurrent() => Cur.Preview?.Invoke();
-
-        // Apercu du sonar : nappe CONTINUE -> on l'arme pour une courte fenetre puis on coupe
-        // (StopSonarPreview), au Tick ou a la fermeture. which : 0 medium, 1 grave, 2 les deux.
+        // --- Apercu sonore du SONAR (specifique au panneau) ---
+        // Le sonar est une nappe CONTINUE -> on l'arme pour une courte fenetre puis on coupe
+        // (au Tick du moteur via SonarPreviewTick, ou a la fermeture via onClose). which : 0
+        // medium, 1 grave, 2 les deux. Les autres apercus (tons, dings, earcons) sont des sons
+        // ponctuels et passent directement par leur lambda Preview.
         private const float SonarPreviewDur = 0.9f;
         private static float _sonarStopAt;
+
         private static void StartSonarPreview(int which)
         {
             ProximitySonar.StartPreview(which);
             _sonarStopAt = Time.unscaledTime + SonarPreviewDur;
         }
+
         private static void StopSonarPreview()
         {
             if (_sonarStopAt <= 0f) return;
@@ -249,110 +173,11 @@ namespace CoreKeeperAccess.Settings
             _sonarStopAt = 0f;
         }
 
-        // Navigation haut/bas avec CYCLAGE + son de butee au franchissement de la couture.
-        private static void Move(int delta)
+        // Coupe l'apercu sonar au bout de sa fenetre, meme si aucun bouton. Branche en onTick
+        // du moteur -> tickee tant que le panneau est ouvert.
+        private static void SonarPreviewTick()
         {
-            var items = Current.Children;
-            if (items.Count == 0) return;
-            int n = items.Count;
-            int ni = Index + delta;
-            bool wrapped = false;
-            if (ni < 0) { ni = n - 1; wrapped = true; }
-            else if (ni >= n) { ni = 0; wrapped = true; }
-            Index = ni;
-            if (wrapped) UiSfx.Cycle(); else UiSfx.Entry(); // cyclage debut/fin sinon survol d'entree
-            TtsText.Say(Describe(items[ni]), true);
-        }
-
-        private static void OnRight()
-        {
-            var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
-            else if (n is Toggle t) { if (!t.Get()) t.Set(true); UiSfx.Validate(); SayValue(t); }
-            else if (n is Category c) Enter(c);
-        }
-
-        private static void OnLeft()
-        {
-            var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
-            else if (n is Toggle t) { if (t.Get()) t.Set(false); UiSfx.Validate(); SayValue(t); }
-            else Back(); // categorie focalisee : gauche = remonter
-        }
-
-        private static void OnCross()
-        {
-            var n = Cur;
-            if (n is Category c) Enter(c);
-            else if (n is Toggle t) { t.Set(!t.Get()); UiSfx.Validate(); SayValue(t); }
-            else SayValue(n); // slider : re-annonce la valeur
-        }
-
-        private static void Enter(Category c)
-        {
-            if (c.Children.Count == 0) { UiSfx.Cycle(); TtsText.Say(Describe(c), true); return; }
-            _stack.Add(new Level { Cat = c, Idx = 0 });
-            UiSfx.Validate();   // entrer un sous-menu = validation
-            TtsText.Say(Strings.L(c.LabelKey) + ", " + Describe(Cur), true);
-        }
-
-        private static void Back()
-        {
-            if (_stack.Count <= 1) { Close(); return; }
-            _stack.RemoveAt(_stack.Count - 1);
-            UiSfx.Entry();   // remonter = navigation entre entrees
-            TtsText.Say(Strings.L(Current.LabelKey) + ", " + Describe(Cur), true);
-        }
-
-        // --- TTS ---
-        private static string Describe(Node n)
-        {
-            string s = n is Category
-                ? Strings.L(n.LabelKey) + ", " + Strings.L("settings.submenu")
-                : Strings.L(n.LabelKey) + ", " + ValueText(n);
-            // Descriptif auto en queue (point separateur -> pause naturelle du TTS). Au
-            // REGLAGE d'une valeur on passe par SayValue (valeur seule), donc pas repete.
-            if (!string.IsNullOrEmpty(n.DescKey)) s += ". " + Strings.L(n.DescKey);
-            return s;
-        }
-
-        // Au reglage d'une valeur on ne reannonce QUE la valeur (le libelle vient d'etre lu
-        // a la navigation) -> retour rapide, moins verbeux.
-        private static void SayValue(Node n) => TtsText.Say(ValueText(n), true);
-
-        private static string ValueText(Node n)
-        {
-            if (n is Toggle t) return Strings.L(t.Get() ? "settings.on" : "settings.off");
-            if (n is Slider s) return Pct(s.Get()) + " " + Strings.L("settings.percent");
-            return "";
-        }
-
-        // Pas de Clamp01 : un slider d'amplification peut afficher au-dela de 100 % (ex. 150 %).
-        private static string Pct(float v) => Mathf.RoundToInt(Mathf.Max(0f, v) * 100f).ToString();
-
-        // --- Earcons du panneau : grammaire de nav PARTAGEE (UiSfx), commune a tous les menus
-        // maison (panneau, menu contextuel, roues, lecteur de carte). Definie une seule fois
-        // dans Controls/UiSfx.cs (entree / butee de cyclage / validation), normalisee + master. ---
-
-        // --- Lecture bouton physique par id d'element (template Rewired Gamepad) ---
-        private const int IdUp = 16, IdRight = 17, IdDown = 18, IdLeft = 19;
-        private const int IdCross = 6, IdCircle = 7, IdBack = 12;
-
-        private static bool Down(Joystick joy, int id)
-        {
-            for (int i = 0; i < joy.buttonCount; i++)
-                if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButtonDown(i);
-            return false;
-        }
-
-        // Etat MAINTENU (pas le front) d'un bouton physique : pour le modificateur Triangle
-        // de l'apercu. id < 0 (Triangle pas encore capte) -> aucun match -> false.
-        private static bool Held(Joystick joy, int id)
-        {
-            if (id < 0) return false;
-            for (int i = 0; i < joy.buttonCount; i++)
-                if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButton(i);
-            return false;
+            if (_sonarStopAt > 0f && Time.unscaledTime >= _sonarStopAt) StopSonarPreview();
         }
     }
 }
