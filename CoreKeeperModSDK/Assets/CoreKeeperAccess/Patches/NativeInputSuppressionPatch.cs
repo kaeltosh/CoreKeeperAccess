@@ -162,6 +162,22 @@ namespace CoreKeeperAccess.Patches
         }
     }
 
+    // Le menu PAUSE (bouton Start) ne passe PAS par PlayerInput.WasButtonPressedDownThisFrame
+    // (notre gel d'input) mais par MenuManager via Manager.input.IsMenuStartButtonDown -> Start
+    // ouvrait le menu pause PAR-DESSUS un modal a11y (apprentissage manette, panneau de reglages,
+    // menu contextuel, saisie de nom). On se greffe sur la methode DEDIEE du jeu IsPauseDisabled
+    // (deja vraie en carte / inventaire) : tant qu'un modal a11y est ouvert, la pause est
+    // desactivee. Couvre tous les modaux d'un coup (ModalA11yOpen). Postfix trivial -> pas de garde.
+    [HarmonyPatch(typeof(MenuManager), "IsPauseDisabled")]
+    internal static class PauseSuppressionPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(ref bool __result)
+        {
+            if (InputContext.ModalA11yOpen) __result = true;
+        }
+    }
+
     // === Focus mortier (canne laser) ===
     // Quand un mortier est equipe et que la canne laser vise un ennemi (LaserCane publie
     // l'intention ici), on bascule le viseur du mortier en "mode souris" et on pose son
