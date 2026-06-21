@@ -4,7 +4,7 @@
 
 Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe par la synthèse vocale du lecteur d'écran (NVDA) et par un feedback sonore spatialisé. Menus, inventaire, artisanat, exploration, combat, téléportation — l'objectif est de jouer au jeu complet, en autonomie, à la manette.
 
-**Version 1.0, bêta ouverte.** Le mod est encore en test actif, mais il est ouvert à tous : l'installation se fait par **double-clic**, sans dépôt à cloner ni fichiers à copier à la main.
+**Version 1.0, bêta ouverte.** Le mod est encore en test actif, mais il est ouvert à tous : l'installation tient en un fichier à lancer (touche Entrée), sans dépôt à cloner ni fichiers à copier à la main.
 
 ## Philosophie
 
@@ -24,11 +24,11 @@ Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe p
 
 **Téléchargement :** récupérez la dernière version (le zip) sur la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.
 
-### Double-clic (recommandé)
+### Avec l'installeur (recommandé)
 
 1. Télécharger le zip de la version depuis la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.
 2. L'extraire n'importe où.
-3. **Double-cliquer sur `Installer.cmd`.** C'est tout — pas de ligne de commande, aucun chemin à taper. Votre installation Steam de Core Keeper est trouvée automatiquement, sur n'importe quel disque.
+3. **Sélectionnez `Installer.cmd` et pressez Entrée.** C'est tout — pas de ligne de commande, aucun chemin à taper. Votre installation Steam de Core Keeper est trouvée automatiquement, sur n'importe quel disque.
 4. Une fenêtre s'ouvre, indique ce qui a été fait, et attend une touche pour que votre lecteur d'écran lise le résultat.
 5. Lancer NVDA, puis le jeu. Au menu principal vous devez entendre : « Mod accessibilité chargé », suivi de la version (par exemple « 1.0 beta, build 1 »).
 
@@ -36,7 +36,7 @@ Notes :
 - **Avertissement au 1er lancement.** Windows peut signaler que le fichier « provient d'un autre ordinateur » (Mark of the Web / SmartScreen). C'est normal pour tout script téléchargé. Choisir « Informations complémentaires » → « Exécuter quand même », ou clic droit sur `Installer.cmd` → Propriétés → cocher « Débloquer ».
 - **« Accès refusé » ?** Si l'installeur signale une écriture refusée (jeu sous `Program Files` avec permissions strictes), clic droit sur `Installer.cmd` → « Exécuter en tant qu'administrateur », puis relancer. Il ne demande jamais les droits admin de lui-même quand ce n'est pas nécessaire.
 - **Jeu introuvable ?** Dans le rare cas où la détection échoue, utilisez l'installation manuelle ci-dessous.
-- Pour mettre à jour plus tard, télécharger le nouveau zip et redouble-cliquer sur `Installer.cmd` (jeu fermé).
+- Pour mettre à jour plus tard, télécharger le nouveau zip et relancer `Installer.cmd` (le sélectionner et presser Entrée, jeu fermé).
 
 ### Installation manuelle (alternative)
 

@@ -4,7 +4,7 @@
 
 A mod that makes **Core Keeper** playable by **blind players**: everything goes through the screen reader's speech (NVDA) and spatialized audio feedback. Menus, inventory, crafting, exploration, combat, teleportation — the goal is to play the full game, independently, on a gamepad.
 
-**Version 1.0, open beta.** The mod is still under active testing, but it is open to everyone: installation is a **double-click**, no repository to clone, no files to copy by hand.
+**Version 1.0, open beta.** The mod is still under active testing, but it is open to everyone: installation is a single file to run (press Enter), no repository to clone, no files to copy by hand.
 
 ## Philosophy
 
@@ -24,11 +24,11 @@ A mod that makes **Core Keeper** playable by **blind players**: everything goes 
 
 **Download:** grab the latest version (the zip) from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.
 
-### Double-click (recommended)
+### With the installer (recommended)
 
 1. Download the release zip from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.
 2. Extract it anywhere.
-3. **Double-click `Installer.cmd`.** That's it — no command line, no path to type. Your Steam install of Core Keeper is found automatically, on any drive.
+3. **Select `Installer.cmd` and press Enter.** That's it — no command line, no path to type. Your Steam install of Core Keeper is found automatically, on any drive.
 4. A window opens, reports what it did, and waits for you to press a key so your screen reader can read the result.
 5. Start NVDA, then the game. At the main menu you should hear: "Accessibility mod loaded", followed by the version (for example "1.0 beta, build 1").
 
@@ -36,7 +36,7 @@ Notes:
 - **First launch warning.** Windows may say the file "came from another computer" (Mark of the Web / SmartScreen). This is normal for any downloaded script. Choose "More info" → "Run anyway", or right-click `Installer.cmd` → Properties → tick "Unblock".
 - **"Access denied"?** If the installer reports a denied write (game under `Program Files` with strict permissions), right-click `Installer.cmd` → "Run as administrator", and run it again. It does not ask for admin on its own when it isn't needed.
 - **Game not found?** In the rare case auto-detection fails, use the manual install below.
-- To update later, just download the new zip and double-click `Installer.cmd` again (game closed).
+- To update later, just download the new zip and run `Installer.cmd` again (select it and press Enter, game closed).
 
 ### Manual install (alternative)
 
