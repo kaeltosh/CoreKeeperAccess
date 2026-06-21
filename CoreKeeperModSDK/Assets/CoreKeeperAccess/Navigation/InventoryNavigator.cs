@@ -170,10 +170,10 @@ namespace CoreKeeperAccess.Navigation
         {
             if (_current == null) return;
             string info = BuildRecipeComponents(_current);
-            string station = Gameplay.GameplayInput.BuildStationDetail(_current);
+            string station = Gameplay.StationCommands.BuildStationDetail(_current);
             if (!string.IsNullOrEmpty(station))
                 info = string.IsNullOrEmpty(info) ? station : info + ". " + station;
-            string forge = Gameplay.GameplayInput.BuildForgeDetail();
+            string forge = Gameplay.StationCommands.BuildForgeDetail();
             if (!string.IsNullOrEmpty(forge))
                 info = string.IsNullOrEmpty(info) ? forge : info + ". " + forge;
             string merchant = InGameTtsCore.BuildMerchantDetail();
@@ -303,7 +303,7 @@ namespace CoreKeeperAccess.Navigation
                 else ActionWheel.DropSelected();
                 return;
             }
-            if (rtEdge && !InfoKey.ModifierHeld) { GameplayInput.TransferSelected(); return; }
+            if (rtEdge && !InfoKey.ModifierHeld) { StationCommands.TransferSelected(); return; }
 
             // Touche access tenue : le D-pad est reserve aux commandes (pas la nav).
             // Les combos eux-memes sont routes par ComboDispatcher (cf. ComboBindings).

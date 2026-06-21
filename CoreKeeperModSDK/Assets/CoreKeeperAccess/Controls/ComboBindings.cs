@@ -36,16 +36,16 @@ namespace CoreKeeperAccess.Controls
             // roue de stats (stick gauche) - le D-pad bas n'a plus de role gameplay. Sur la
             // carte : supprime une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
-                () => InventoryNavState.SuppressNativeInput, GameplayInput.TransferSelected, "cmd.transfer");
+                () => InventoryNavState.SuppressNativeInput, StationCommands.TransferSelected, "cmd.transfer");
 
             // Triangle + droite = ameliorer (forge ouverte) / reparer (autre station) /
             // position (jeu normal). La forge prime sur la reparation : les deux stations
             // ne sont jamais ouvertes ensemble, mais l'ordre rend l'intention explicite.
             // Sur la carte : renomme une balise (onglet balises), sinon rien.
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
-                () => InputContext.ForgeOpen, GameplayInput.UpgradeForgeAction, "cmd.upgrade");
+                () => InputContext.ForgeOpen, StationCommands.UpgradeForgeAction, "cmd.upgrade");
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
-                () => InputContext.StationOpen, GameplayInput.RepairSelected, "cmd.repair");
+                () => InputContext.StationOpen, StationCommands.RepairSelected, "cmd.repair");
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
             // recycler (station). La prospection minerai est passee sur la roue de stats
@@ -53,9 +53,9 @@ namespace CoreKeeperAccess.Controls
             // station jamais ouverts ensemble, l'ordre rend juste l'intention explicite.
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InventoryNavState.SuppressNativeInput && Manager.ui != null && Manager.ui.isSellUIShowing,
-                GameplayInput.SellAllToMerchant, "cmd.sellall");
+                StationCommands.SellAllToMerchant, "cmd.sellall");
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
-                () => InputContext.StationOpen, GameplayInput.SalvageStation, "cmd.salvageall");
+                () => InputContext.StationOpen, StationCommands.SalvageStation, "cmd.salvageall");
 
             // Triangle + L1 = ping sonar (jeu normal seulement : pas en inventaire /
             // fiche perso / carte - sur la carte, les bumpers naviguent les categories).
