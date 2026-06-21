@@ -22,6 +22,8 @@ A mod that makes **Core Keeper** playable by **blind players**: everything goes 
 
 ## Installation
 
+**Download:** grab the latest version (the zip) from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.
+
 ### Double-click (recommended)
 
 1. Download the release zip from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.

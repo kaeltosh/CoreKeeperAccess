@@ -22,6 +22,8 @@ Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe p
 
 ## Installation
 
+**Téléchargement :** récupérez la dernière version (le zip) sur la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.
+
 ### Double-clic (recommandé)
 
 1. Télécharger le zip de la version depuis la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.
