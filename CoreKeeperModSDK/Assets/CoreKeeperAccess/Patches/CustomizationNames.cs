@@ -14,8 +14,11 @@ namespace CoreKeeperAccess.Patches
         {
             // --- Corps (PROVISOIRE) : le jeu nomme ses 2 corps "MaleBody"/"FemaleBody" en
             //     interne -> libelles cash en attendant mieux (fonctionnel mais imprecis). ---
-            { "a6a9870f-41e8-98b4-9bc7-1cc146f1687d", "Masculin" }, // MaleBody  (var 1)
-            { "5e9ee05b-3247-6fb4-5b24-a4e4af303b55", "Féminin" },  // FemaleBody (var 2)
+            // Corps : seule difference visible = la carrure (MaleBody ~1-2 px plus large
+            // d'epaules/torse). Aucun attribut genre (ni barbe ni poitrine) -> on nomme la
+            // carrure, pas le sexe (decision utilisateur 22 juin).
+            { "a6a9870f-41e8-98b4-9bc7-1cc146f1687d", "Robuste" }, // MaleBody   (var 1, large)
+            { "5e9ee05b-3247-6fb4-5b24-a4e4af303b55", "Svelte" },  // FemaleBody (var 2, fine)
 
             // --- Cheveux (Hair, 24 variantes) ---
             { "ad057198-5346-7884-eb9b-da8718f93702", "Carré bouclé" },      // var 1
