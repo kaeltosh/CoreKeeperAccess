@@ -87,6 +87,29 @@ namespace CoreKeeperAccess.Patches
                 seenTexts.Add(option.valueText);
             }
 
+            // Selecteurs de customisation perso (corps, cheveux, couleurs...) : pas de
+            // valueText, seul un apercu visuel change -> muet en l'etat. On annonce
+            // "variante N sur M" (index courant + total de la collection). Pas de nom :
+            // les variantes n'en portent pas dans les donnees (cf. domaine custom). Le
+            // role (changesCharacterRole) est exclu : deja lu en clair via ses PugText.
+            if (option is CharacterCustomizationOption_Selection sel
+                && !sel.changesCharacterRole
+                && TryGetCustomizationVariant(sel, out int variantIdx, out int variantTotal))
+            {
+                // Nom enrichi : d'abord la table accrochee au GUID (cheveux), sinon nom de
+                // couleur genere en direct depuis la palette RGB (peau/cheveux/yeux/chemise/
+                // pantalon). Le numero "variante N / M" reste en filet (leve l'ambiguite).
+                var customName = CustomizationNames.Lookup(CurrentVariantAddress(sel));
+                if (string.IsNullOrEmpty(customName))
+                {
+                    var palette = GetCurrentColorPalette(sel);
+                    if (palette != null) customName = ColorNamer.Name(sel.bodyPartType, palette);
+                }
+                if (!string.IsNullOrEmpty(customName)) AddPart(customName);
+                AddPart(Strings.L("custom.variant") + " " + (variantIdx + 1)
+                    + " / " + variantTotal);
+            }
+
             foreach (var t in option.GetComponentsInChildren<PugText>(false))
             {
                 if (t == null || !seenTexts.Add(t)) continue;
@@ -143,6 +166,165 @@ namespace CoreKeeperAccess.Patches
                 }
             }
             return null;
+        }
+
+        // Index courant d'une categorie de customisation : vit dans un champ prive de
+        // CharacterCustomizationMenu (_bodyIndex, _hairIndex...). Lecture par reflection.
+        private static readonly Dictionary<CharacterCustomizationMenu.CustomizableBodyPartType, string> CustomIndexFieldNames =
+            new Dictionary<CharacterCustomizationMenu.CustomizableBodyPartType, string>
+        {
+            { CharacterCustomizationMenu.CustomizableBodyPartType.Body,       "_bodyIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.SkinColor,  "_skinColorIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.Hair,       "_hairIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.HairColor,  "_hairColorIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.EyeColor,   "_eyesColorIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.ShirtColor, "_shirtColorIndex" },
+            { CharacterCustomizationMenu.CustomizableBodyPartType.PantsColor, "_pantsColorIndex" },
+        };
+
+        private static int ReadCustomIndex(CharacterCustomizationMenu menu, CharacterCustomizationMenu.CustomizableBodyPartType type)
+        {
+            if (menu == null || !CustomIndexFieldNames.TryGetValue(type, out var fieldName)) return -1;
+            var fi = AccessTools.Field(typeof(CharacterCustomizationMenu), fieldName);
+            if (fi == null) return -1;
+            try { return (int)fi.GetValue(menu); } catch { return -1; }
+        }
+
+        // Index courant + total de variantes d'une categorie visuelle. Total = taille de
+        // la collection du PlayerCustomizationTableDataBlock (memes sources que le jeu dans
+        // StepCustomizationOption). Chemise/pantalon : palette propre au corps courant.
+        private static bool TryGetCustomizationVariant(CharacterCustomizationOption_Selection sel, out int index, out int total)
+        {
+            index = -1; total = 0;
+            var menu = sel.customizationMenu;
+            if (menu == null) return false;
+            var table = menu.customizationTable.Get();
+            if (table == null) return false;
+            index = ReadCustomIndex(menu, sel.bodyPartType);
+            if (index < 0) return false;
+            try
+            {
+                switch (sel.bodyPartType)
+                {
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.Body:
+                        total = table.bodySkinCollection.Get().Count; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.SkinColor:
+                        total = table.skinReplacementColors.Get().Count; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.Hair:
+                        total = table.hairSkinCollection.Get().Count; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.HairColor:
+                        total = table.hairReplacementColors.Get().Count; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.EyeColor:
+                        total = table.eyeReplacementColors.Get().Count; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.ShirtColor:
+                    {
+                        int body = ReadCustomIndex(menu, CharacterCustomizationMenu.CustomizableBodyPartType.Body);
+                        var coll = table.shirtSkinCollection.Get();
+                        if (coll == null || body < 0 || body >= coll.Count) return false;
+                        total = coll[body].replacementColorsCollectionRef.Get().Count; break;
+                    }
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.PantsColor:
+                    {
+                        int body = ReadCustomIndex(menu, CharacterCustomizationMenu.CustomizableBodyPartType.Body);
+                        var coll = table.pantsSkinCollection.Get();
+                        if (coll == null || body < 0 || body >= coll.Count) return false;
+                        total = coll[body].replacementColorsCollectionRef.Get().Count; break;
+                    }
+                    default: return false;
+                }
+            }
+            catch { return false; }
+            return total > 0 && index < total;
+        }
+
+        // Adresse GUID (minuscules) de la variante COURANTE d'une categorie visuelle, lue
+        // depuis activeCustomization (mise a jour a chaque skim par StepCustomizationOption).
+        // Sert a resoudre le nom enrichi via CustomizationNames (cle = GUID, stable).
+        private static string CurrentVariantAddress(CharacterCustomizationOption_Selection sel)
+        {
+            var menu = sel != null ? sel.customizationMenu : null;
+            if (menu == null || menu.pc == null) return null;
+            try
+            {
+                var c = menu.pc.activeCustomization;
+                DataBlockAddress a;
+                switch (sel.bodyPartType)
+                {
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.Body:       a = c.body; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.SkinColor:  a = c.skinColor; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.Hair:       a = c.hair; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.HairColor:  a = c.hairColor; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.EyeColor:   a = c.eyesColor; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.ShirtColor: a = c.shirtColor; break;
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.PantsColor: a = c.pantsColor; break;
+                    default: return null;
+                }
+                return a.ToString().ToLowerInvariant();
+            }
+            catch { return null; }
+        }
+
+        // Palette RGB de la variante de COULEUR courante (peau/cheveux/yeux/chemise/pantalon),
+        // lue a la volee depuis le ReplacementColorDataBlock courant. null pour les categories
+        // non-couleur (corps, cheveux-forme). Chemise/pantalon : palette propre au corps courant.
+        private static List<Color> GetCurrentColorPalette(CharacterCustomizationOption_Selection sel)
+        {
+            var menu = sel != null ? sel.customizationMenu : null;
+            if (menu == null) return null;
+            var table = menu.customizationTable.Get();
+            if (table == null) return null;
+            int idx = ReadCustomIndex(menu, sel.bodyPartType);
+            if (idx < 0) return null;
+            try
+            {
+                ReplacementColorDataBlock block = null;
+                switch (sel.bodyPartType)
+                {
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.SkinColor:
+                    {
+                        var c = table.skinReplacementColors.Get();
+                        if (c != null && idx < c.Count) block = c[idx];
+                        break;
+                    }
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.HairColor:
+                    {
+                        var c = table.hairReplacementColors.Get();
+                        if (c != null && idx < c.Count) block = c[idx];
+                        break;
+                    }
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.EyeColor:
+                    {
+                        var c = table.eyeReplacementColors.Get();
+                        if (c != null && idx < c.Count) block = c[idx];
+                        break;
+                    }
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.ShirtColor:
+                    {
+                        int b = ReadCustomIndex(menu, CharacterCustomizationMenu.CustomizableBodyPartType.Body);
+                        var s = table.shirtSkinCollection.Get();
+                        if (s != null && b >= 0 && b < s.Count)
+                        {
+                            var c = s[b].replacementColorsCollectionRef.Get();
+                            if (c != null && idx < c.Count) block = c[idx];
+                        }
+                        break;
+                    }
+                    case CharacterCustomizationMenu.CustomizableBodyPartType.PantsColor:
+                    {
+                        int b = ReadCustomIndex(menu, CharacterCustomizationMenu.CustomizableBodyPartType.Body);
+                        var p = table.pantsSkinCollection.Get();
+                        if (p != null && b >= 0 && b < p.Count)
+                        {
+                            var c = p[b].replacementColorsCollectionRef.Get();
+                            if (c != null && idx < c.Count) block = c[idx];
+                        }
+                        break;
+                    }
+                    default: return null;
+                }
+                return block != null ? block.colors : null;
+            }
+            catch { return null; }
         }
 
         private static IEnumerable<PugText> GetReflectedPugTexts(RadicalMenuOption option, HashSet<PugText> alreadySeen)

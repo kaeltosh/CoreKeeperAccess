@@ -2,6 +2,19 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.1 (open beta) — June 2026
+
+A small polish update on top of 1.0.
+
+### Additions
+
+- **Skill level-ups are announced.** Whenever a skill (mining, running, melee, magic…) gains a level, the mod announces its name and the level reached. At the milestones that grant a talent point, both are merged into a single announcement ("… level 15, new talent point available") so neither cuts the other off.
+- **Character creation: richer names.** Colours (skin, hair, eyes, clothing) now have distinct, correct names per category, body types are named by build (Sturdy / Slim), and a few hairstyles were renamed more accurately.
+
+### Fixes
+
+- **Journal: the Core's awakening dialogue no longer shows too early.** It only appears in the journal once the Core is actually activated, instead of showing up as soon as the world loads.
+
 ## 1.0 (open beta) — June 2026
 
 CoreKeeperAccess leaves alpha and opens to a wider audience. This 1.0 consolidates Alpha 2 with fixes, polish and a large internal rework for the long run — every Alpha 2 feature below is included.

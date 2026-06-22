@@ -249,6 +249,14 @@
                       "guid":  "9ece7eab6b99461459038e7b244b4859"
                   },
                   {
+                      "path":  "Scripts/Patches/ColorNamer.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Patches/CustomizationNames.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Patches/InGameTtsPatch.cs",
                       "guid":  "c0b7525034714fb4593d8fcdf65de70a"
                   },

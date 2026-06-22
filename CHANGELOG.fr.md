@@ -2,6 +2,19 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.1 (bêta ouverte) — juin 2026
+
+Petite mise à jour de finitions par-dessus la 1.0.
+
+### Ajouts
+
+- **Montée de niveau des compétences annoncée.** Chaque fois qu'une compétence (minage, course, corps à corps, magie…) gagne un niveau, le mod l'annonce avec son nom et le niveau atteint. Aux paliers qui octroient un point de talent, l'info est réunie en une seule annonce (« … niveau 15, nouveau point de talent disponible ») pour qu'aucune ne se fasse couper par l'autre.
+- **Création de personnage : noms enrichis.** Les couleurs (peau, cheveux, yeux, vêtements) portent désormais des noms distincts et corrects par catégorie, les morphologies sont nommées par carrure (Robuste / Svelte), et quelques coupes de cheveux ont été renommées plus fidèlement.
+
+### Correctifs
+
+- **Journal : le dialogue d'éveil du Cœur ne s'affiche plus trop tôt.** Il n'apparaît dans le journal que lorsque le Cœur est réellement activé, au lieu de se montrer dès le chargement du monde.
+
 ## 1.0 (bêta ouverte) — juin 2026
 
 CoreKeeperAccess sort de l'alpha et s'ouvre à un public plus large. Cette 1.0 consolide l'Alpha 2 : correctifs, finitions, et une grosse refonte interne pour la pérennité — tout le contenu de l'Alpha 2 ci-dessous est inclus.

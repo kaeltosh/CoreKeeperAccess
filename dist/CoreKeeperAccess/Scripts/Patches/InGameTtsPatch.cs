@@ -546,7 +546,8 @@ namespace CoreKeeperAccess.Patches
             ChatWindow.MessageTextType.Received,
             ChatWindow.MessageTextType.NewItem,
             ChatWindow.MessageTextType.CaughtItem,
-            ChatWindow.MessageTextType.NewTalentPointAvailable,
+            // NewTalentPointAvailable RETIRE : geree desormais par SkillIncreasePopupPatch
+            // (fusionnee a l'annonce de montee de niveau pour eviter l'ecrasement au palier).
             ChatWindow.MessageTextType.DurabilityLost,
             ChatWindow.MessageTextType.AdditionalItemGained,
             ChatWindow.MessageTextType.GainedItem,
@@ -572,6 +573,38 @@ namespace CoreKeeperAccess.Patches
             // File d'attente NVDA (interrupt = false) : les notifs s'enchainent sans
             // se couper entre elles ni ecraser une annonce de navigation en cours.
             TtsText.Say(announcement, false);
+        });
+    }
+
+    // Montee de niveau d'une competence (cote client). Le jeu spawne un popup visuel
+    // a CHAQUE niveau via SpawnSkillIncreasePopup et, tous les 5 niveaux, une 2e notif
+    // "nouveau point de talent" via SpawnNewSkillPopup (chat NewTalentPointAvailable).
+    // On centralise TOUT ici en UNE seule annonce : "Minage niveau 12", ou au palier
+    // "Minage niveau 15, nouveau point de talent disponible". Deux Say separes
+    // pourraient se telescoper au palier (1 fois sur 5) -> annonce unique = ecrasement
+    // impossible par construction. Le hook chat NewTalentPointAvailable a donc ete retire
+    // (SpawnNewSkillPopup en est l'unique emetteur, et SpawnSkillIncreasePopup le precede
+    // toujours sauf au cas d'init 0->3, ou aucun popup ne part). La valeur de skill est
+    // deja a jour quand le popup part (SetSkillValue precede l'appel dans SaveSkillsSystem).
+    [HarmonyPatch(typeof(PlayerController), "SpawnSkillIncreasePopup")]
+    internal static class SkillIncreasePopupPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(SkillID skillID) => PatchGuard.Run("A11ySkillLevel", () =>
+        {
+            var saves = Manager.saves;
+            if (saves == null) return;
+
+            int level = SkillExtensions.GetLevelFromSkill(skillID, saves.GetSkillValue(skillID));
+
+            string name = null;
+            try { name = PugMod.API.Localization?.GetLocalizedTerm("Skills/" + skillID.ToString()); } catch { }
+            if (string.IsNullOrEmpty(name)) name = skillID.ToString();
+
+            string msg = string.Format(Strings.L("skill.levelup"), name, level);
+            if (level % 5 == 0) msg += ", " + Strings.L("skill.talentpoint");
+
+            TtsText.Say(msg, false);
         });
     }
 
@@ -709,6 +742,19 @@ namespace CoreKeeperAccess.Patches
     {
         public static bool ReconstructActivation()
         {
+            // Garde : ne reconstruire le dialogue d'eveil QUE si le Cœur de ce monde a reellement
+            // ete active (WorldInfoCD.coreIsActivated, flag du monde repliqué au client - meme
+            // source que WorldProgress/Triangle+bas). Sinon, sur une partie neuve, la sequence
+            // STATIQUE du prefab (presente des le spawn du Core) serait seedee a tort. On renvoie
+            // false tant que ce n'est pas active -> l'orchestrateur retente apres l'activation.
+            try
+            {
+                var player = Manager.main != null ? Manager.main.player : null;
+                if (player == null || !player.querySystem.GetSingleton<WorldInfoCD>().coreIsActivated)
+                    return false;
+            }
+            catch { return false; }
+
             TheCore tc = null;
             foreach (var c in UnityEngine.Object.FindObjectsByType<TheCore>(UnityEngine.FindObjectsSortMode.None))
                 if (c != null) { tc = c; break; }
