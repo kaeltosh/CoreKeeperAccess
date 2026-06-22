@@ -46,6 +46,18 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.ForgeOpen, StationCommands.UpgradeForgeAction, "cmd.upgrade");
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InputContext.StationOpen, StationCommands.RepairSelected, "cmd.repair");
+            // En jeu pur : barre rapide suivante. Le D-pad droite vanilla (qui portait SORT,
+            // inutile hors inventaire) est confisque par le curseur de tuile -> on remet le
+            // swap de barre rapide ici. On arme l'action native, le jeu change la barre et
+            // EquipSlot est appele -> HeldItemAnnouncePatch annonce le nouvel objet en main.
+            // Muet si une seule rangee (vanilla CanSwapHotBar). Enregistre apres forge/station
+            // -> en station c'est reparer qui gagne, en jeu pur c'est nous (gardes exclusives).
+            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_NEXT_HOTBAR;
+                    InventoryNavState.ArmedTtl = 2;
+                }, "cmd.hotbar.next");
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
             // recycler (station). La prospection minerai est passee sur la roue de stats
@@ -56,6 +68,13 @@ namespace CoreKeeperAccess.Controls
                 StationCommands.SellAllToMerchant, "cmd.sellall");
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InputContext.StationOpen, StationCommands.SalvageStation, "cmd.salvageall");
+            // En jeu pur : barre rapide precedente (symetrique du Triangle+droite ci-dessus).
+            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR;
+                    InventoryNavState.ArmedTtl = 2;
+                }, "cmd.hotbar.prev");
 
             // Triangle + L1 = ping sonar (jeu normal seulement : pas en inventaire /
             // fiche perso / carte - sur la carte, les bumpers naviguent les categories).

@@ -6,6 +6,13 @@
 
 CoreKeeperAccess sort de l'alpha et s'ouvre à un public plus large. Cette 1.0 consolide l'Alpha 2 : correctifs, finitions, et une grosse refonte interne pour la pérennité — tout le contenu de l'Alpha 2 ci-dessous est inclus.
 
+### Construction et contrôles
+
+- **Poser des objets en ligne droite en marchant.** Détache le curseur de tuile à la croix directionnelle sur une case juste à côté de toi, puis maintiens le bouton de pose (LT) : l'écart relatif se verrouille, le curseur te suit pendant que tu te déplaces, et l'objet se pose case après case — tu traces ainsi une ligne nette de murs ou de sol au lieu que le jeu les éparpille sur « la case libre la plus proche ». Un son discret marque chaque case franchie (un compteur à l'oreille) ; se marie avec la direction assistée (Triangle + L3) pour des lignes parfaitement droites.
+- **Le déplacement par Croix s'arrête au centre de la case.** Avant, il s'arrêtait dès qu'il était à une demi-case de la cible, te laissant décentré et faussant ta portée de pose/interaction (par exemple atteindre un établi situé une case en diagonale). Tu te cales maintenant près du centre.
+- **Changement rapide de barre d'action à la manette.** Triangle + droite / Triangle + gauche passent à la barre d'action suivante / précédente en jeu (la croix directionnelle étant prise par le curseur de tuile) ; l'objet désormais en main est annoncé.
+- **Lecture de l'industrie fiabilisée.** Le sens des convoyeurs, l'état électrique (génère / sous tension / hors tension) et la tension d'un câble passant sous une structure sont désormais annoncés correctement, et un gisement n'est plus noyé sous les machines voisines quand tu le survoles.
+
 ### Correctifs et finitions
 
 - **Le menu pause ne s'ouvre plus par-dessus les menus du mod.** Appuyer sur Start alors qu'un menu du mod était ouvert (apprentissage manette, panneau de réglages, menu contextuel, saisie de nom) ouvrait le menu pause du jeu par-dessus. Il attend maintenant que vous fermiez le menu du mod.

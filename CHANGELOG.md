@@ -6,6 +6,13 @@
 
 CoreKeeperAccess leaves alpha and opens to a wider audience. This 1.0 consolidates Alpha 2 with fixes, polish and a large internal rework for the long run — every Alpha 2 feature below is included.
 
+### Building and controls
+
+- **Place objects in a straight line while walking.** Detach the tile cursor with the D-pad onto a cell next to you, then hold the place button (LT): the relative offset locks, the cursor follows you as you move, and the object is placed cell after cell — so you can lay a clean line of walls or floor instead of the game scattering them onto "the nearest free spot". A discreet sound ticks on each cell crossed (a counter by ear); pairs well with assisted direction (Triangle + L3) for perfectly straight lines.
+- **Walk-to (Cross) now stops at the center of the tile.** It used to stop as soon as it was within half a tile of the target, leaving you off-center and skewing your placement/interaction reach (e.g. reaching a workbench one tile diagonally). You now settle near the center.
+- **Quick hotbar swap on controller.** Triangle + right / Triangle + left switch to the next / previous hotbar row in-game (the D-pad being taken by the tile cursor); the item now in hand is announced.
+- **More reliable automation readout.** Conveyor direction, electrical state (generating / powered / unpowered) and the charge of a cable running under a structure are now announced correctly, and an ore deposit is no longer drowned out by the surrounding machines when you hover it.
+
 ### Fixes and polish
 
 - **The pause menu no longer opens on top of the mod's own menus.** Pressing Start while a mod menu was open (controller learning, settings panel, context menu, name entry) used to pop the game's pause menu over it. It now waits until you close the mod menu.

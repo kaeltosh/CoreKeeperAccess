@@ -30,6 +30,13 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _detached;
         private static bool _pending;
 
+        // Mode LIGNE : le bouton de pose (LT/SECOND_INTERACT) maintenu avec le curseur
+        // detache sur une case adjacente verrouille l'offset relatif curseur/joueur. Le
+        // curseur suit alors le perso pendant qu'il marche et la pose native, maintenue,
+        // tombe case par case sur la case suivie (via la visee injectee) -> ligne continue.
+        private static bool _lineMode;
+        private static int2 _lineOffset;
+
         // Vrai quand on est en jeu et qu'on prend le D-pad au jeu (lu par le patch de
         // suppression d'input natif pour neutraliser tri/empiler/swap-hotbar du D-pad).
         internal static bool StealsDpad;
@@ -56,8 +63,24 @@ namespace CoreKeeperAccess.Gameplay
             var joy = ReInput.isReady ? ReInput.controllers.GetLastActiveController<Joystick>() : null;
             int2 playerTile = ToTile(player.WorldPosition);
 
-            // Bouger au stick gauche -> recoller au joueur.
-            if (joy != null)
+            // Mode LIGNE : tant que le bouton de pose (LT) est maintenu avec le curseur
+            // detache sur une case ADJACENTE et un objet a poser/appliquer en main, on
+            // verrouille l'offset relatif. Sinon (LT relache) on quitte le mode.
+            bool placeHeld = _detached && SecondInteractHeld(player) && HasPlacement(player);
+            if (_lineMode && !placeHeld) _lineMode = false;
+            else if (placeHeld && !_lineMode)
+            {
+                int2 off = _cursor - playerTile;
+                if (Mathf.Max(Mathf.Abs(off.x), Mathf.Abs(off.y)) == 1) // une des 8 cases adjacentes
+                {
+                    _lineMode = true;
+                    _lineOffset = off;
+                }
+            }
+
+            // Bouger au stick gauche -> recoller au joueur (SAUF en mode ligne, ou le curseur
+            // est asservi a l'offset verrouille et doit suivre le perso pendant qu'il marche).
+            if (joy != null && !_lineMode)
             {
                 float ax = AxisById(joy, LeftStickX), ay = AxisById(joy, LeftStickY);
                 if (ax * ax + ay * ay > StickMove * StickMove) _detached = false;
@@ -66,7 +89,7 @@ namespace CoreKeeperAccess.Gameplay
             // Filet : si le curseur detache n'est plus dans le champ (le perso s'est
             // eloigne sous lui, la camera l'a suivi), on le recolle. Sinon toute cible
             // D-pad tomberait hors viewport et le D-pad semblerait gele.
-            if (_detached && !InViewport(_cursor)) _detached = false;
+            if (_detached && !InViewport(_cursor)) { _detached = false; _lineMode = false; }
 
             if (!_detached)
             {
@@ -74,11 +97,26 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.Active = false;
             }
 
+            // Mode ligne : le curseur translate avec le perso a offset constant. A chaque
+            // nouvelle case franchie, on relance la lecture de tuile (tick sonore = compteur
+            // de cases) ; le D-pad est inhibe (curseur asservi a l'offset).
+            if (_lineMode)
+            {
+                int2 followed = playerTile + _lineOffset;
+                if (!followed.Equals(_cursor))
+                {
+                    _cursor = followed;
+                    TileQuery.Tile = _cursor;
+                    TileQuery.Active = true;
+                    TileQuery.ResultValid = false;
+                    _pending = true;
+                }
+            }
             // D-pad -> deplacer le curseur d'une case (un cran par appui), borne a l'ecran.
             // Sauf si Triangle (touche access) est tenu : le D-pad est alors reserve aux
             // commandes info (InfoKey), il ne deplace plus le curseur. Sauf aussi si la canne
             // laser est active (stick droit pousse) : le laser a alors priorite.
-            if (joy != null && !InfoKey.ModifierHeld && !LaserCane.Active && DpadDir(joy, out int2 dir))
+            else if (joy != null && !InfoKey.ModifierHeld && !LaserCane.Active && DpadDir(joy, out int2 dir))
             {
                 int2 target = _cursor + dir;
                 if (InViewport(target))
@@ -160,10 +198,12 @@ namespace CoreKeeperAccess.Gameplay
                 GameplayAction.Disarm();
             }
 
-            // Annonce quand le resultat publie correspond a la case du curseur.
+            // Annonce quand le resultat publie correspond a la case du curseur. En mode ligne :
+            // tick SONORE seul (compteur de cases a l'oreille), pas de TTS hache a chaque case.
             if (_pending && TileQuery.ResultValid && TileQuery.ResultTile.Equals(_cursor))
             {
-                Announce();
+                if (_lineMode) AnnounceLineTick(playerTile);
+                else Announce();
                 _pending = false;
             }
 
@@ -201,6 +241,33 @@ namespace CoreKeeperAccess.Gameplay
 
             var info = TileQuery.Snapshot();
             SonifyTile(_cursor, in info, dx, dy, true);
+        }
+
+        // Tick SONORE seul a chaque case franchie en mode ligne (compteur de cases a
+        // l'oreille). Meme sonification spatialisee que le curseur (mur/objet/sol porte la
+        // position : pan + pitch vertical) mais SANS TTS : tracer une ligne ne doit pas
+        // hacher la voix a chaque case.
+        private static void AnnounceLineTick(int2 playerTile)
+        {
+            int dx = _cursor.x - playerTile.x, dy = _cursor.y - playerTile.y;
+            var info = TileQuery.Snapshot();
+            SonifyTile(_cursor, in info, dx, dy, false);
+
+            // Dev : verifier que la case REELLEMENT posee par le jeu (bestPositionToPlaceAt)
+            // colle a la case suivie -> calibration de la geometrie sans deviner (cf. fiche).
+            if (CoreKeeperAccessMod.DevMode)
+            {
+                try
+                {
+                    var p = Manager.main.player;
+                    if (EntityUtility.HasComponentData<PlacementCD>(p.entity, p.world))
+                    {
+                        var bp = EntityUtility.GetComponentData<PlacementCD>(p.entity, p.world).bestPositionToPlaceAt;
+                        Diag.Log("A11yLinePlace", $"cursor={_cursor.x},{_cursor.y} best={bp.x},{bp.z} off={_lineOffset.x},{_lineOffset.y}");
+                    }
+                }
+                catch { }
+            }
         }
 
         // Sonification PARTAGEE d'une case (curseur de tuile ET canne laser). Joue le son
@@ -567,10 +634,28 @@ namespace CoreKeeperAccess.Gameplay
         {
             _detached = false;
             _pending = false;
+            _lineMode = false;
             StealsDpad = false;
             StealsCross = false;
             TileQuery.Active = false;
             GameplayAction.Disarm();
+        }
+
+        // Bouton de pose (LT = SECOND_INTERACT) physiquement maintenu. Lecture native : notre
+        // patch laisse passer (SECOND_INTERACT n'est ni vole ni simule par un Held ici).
+        private static bool SecondInteractHeld(PlayerController player)
+        {
+            try { return player.inputModule.IsButtonCurrentlyDown(PlayerInput.InputType.SECOND_INTERACT, false); }
+            catch { return false; }
+        }
+
+        // Un objet a poser / appliquer au sol est en main : le jeu lui attache un PlacementCD
+        // (meubles, murs, sols ET outils a zone). Discriminant fiable du contexte "pose" -> le
+        // mode ligne ne se declenche jamais avec une arme ou un objet non posable.
+        private static bool HasPlacement(PlayerController player)
+        {
+            try { return EntityUtility.HasComponentData<PlacementCD>(player.entity, player.world); }
+            catch { return false; }
         }
 
         private static int2 ToTile(Vector3 wp)
@@ -668,7 +753,13 @@ namespace CoreKeeperAccess.Gameplay
     [UpdateAfter(typeof(SendClientInputSystem))]
     public partial class PlayerMoveToSystem : SystemBase
     {
-        private const float ArriveDist = 0.5f;
+        // Arrivee resserree au CENTRE de la tuile : a 0.5 le perso s'arretait des le bord
+        // de la case cible -> decentre, portee de pose/interaction faussee. On coupe bien
+        // plus pres du centre et on DECELERE dans le dernier bout (SlowRadius) pour ne pas
+        // depasser, avec un plancher de vitesse (MinSpeed) pour franchir la deadzone du jeu.
+        private const float ArriveDist = 0.12f;
+        private const float SlowRadius = 0.6f;
+        private const float MinSpeed = 0.4f;
         private const float StickDeadzone = 0.3f;
         private EntityQuery _query;
 
@@ -701,11 +792,14 @@ namespace CoreKeeperAccess.Gameplay
 
                         float2 delta = MoveCommand.Target - pos;
                         float dist = math.length(delta);
-                        if (dist < ArriveDist) MoveCommand.Active = false;                       // arrive
+                        if (dist < ArriveDist) MoveCommand.Active = false;                       // arrive (proche du centre)
                         else if (math.length(ci.movementDirection) > StickDeadzone) MoveCommand.Active = false; // reprise main
                         else
                         {
-                            ci.movementDirection = delta / dist;
+                            // Vitesse pleine de loin, ralentie dans le dernier bout (sans tomber
+                            // sous MinSpeed) -> le perso se cale pres du centre sans depasser.
+                            float speed = math.clamp(dist / SlowRadius, MinSpeed, 1f);
+                            ci.movementDirection = delta / dist * speed;
                             data = UnsafeUtility.As<ClientInput, ClientInputData>(ref ci);
                             EntityManager.SetComponentData(e, data);
                         }

@@ -17,8 +17,10 @@ namespace CoreKeeperAccess.Gameplay
     public enum PlantState : byte { None = 0, Growing = 1, Ready = 2 }
 
     // Etat d'alimentation electrique d'un objet d'automation (cable, machine).
-    // None = pas un objet electrique. On = energie suffisante pour alimenter (ElectricityCD).
-    public enum PowerState : byte { None = 0, Off = 1, On = 2 }
+    // None = pas d'etat de tension a annoncer (cable/conducteur pur, ou pas electrique).
+    // Off/On = consommateur dont le jeu afficherait l'icone manque/assez de courant.
+    // Source = generateur (sourceEnergy>0) : il PRODUIT, jamais "hors tension".
+    public enum PowerState : byte { None = 0, Off = 1, On = 2, Source = 3 }
 
     // Contenu remarquable d'une case, decouple de tout systeme : se passe en parametre.
     // Rempli par TileScan.Read et consomme par la sonification partagee
@@ -40,6 +42,7 @@ namespace CoreKeeperAccess.Gameplay
         public int Connections;        // cotes connectes au reseau electrique (ElectricityDirectionMask brut), 0 = aucun
         public bool HasStorage;        // l'objet est un stockage d'automation (StorageCD)
         public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
+        public PowerState WirePower;   // tension d'un cable present sur la case (sous un objet non electrique), None sinon
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -69,6 +72,7 @@ namespace CoreKeeperAccess.Gameplay
         public static int Connections;
         public static bool HasStorage;
         public static int StorageCount;
+        public static PowerState WirePower;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -88,6 +92,7 @@ namespace CoreKeeperAccess.Gameplay
             Connections = Connections,
             HasStorage = HasStorage,
             StorageCount = StorageCount,
+            WirePower = WirePower,
         };
     }
 
@@ -194,11 +199,17 @@ namespace CoreKeeperAccess.Gameplay
             public int Connections;  // automation : cotes connectes (ElectricityDirectionMask brut)
             public bool HasStorage;  // automation : stockage (StorageCD)
             public int StorageCount; // nombre d'objets dans le stockage
+            public bool Infra;       // cable / conducteur electrique pur : cede la case a toute machine
+            public bool Resource;    // gisement minable (PugAutomationCD.type Mineable) : priorite haute
             public Entity Ent;       // entite source (pour le diagnostic automation dev)
         }
 
         public static float2 Center; // position joueur, publiee par le mod (GameplayInput)
         public static readonly Dictionary<long, Entry> Map = new Dictionary<long, Entry>();
+        // Tension d'un cable present sur la case, INDEPENDANTE de l'objet gagnant de l'index :
+        // un cable cede la case a la machine posee dessus, mais on garde sa tension ici pour
+        // signaler "courant present" meme sous une structure non electrique.
+        public static readonly Dictionary<long, PowerState> WireMap = new Dictionary<long, PowerState>();
 
         public static long Key(int2 t) => ((long)t.x << 32) ^ (uint)t.y;
 
@@ -252,13 +263,16 @@ namespace CoreKeeperAccess.Gameplay
             info.WallTileset = hasWall ? wall.tileset : 0;
             info.HasOre = ta.HasType(t, TileType.ore) || ta.HasType(t, TileType.ancientCrystal);
             info.IsImmune = ta.HasType(t, TileType.immune);
-            info.ObjectId = ObjectAt(t, world, out bool interactable);
-            info.ObjectInteractable = interactable;
-            // Etats portes par l'index (l'index voit toutes les entites, avec ou sans
-            // collider) : plante (agriculture) + automation (convoyeur, electricite). Lus
-            // pour la case, independamment de la sonde physique.
+            // L'index d'objets est l'AUTORITE : il gere la priorite (cable cede a la machine)
+            // et capte les objets sans collider. Quand il a une entree, le NOM ET les attributs
+            // (orientation, tension, stock...) viennent de la MEME entree -> coherence. Avant :
+            // le nom venait de la sonde physique (qui voit le cable, il a un collider) tandis
+            // que l'orientation/tension venaient de l'index (la machine gagnante) -> annonce
+            // batarde "Cable electrique, vers Sud" sur une case foreuse+cable.
             if (ObjectIndex.TryGet(t, out var pe))
             {
+                info.ObjectId = pe.Id;
+                info.ObjectInteractable = pe.Interactable;
                 info.Plant = pe.Plant;
                 info.Conveyor = pe.Conveyor;
                 info.ConveyorDir = pe.ConveyorDir;
@@ -267,6 +281,16 @@ namespace CoreKeeperAccess.Gameplay
                 info.HasStorage = pe.HasStorage;
                 info.StorageCount = pe.StorageCount;
             }
+            else
+            {
+                // Fallback : sonde physique (objet pose pas encore reindexe ~0,25 s, cas limite).
+                info.ObjectId = ObjectAt(t, world, out bool interactable);
+                info.ObjectInteractable = interactable;
+            }
+            // Tension d'un cable present sur la case, qu'il soit l'objet principal ou masque
+            // sous une machine -> signale "courant ici" meme sous une structure non electrique.
+            if (ObjectIndex.WireMap.TryGetValue(ObjectIndex.Key(t), out var wp))
+                info.WirePower = wp;
             return info;
         }
 
@@ -477,6 +501,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.Connections = info.Connections;
                 TileQuery.HasStorage = info.HasStorage;
                 TileQuery.StorageCount = info.StorageCount;
+                TileQuery.WirePower = info.WirePower;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -497,6 +522,7 @@ namespace CoreKeeperAccess.Gameplay
             try
             {
                 ObjectIndex.Map.Clear();
+                ObjectIndex.WireMap.Clear();
                 if (_dbQuery.IsEmptyIgnoreFilter) return;
                 var bank = _dbQuery.GetSingleton<PugDatabase.DatabaseBankCD>();
                 float2 center = ObjectIndex.Center;
@@ -573,23 +599,75 @@ namespace CoreKeeperAccess.Gameplay
                         plant = ready ? PlantState.Ready : PlantState.Growing;
                     }
 
-                    // Automation : convoyeur (sens = stop - start, ramene au cardinal) +
-                    // electricite (ElectricityCD.hasEnoughElectricityToPowerStuff = sous
-                    // tension ; ElectricityConnectionCD.direction = cotes connectes).
-                    bool conveyor = false; int2 convDir = default;
-                    if (EntityUtility.HasComponentData<MoverCD>(e, World))
+                    // Marqueur d'automation : PugAutomationCD est present sur TOUTE machine
+                    // (convoyeur, bras, foreuse, gisement minable, stockage) et ABSENT des
+                    // cables (ElectricalWire) -> c'est le discriminant machine vs cable.
+                    bool hasAuto = EntityUtility.HasComponentData<PugAutomationCD>(e, World);
+                    bool isMineable = hasAuto
+                        && (EntityUtility.GetComponentData<PugAutomationCD>(e, World).type
+                            & AutomationType.Mineable) != 0;
+
+                    // Orientation VISIBLE de l'objet, lue sur la donnee REELLE (jamais devinee
+                    // depuis la variation : un gisement var=0 n'a PAS d'orientation, et le
+                    // mapping variation->sens differe selon l'objet). DirectionCD (machines a
+                    // direction libre, ex. fonderie auto) puis le CHAMP direction de
+                    // DirectionBasedOnVariationCD (convoyeurs, bras, foreuses). Le sens REEL de
+                    // transport (MoverCD.stop-start) vit sur des entites-movers separees
+                    // inatteignables d'ici -> on lit l'orientation de pose, ce que voit un voyant.
+                    int2 dir = int2.zero; bool hasDir = false;
+                    if (EntityUtility.HasComponentData<DirectionCD>(e, World))
                     {
-                        var m = EntityUtility.GetComponentData<MoverCD>(e, World);
-                        int2 d = m.stop - m.start;
-                        convDir = new int2(math.clamp(d.x, -1, 1), math.clamp(d.y, -1, 1));
-                        conveyor = true;
+                        float3 dv = EntityUtility.GetComponentData<DirectionCD>(e, World).direction;
+                        dir = new int2(
+                            (int)math.round(math.clamp(dv.x, -1f, 1f)),
+                            (int)math.round(math.clamp(dv.z, -1f, 1f)));
+                        hasDir = true;
                     }
-                    PowerState power = PowerState.None; int conns = 0;
-                    if (EntityUtility.HasComponentData<ElectricityCD>(e, World))
-                        power = EntityUtility.GetComponentData<ElectricityCD>(e, World).hasEnoughElectricityToPowerStuff
-                            ? PowerState.On : PowerState.Off;
-                    if (EntityUtility.HasComponentData<ElectricityConnectionCD>(e, World))
-                        conns = (int)EntityUtility.GetComponentData<ElectricityConnectionCD>(e, World).direction;
+                    else if (EntityUtility.HasComponentData<DirectionBasedOnVariationCD>(e, World))
+                    {
+                        dir = EntityUtility.GetComponentData<DirectionBasedOnVariationCD>(e, World).direction;
+                        hasDir = true;
+                    }
+                    // "vers X" pour les machines orientees ; le gisement (dir nulle) n'en a pas.
+                    bool conveyor = hasAuto && hasDir && !math.all(dir == int2.zero);
+                    int2 convDir = conveyor ? dir : default;
+
+                    // Electricite : logique d'AFFICHAGE du jeu + tension du cable pour l'a11y.
+                    // SOURCE (sourceEnergy>0, generateur) -> PRODUIT, jamais "hors tension".
+                    // Consommateur affichant l'icone manque-de-courant (ShouldDisplayed) ->
+                    // sous/hors tension. Cable/conducteur pur (electrique sans PugAutomationCD)
+                    // -> on EXPOSE quand meme sa tension : le jeu n'affiche pas d'icone dessus,
+                    // mais pour nous "courant present ici" signale le cable (et sa presence sous
+                    // une structure non electrique, via WireMap).
+                    PowerState power = PowerState.None; int sourceEnergy = 0; PowerState wirePower = PowerState.None;
+                    bool hasElec = EntityUtility.HasComponentData<ElectricityCD>(e, World);
+                    if (hasElec)
+                    {
+                        var el = EntityUtility.GetComponentData<ElectricityCD>(e, World);
+                        sourceEnergy = el.sourceEnergy;
+                        if (el.sourceEnergy > 0) power = PowerState.Source;
+                        else if (el.ShouldDisplayedRequireElectricity())
+                            power = el.hasEnoughElectricityToPowerStuff ? PowerState.On : PowerState.Off;
+                        else if (!hasAuto) // cable / conducteur pur
+                        {
+                            wirePower = el.hasEnoughElectricityToPowerStuff ? PowerState.On : PowerState.Off;
+                            power = wirePower; // l'entree cable elle-meme annonce sa tension
+                        }
+                    }
+                    bool hasConn = EntityUtility.HasComponentData<ElectricityConnectionCD>(e, World);
+                    int conns = hasConn
+                        ? (int)EntityUtility.GetComponentData<ElectricityConnectionCD>(e, World).direction
+                        : 0;
+
+                    // Cable / conducteur pur : electrique, SANS fonction propre ni interaction,
+                    // non source. Il doit CEDER la case a toute machine posee dessus (sinon il
+                    // masquait foreuses/convoyeurs/bras dans l'index - "le cable annonce tout").
+                    // Cable / conducteur pur : electrique SANS PugAutomationCD (les cables
+                    // ElectricalWire n'en portent pas, toutes les machines si) -> il CEDE la
+                    // case a toute machine posee dessus (sinon il masquait le bras/convoyeur/
+                    // foreuse cable par-dessous).
+                    bool interactable0 = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(e, World);
+                    bool infra = (hasElec || hasConn) && !hasAuto && !interactable0 && sourceEnergy == 0;
 
                     // Stockage d'automation : remplissage. L'inventaire vit sur une entite
                     // separee (StorageCD.inventoryEntity) -> on compte ses slots occupes.
@@ -609,7 +687,7 @@ namespace CoreKeeperAccess.Gameplay
                     var entry = new ObjectIndex.Entry
                     {
                         Id = od.objectID,
-                        Interactable = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(e, World),
+                        Interactable = interactable0,
                         Plant = plant,
                         Conveyor = conveyor,
                         ConveyorDir = convDir,
@@ -617,35 +695,66 @@ namespace CoreKeeperAccess.Gameplay
                         Connections = conns,
                         HasStorage = hasStorage,
                         StorageCount = storageCount,
+                        Infra = infra,
+                        Resource = isMineable,
                         Ent = e,
                     };
+                    // Priorite de la case : interactible (3) > gisement/ressource (2) >
+                    // machine (1) > cable (0). Le gisement minable prime pour rester reperable
+                    // meme entoure de foreuses. A priorite egale, le dernier balaye gagne.
+                    int newPrio = Prio(in entry);
                     // Emprise : on ne lit pas la rotation de l'objet -> pour un prefab
                     // RECTANGULAIRE on marque l'UNION des deux orientations (xy et yx,
                     // la regle du jeu echange les axes selon la direction). Sur-couvrir
                     // d'une case adjacente est sans gravite pour une annonce ; rater la
                     // moitie d'une machine pivotee ne l'etait pas (vecu : scie/etabli
                     // en fer muets une case sur deux).
-                    int2 anchor = new int2((int)math.round(pos.x), (int)math.round(pos.z)) + corner;
-                    int2 span = math.max(size, size.yx);
-                    for (int dx = 0; dx < span.x; dx++)
-                        for (int dy = 0; dy < span.y; dy++)
-                        {
-                            bool inXy = dx < size.x && dy < size.y;
-                            bool inYx = dx < size.y && dy < size.x;
-                            if (!inXy && !inYx) continue;
-                            long k = ObjectIndex.Key(new int2(anchor.x + dx, anchor.y + dy));
-                            // Deux entites sur la meme case (machine posee SUR le cable
-                            // ancien) : l'INTERACTIBLE prime, il ne se fait pas ecraser.
-                            if (ObjectIndex.Map.TryGetValue(k, out var old)
-                                && old.Interactable && !entry.Interactable) continue;
-                            ObjectIndex.Map[k] = entry;
-                        }
+                    int2 a = new int2((int)math.round(pos.x), (int)math.round(pos.z)) + corner;
+                    // Tension du cable deposee sur sa case, hors logique de priorite : meme si
+                    // une machine prend la case dans Map, on garde "courant ici" dans WireMap.
+                    if (wirePower != PowerState.None)
+                        ObjectIndex.WireMap[ObjectIndex.Key(a)] = wirePower;
+                    // Emprise EXACTE : maintenant qu'on lit l'orientation, on couvre la taille
+                    // tournee reelle (axes echanges si l'objet regarde est/ouest, regle du jeu)
+                    // au lieu de l'union des deux orientations - cette union faisait DEBORDER
+                    // les foreuses sur les cases du gisement voisin. Sans direction connue et
+                    // emprise non carree -> repli sur l'union (securite, meubles non orientes).
+                    if (hasDir)
+                    {
+                        int2 tsize = (dir.x != 0) ? new int2(size.y, size.x) : size;
+                        for (int dx = 0; dx < tsize.x; dx++)
+                            for (int dy = 0; dy < tsize.y; dy++)
+                                Place(new int2(a.x + dx, a.y + dy), in entry, newPrio);
+                    }
+                    else
+                    {
+                        int2 span = math.max(size, size.yx);
+                        for (int dx = 0; dx < span.x; dx++)
+                            for (int dy = 0; dy < span.y; dy++)
+                            {
+                                if (!((dx < size.x && dy < size.y) || (dx < size.y && dy < size.x))) continue;
+                                Place(new int2(a.x + dx, a.y + dy), in entry, newPrio);
+                            }
+                    }
                 }
                 ents.Dispose();
                 CenterScan.Found = caFound;
                 CenterScan.Pos = caPos;
             }
             catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
+        }
+
+        // Priorite d'occupation d'une case : interactible > gisement/ressource > machine > cable.
+        private static int Prio(in ObjectIndex.Entry e)
+            => e.Interactable ? 3 : e.Resource ? 2 : e.Infra ? 0 : 1;
+
+        // Pose une entree sur une case en respectant la priorite (ne se fait pas ecraser par
+        // moins prioritaire). A priorite egale, le dernier balaye gagne (comportement historique).
+        private static void Place(int2 cell, in ObjectIndex.Entry entry, int newPrio)
+        {
+            long k = ObjectIndex.Key(cell);
+            if (ObjectIndex.Map.TryGetValue(k, out var old) && Prio(in old) > newPrio) return;
+            ObjectIndex.Map[k] = entry;
         }
 
         // Balaye le disque (rayon en cases) autour du centre et retient la tuile de
@@ -824,15 +933,41 @@ namespace CoreKeeperAccess.Gameplay
         // deviner. Sortie dans Player.log, prefixe [A11yAutoDiag].
         private void DumpAutomation()
         {
-            if (!ObjectIndex.TryGet(AutomationDiag.Tile, out var e)
-                || e.Ent == Entity.Null || !EntityManager.Exists(e.Ent))
+            int2 tile = AutomationDiag.Tile;
+            // On dumpe TOUTES les entites-objets dont la case-centre tombe sur la case visee
+            // (pas seulement la gagnante de l'index) : c'est la seule facon de voir le cable
+            // ET la machine posee dessus, le sens reel, l'orientation, le type d'automation.
+            var ents = _objQuery.ToEntityArray(Allocator.Temp);
+            int found = 0;
+            foreach (var e in ents)
             {
-                Diag.Log("A11yAutoDiag", "case " + AutomationDiag.Tile.x + "," + AutomationDiag.Tile.y
-                    + " : aucune entite indexee");
-                return;
+                float3 pos;
+                if (EntityManager.HasComponent<LocalToWorld>(e))
+                    pos = EntityManager.GetComponentData<LocalToWorld>(e).Position;
+                else if (EntityManager.HasComponent<LocalTransform>(e))
+                    pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
+                else continue;
+                int2 cell = new int2((int)math.round(pos.x), (int)math.round(pos.z));
+                if (math.abs(cell.x - tile.x) > 1 || math.abs(cell.y - tile.y) > 1) continue;
+                if (EntityUtility.HasComponentData<EnemyCD>(e, World)
+                    || EntityUtility.HasComponentData<CritterCD>(e, World)
+                    || EntityUtility.HasComponentData<PlayerGhost>(e, World)) continue;
+                found++;
+                DumpEntity(e, cell);
             }
+            ents.Dispose();
+            if (found == 0)
+                Diag.Log("A11yAutoDiag", "case " + tile.x + "," + tile.y + " : aucune entite-objet a portee");
+        }
 
-            Entity ent = e.Ent;
+        // Dump complet d'une entite-objet : composants + valeurs automation connues.
+        private void DumpEntity(Entity ent, int2 cell)
+        {
+            ObjectID oid = EntityManager.HasComponent<ObjectDataCD>(ent)
+                ? EntityManager.GetComponentData<ObjectDataCD>(ent).objectID : ObjectID.None;
+            int variation = EntityManager.HasComponent<ObjectDataCD>(ent)
+                ? EntityManager.GetComponentData<ObjectDataCD>(ent).variation : 0;
+
             var types = EntityManager.GetComponentTypes(ent, Allocator.Temp);
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < types.Length; i++)
@@ -842,21 +977,39 @@ namespace CoreKeeperAccess.Gameplay
                 sb.Append(mt != null ? mt.Name : types[i].ToString());
             }
             types.Dispose();
-            Diag.Log("A11yAutoDiag", e.Id + " @ " + AutomationDiag.Tile.x + "," + AutomationDiag.Tile.y
+            Diag.Log("A11yAutoDiag", oid + " @ " + cell.x + "," + cell.y + " var=" + variation
+                + " smallEntities=" + EntityManager.HasBuffer<SmallEntityRefBuffer>(ent)
                 + " : " + sb);
 
+            if (EntityManager.HasComponent<PugAutomationCD>(ent))
+            {
+                var a = EntityManager.GetComponentData<PugAutomationCD>(ent);
+                Diag.Log("A11yAutoDiag", "  PugAutomationCD type=" + a.type + " isActive=" + a.isActive);
+            }
+            if (EntityManager.HasComponent<DirectionCD>(ent))
+                Diag.Log("A11yAutoDiag", "  DirectionCD dir="
+                    + EntityManager.GetComponentData<DirectionCD>(ent).direction);
+            if (EntityManager.HasComponent<DirectionBasedOnVariationCD>(ent))
+                Diag.Log("A11yAutoDiag", "  DirectionBasedOnVariationCD dir="
+                    + EntityManager.GetComponentData<DirectionBasedOnVariationCD>(ent).direction);
             if (EntityManager.HasComponent<MoverCD>(ent))
             {
                 var m = EntityManager.GetComponentData<MoverCD>(ent);
                 Diag.Log("A11yAutoDiag", "  MoverCD start=" + m.start + " stop=" + m.stop
                     + " moveTime=" + m.moveTime);
             }
+            if (EntityManager.HasComponent<MinerCD>(ent))
+            {
+                var mi = EntityManager.GetComponentData<MinerCD>(ent);
+                Diag.Log("A11yAutoDiag", "  MinerCD position=" + mi.position + " damage=" + mi.damage);
+            }
             if (EntityManager.HasComponent<ElectricityCD>(ent))
             {
                 var el = EntityManager.GetComponentData<ElectricityCD>(ent);
-                Diag.Log("A11yAutoDiag", "  ElectricityCD L=" + el.electricityAmountLeft
-                    + " R=" + el.electricityAmountRight + " U=" + el.electricityAmountUp
-                    + " D=" + el.electricityAmountDown + " src=" + el.sourceEnergy
+                Diag.Log("A11yAutoDiag", "  ElectricityCD amount=" + el.electricityAmount
+                    + " src=" + el.sourceEnergy + " circuitType=" + el.circuitType
+                    + " connMode=" + el.circuitConnectionMode
+                    + " shouldDisplay=" + el.ShouldDisplayedRequireElectricity()
                     + " blocks=" + el.blocksElectricity);
             }
             if (EntityManager.HasComponent<ElectricityConnectionCD>(ent))
