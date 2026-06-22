@@ -190,6 +190,7 @@
   "cursor.toward": "toward",
   "cursor.powered": "powered",
   "cursor.unpowered": "unpowered",
+  "cursor.generating": "generating power",
   "cursor.connected": "connected",
   "cursor.storage_empty": "empty",
   "cursor.items": "items",

@@ -190,6 +190,7 @@
   "cursor.toward": "vers",
   "cursor.powered": "sous tension",
   "cursor.unpowered": "hors tension",
+  "cursor.generating": "génère du courant",
   "cursor.connected": "connecté",
   "cursor.storage_empty": "vide",
   "cursor.items": "objets",

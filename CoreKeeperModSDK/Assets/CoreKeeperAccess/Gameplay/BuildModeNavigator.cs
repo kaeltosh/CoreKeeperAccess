@@ -445,8 +445,7 @@ namespace CoreKeeperAccess.Gameplay
             // Dev : sur une machine industrielle, dumper ses composants reels dans le log
             // (le contenu d'automation n'est atteignable qu'avec l'ecarlate -> seul moyen
             // de finaliser l'a11y industrie sur du concret). Silencieux pour les testeurs.
-            if (CoreKeeperAccessMod.DevMode
-                && (TileQuery.Conveyor || TileQuery.Power != PowerState.None || TileQuery.HasStorage))
+            if (CoreKeeperAccessMod.DevMode && TileQuery.ObjectId != ObjectID.None)
             {
                 AutomationDiag.Tile = _cursor;
                 AutomationDiag.Requested = true;
@@ -514,13 +513,22 @@ namespace CoreKeeperAccess.Gameplay
             }
             if (info.Power != PowerState.None)
             {
-                name = Join(name, Strings.L(info.Power == PowerState.On ? "cursor.powered" : "cursor.unpowered"));
+                // Source (generateur) : produit du courant, jamais "hors tension". Sinon
+                // consommateur : sous / hors tension (l'icone que voit un voyant).
+                string powerKey = info.Power == PowerState.Source ? "cursor.generating"
+                    : info.Power == PowerState.On ? "cursor.powered" : "cursor.unpowered";
+                name = Join(name, Strings.L(powerKey));
                 if (includeConnections && info.Connections != 0)
                 {
                     string c = ConnectionLabel(info.Connections);
                     if (!string.IsNullOrEmpty(c)) name = Join(name, Strings.L("cursor.connected") + " " + c);
                 }
             }
+            // Cable present sous l'objet : si l'objet lui-meme n'annonce pas de tension propre
+            // (ex. convoyeur non electrique pose sur un cable), on signale la tension du cable
+            // -> on devine sa presence par l'indication de courant (sans dire "cable").
+            else if (info.WirePower != PowerState.None)
+                name = Join(name, Strings.L(info.WirePower == PowerState.On ? "cursor.powered" : "cursor.unpowered"));
             // Stockage : vide, ou nombre d'objets dedans (surveiller un stock sans l'ouvrir).
             if (info.HasStorage)
                 name = Join(name, info.StorageCount == 0
