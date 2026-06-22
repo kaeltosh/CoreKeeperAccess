@@ -9,7 +9,7 @@ A small polish update on top of 1.0.
 ### Additions
 
 - **Skill level-ups are announced.** Whenever a skill (mining, running, melee, magic…) gains a level, the mod announces its name and the level reached. At the milestones that grant a talent point, both are merged into a single announcement ("… level 15, new talent point available") so neither cuts the other off.
-- **Character creation: richer names.** Colours (skin, hair, eyes, clothing) now have distinct, correct names per category, body types are named by build (Sturdy / Slim), and a few hairstyles were renamed more accurately.
+- **The character creation screen is now readable cosmetically.** Variants that weren't announced at all now are: skin, hair, eye and clothing colours (distinct, correct names per category), body types named by build (Sturdy / Slim), and hairstyles.
 
 ### Fixes
 

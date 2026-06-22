@@ -9,7 +9,7 @@ Petite mise à jour de finitions par-dessus la 1.0.
 ### Ajouts
 
 - **Montée de niveau des compétences annoncée.** Chaque fois qu'une compétence (minage, course, corps à corps, magie…) gagne un niveau, le mod l'annonce avec son nom et le niveau atteint. Aux paliers qui octroient un point de talent, l'info est réunie en une seule annonce (« … niveau 15, nouveau point de talent disponible ») pour qu'aucune ne se fasse couper par l'autre.
-- **Création de personnage : noms enrichis.** Les couleurs (peau, cheveux, yeux, vêtements) portent désormais des noms distincts et corrects par catégorie, les morphologies sont nommées par carrure (Robuste / Svelte), et quelques coupes de cheveux ont été renommées plus fidèlement.
+- **L'écran de création de personnage devient lisible côté cosmétique.** Les variantes qui n'étaient pas du tout annoncées le sont désormais : couleurs de peau, cheveux, yeux et vêtements (noms distincts et corrects par catégorie), morphologies nommées par carrure (Robuste / Svelte), et coupes de cheveux.
 
 ### Correctifs
 
