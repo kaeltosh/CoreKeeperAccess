@@ -341,6 +341,7 @@
   "settings.slowmo": "Ralenti de combat",
   "settings.normalize": "Normalisation du volume",
   "worldinfo.icon": "Icône du monde",
+  "custom.variant": "variante",
   "worldinfo.export": "Exporter le monde",
   "manageplayers.admin.make": "rendre administrateur",
   "manageplayers.admin.remove": "retirer administrateur",

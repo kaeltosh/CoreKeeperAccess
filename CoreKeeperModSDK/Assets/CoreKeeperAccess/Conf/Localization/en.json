@@ -340,6 +340,7 @@
   "settings.slowmo": "Combat slow motion",
   "settings.normalize": "Volume normalization",
   "worldinfo.icon": "World icon",
+  "custom.variant": "variant",
   "worldinfo.export": "Export world",
   "manageplayers.admin.make": "make admin",
   "manageplayers.admin.remove": "remove admin",
