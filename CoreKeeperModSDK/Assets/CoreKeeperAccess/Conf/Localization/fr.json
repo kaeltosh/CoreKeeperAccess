@@ -172,6 +172,8 @@
   "section.talents": "Talents",
   "section.pettalents": "Talents du familier",
   "skill.spendable": "à dépenser",
+  "skill.levelup": "{0} niveau {1}",
+  "skill.talentpoint": "nouveau point de talent disponible",
   "talent.maxed": "au maximum",
   "talent.available": "disponible",
   "talent.locked": "verrouillé",
