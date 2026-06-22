@@ -25,6 +25,8 @@
   "cmd.dirassist": "Direction assistée",
   "cmd.settings": "Réglages d'accessibilité",
   "cmd.togglemap": "Ouvrir ou fermer la carte",
+  "cmd.hotbar.next": "Barre rapide suivante",
+  "cmd.hotbar.prev": "Barre rapide précédente",
   "gesture.dpad": "Croix directionnelle",
   "gesture.dpadud": "Croix directionnelle haut et bas",
   "gesture.dpadlr": "Croix directionnelle gauche et droite",

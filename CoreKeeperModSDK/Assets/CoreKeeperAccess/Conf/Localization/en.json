@@ -25,6 +25,8 @@
   "cmd.dirassist": "Directional assist",
   "cmd.settings": "Accessibility settings",
   "cmd.togglemap": "Open or close map",
+  "cmd.hotbar.next": "Next hotbar",
+  "cmd.hotbar.prev": "Previous hotbar",
   "gesture.dpad": "D-pad",
   "gesture.dpadud": "D-pad up and down",
   "gesture.dpadlr": "D-pad left and right",
