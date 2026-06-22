@@ -709,6 +709,19 @@ namespace CoreKeeperAccess.Patches
     {
         public static bool ReconstructActivation()
         {
+            // Garde : ne reconstruire le dialogue d'eveil QUE si le Cœur de ce monde a reellement
+            // ete active (WorldInfoCD.coreIsActivated, flag du monde repliqué au client - meme
+            // source que WorldProgress/Triangle+bas). Sinon, sur une partie neuve, la sequence
+            // STATIQUE du prefab (presente des le spawn du Core) serait seedee a tort. On renvoie
+            // false tant que ce n'est pas active -> l'orchestrateur retente apres l'activation.
+            try
+            {
+                var player = Manager.main != null ? Manager.main.player : null;
+                if (player == null || !player.querySystem.GetSingleton<WorldInfoCD>().coreIsActivated)
+                    return false;
+            }
+            catch { return false; }
+
             TheCore tc = null;
             foreach (var c in UnityEngine.Object.FindObjectsByType<TheCore>(UnityEngine.FindObjectsSortMode.None))
                 if (c != null) { tc = c; break; }
