@@ -19,11 +19,11 @@ namespace CoreKeeperAccess.Gameplay
         [System.Serializable]
         private class Data
         {
-            // Volume maitre des SONS du mod (bips, marqueurs, tons...), 0..2 (defaut 1 = niveau
-            // de reference, jusqu'a 2 = +6 dB). Le TTS n'est pas concerne (NVDA a son volume).
-            public float masterVolume = 1f;
-            // Volume du bip de pas (la boussole de locomotion, ex-tic directionnel).
-            public float directionTickVolume = 0.125f;
+            // Volume maitre des SONS du mod (bips, marqueurs, tons...), 0..2 (jusqu'a 2 = +6 dB).
+            // Le TTS n'est pas concerne (NVDA a son volume). Defaut d'usine 0.6, calibre a l'usage.
+            public float masterVolume = 0.6f;
+            // Volume du bip de pas (la boussole de locomotion, ex-tic directionnel). Defaut 0.1.
+            public float directionTickVolume = 0.1f;
             // Bip de pas : boussole de locomotion permanente (un bip par case franchie,
             // direction encodee en pan/pitch). DECOUPLE du snap le 16 juin -> actif par
             // defaut (c'est devenu la boussole de l'utilisateur), regle au panneau.
@@ -32,8 +32,9 @@ namespace CoreKeeperAccess.Gameplay
             // materiaux, marqueurs, bips de cibles). 0..2 (defaut 1 = niveau de reference, deja
             // bon grace a la cible de normalisation TargetPeak ; jusqu'a 2 = +6 dB pour qui veut
             // la nav plus forte). Sans risque de clip : a 200 %, le pic d'un son reste
-            // <= base x TargetPeak x 2 < 1. S'applique en plus du volume maitre.
-            public float navigationVolume = 1f;
+            // <= base x TargetPeak x 2 < 1. S'applique en plus du volume maitre. Defaut
+            // d'usine 1.5 (nav poussee au-dessus du reste), calibre a l'usage.
+            public float navigationVolume = 1.5f;
             // Volume de l'earcon de GUIDAGE par balises (le ping repete d'un itineraire actif).
             // Decouple de la distance (la distance pilote la CADENCE), c'est un niveau fixe.
             // 0..2 (defaut 1 ; jusqu'a 2 = +6 dB). S'applique en plus du volume maitre.
@@ -48,7 +49,8 @@ namespace CoreKeeperAccess.Gameplay
             // inegales). Off = sons bruts.
             public bool normalizeAudio = true;
             // Sonar de proximite : nappes de bruit filtre sur les obstacles a <= 2 cases.
-            public bool proximitySonar = false;
+            // Defaut d'usine ACTIVE (aide de deplacement jugee utile d'entree).
+            public bool proximitySonar = true;
             // Volume GENERAL du sonar de proximite, 0..2. Defaut = equilibre valide en jeu (16 juin).
             public float sonarVolume = 0.9f;
             // Volumes INDEPENDANTS des 2 timbres du sonar (v1), pour equilibrer a l'oreille : le
@@ -57,7 +59,8 @@ namespace CoreKeeperAccess.Gameplay
             public float sonarVolMedium = 0.7f;  // medium (neutre) : nord, est, ouest
             public float sonarVolGrave = 2f;     // grave (sombre) : sud (pousse au max a l'oreille)
             // Couche OBJETS du sonar (le ding sur les objets poses), togglable a part du bruit.
-            public bool objectDing = true;
+            // Defaut d'usine ETEINT (le bruit des nappes suffit, le ding alourdit).
+            public bool objectDing = false;
             // Annonce vocale du nom des objets ramasses (a CHAQUE ramassage, pas seulement au
             // premier comme le jeu). Actif par defaut.
             public bool pickupAnnounce = true;
@@ -65,8 +68,8 @@ namespace CoreKeeperAccess.Gameplay
             // de ramassage, pour calmer le bruit en minant. Inactif par defaut (on entend tout).
             public bool pickupFilterBlocks = false;
             // Suffixe la quantite TOTALE possedee a l'annonce de ramassage ("47 en tout").
-            // Inactif par defaut (plus verbeux).
-            public bool pickupTotal = false;
+            // Defaut d'usine ACTIVE (suivi du stock juge utile a l'usage).
+            public bool pickupTotal = true;
             // Sentinelle d'aggro : bips sur les monstres qui nous ont repere. Coupe-circuit +
             // volumes DEDIES SEPARES (multiplicateurs sur le BaseVolume du bip, 0..2 ; defaut 1)
             // pour les monstres ordinaires et pour les boss (timbres distincts -> reglages a part).
@@ -87,12 +90,12 @@ namespace CoreKeeperAccess.Gameplay
             // Alertes SONORES de vie faible : sirene au seuil d'alerte (une fois) + battement
             // de coeur repete au seuil critique. Earcons generes, cf. VitalsReadout. Actif.
             public bool healthAlerts = true;
-            public float healthAlertsVolume = 1f;       // sirene (60 %) + bips d'avertissement, 0..2
+            public float healthAlertsVolume = 0.5f;     // sirene (60 %) + bips d'avertissement, 0..2 (defaut d'usine 0.5)
             public float healthBeatVolume = 1f;         // battement de coeur repete, volume SEPARE, 0..2
             // Seuils de declenchement (ratio de PV), reglables. Plages disjointes (alerte >=
             // 0.40, critique <= 0.35) -> le critique reste toujours sous l'alerte, sans clamp croise.
             public float healthAlertThreshold = 0.60f;  // 0.40..0.90
-            public float healthCritThreshold = 0.20f;   // 0.10..0.35
+            public float healthCritThreshold = 0.25f;   // 0.10..0.35 (defaut d'usine 0.25)
             // Nomenclature des boutons dans le menu d'aide : false = PlayStation
             // (Croix/Triangle/L2...), true = Xbox (A/Y/LT...). Defaut PlayStation.
             public bool xboxButtons = false;

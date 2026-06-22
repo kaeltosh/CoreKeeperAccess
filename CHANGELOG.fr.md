@@ -12,6 +12,7 @@ CoreKeeperAccess sort de l'alpha et s'ouvre à un public plus large. Cette 1.0 c
 - **Le déplacement par Croix s'arrête au centre de la case.** Avant, il s'arrêtait dès qu'il était à une demi-case de la cible, te laissant décentré et faussant ta portée de pose/interaction (par exemple atteindre un établi situé une case en diagonale). Tu te cales maintenant près du centre.
 - **Changement rapide de barre d'action à la manette.** Triangle + droite / Triangle + gauche passent à la barre d'action suivante / précédente en jeu (la croix directionnelle étant prise par le curseur de tuile) ; l'objet désormais en main est annoncé.
 - **Lecture de l'industrie fiabilisée.** Le sens des convoyeurs, l'état électrique (génère / sous tension / hors tension) et la tension d'un câble passant sous une structure sont désormais annoncés correctement, et un gisement n'est plus noyé sous les machines voisines quand tu le survoles.
+- **Réglages par défaut calibrés à l'usage.** Les valeurs d'usine ont été affinées au fil du jeu (volumes général et navigation, sonar de proximité activé d'office, alertes de vie plus douces, total possédé annoncé au ramassage, etc.). Ça ne concerne qu'une installation neuve — tes propres réglages enregistrés ne bougent pas, et tout reste modifiable dans le panneau de réglages.
 
 ### Correctifs et finitions
 

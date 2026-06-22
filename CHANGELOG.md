@@ -12,6 +12,7 @@ CoreKeeperAccess leaves alpha and opens to a wider audience. This 1.0 consolidat
 - **Walk-to (Cross) now stops at the center of the tile.** It used to stop as soon as it was within half a tile of the target, leaving you off-center and skewing your placement/interaction reach (e.g. reaching a workbench one tile diagonally). You now settle near the center.
 - **Quick hotbar swap on controller.** Triangle + right / Triangle + left switch to the next / previous hotbar row in-game (the D-pad being taken by the tile cursor); the item now in hand is announced.
 - **More reliable automation readout.** Conveyor direction, electrical state (generating / powered / unpowered) and the charge of a cable running under a structure are now announced correctly, and an ore deposit is no longer drowned out by the surrounding machines when you hover it.
+- **Default settings tuned from real play.** Out-of-the-box defaults were calibrated during play (master and navigation volumes, proximity sonar on by default, quieter health alerts, total-owned readout on pickup, etc.). This only affects a fresh install — your own saved settings are untouched, and everything stays adjustable in the settings panel.
 
 ### Fixes and polish
 
