@@ -142,7 +142,7 @@ Des retours sonores accompagnent l'action : un **tic** en cas de réussite, un *
 
 Pratique pour poser un mur ou un sol bien droit sur plusieurs cases :
 
-1. Activer au préalable la **direction assistée**, qui cale le déplacement sur les axes cardinaux (pour marcher bien droit).
+1. Activer au préalable la **direction assistée** (**Triangle + L3**, le clic du stick gauche), qui cale le déplacement sur les axes cardinaux (pour marcher bien droit).
 2. Placer le **curseur de tuile** sur une case **adjacente** au personnage.
 3. **Maintenir la gâchette gauche** enfoncée : le curseur se **verrouille** sur ce décalage.
 4. Sans relâcher, **marcher avec le stick gauche** : le curseur suit le personnage et l'objet se pose case par case, en une ligne nette.

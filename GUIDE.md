@@ -142,7 +142,7 @@ Sound feedback accompanies the action: a **tick** on success, an **invalid sound
 
 Handy for laying a wall or floor straight across several tiles:
 
-1. First enable **assisted direction**, which snaps movement to the cardinal axes (to walk perfectly straight).
+1. First enable **assisted direction** (**Triangle + L3**, the left stick click), which snaps movement to the cardinal axes (to walk perfectly straight).
 2. Place the **tile cursor** on a tile **adjacent** to the character.
 3. **Hold the left trigger** down: the cursor **locks** onto that offset.
 4. Without releasing, **walk with the left stick**: the cursor follows the character and the object is placed tile by tile, in a clean line.
