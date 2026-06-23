@@ -20,6 +20,10 @@ Mod qui rend **Core Keeper** jouable par des joueurs **aveugles** : tout passe p
 - Un clavier pour la saisie des noms (monde, personnage).
 - Annonces du mod disponibles en **français** et **anglais** (suit la langue du jeu).
 
+## Guide de démarrage
+
+Nouveau sur Core Keeper ? Le **[guide de démarrage rapide](GUIDE.fr.md)** présente le jeu, sa vue de dessus, la création de partie et les premières commandes — une bonne lecture avant de se lancer.
+
 ## Installation
 
 **Téléchargement :** récupérez la dernière version (le zip) sur la page **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)**.

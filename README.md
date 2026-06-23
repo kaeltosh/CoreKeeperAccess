@@ -20,6 +20,10 @@ A mod that makes **Core Keeper** playable by **blind players**: everything goes 
 - A keyboard for typing names (world, character).
 - Mod announcements available in **English** and **French** (follows the game's language).
 
+## Getting started
+
+New to Core Keeper? The **[quick start guide](GUIDE.md)** introduces the game, its top-down view, world/character creation and the first controls — a good read before diving in.
+
 ## Installation
 
 **Download:** grab the latest version (the zip) from the **[Releases](https://github.com/kaeltosh/CoreKeeperAccess/releases)** page.
