@@ -39,7 +39,7 @@ namespace CoreKeeperAccess.Navigation
         private const string Header = "v1";
         private const float SaveDebounce = 3f; // ne pas marteler le disque en explorant
 
-        private static int _worldId = int.MinValue; // sentinelle : monde charge en memoire
+        private static string _worldKey; // sentinelle : monde charge en memoire (guid, cf. WorldKey)
         private static readonly Dictionary<long, Node> _nodes = new Dictionary<long, Node>();
         private static readonly Dictionary<string, Edge> _edges = new Dictionary<string, Edge>();
         private static bool _dirty;
@@ -59,24 +59,36 @@ namespace CoreKeeperAccess.Navigation
         public static int NodeCount { get { EnsureLoaded(); return _nodes.Count; } }
         public static int EdgeCount { get { EnsureLoaded(); return _edges.Count; } }
 
-        // Recharge si le monde courant a change (changement de save sans relancer le jeu).
-        private static void EnsureLoaded()
+        // Oublie le monde charge en memoire (cache vide, sentinelle remise a zero) : appele a la
+        // suppression d'un monde pour qu'aucun Flush tardif (debounce / Shutdown) ne reecrive le
+        // fichier qu'on vient d'effacer, et que le prochain monde recharge proprement.
+        public static void ForgetCurrent()
         {
-            int id = CurrentWorldId();
-            if (id == _worldId) return;
-            _worldId = id;
+            _worldKey = null;
             _nodes.Clear();
             _edges.Clear();
             _dirty = false;
+        }
+
+        // Recharge si le monde courant a change (changement de save sans relancer le jeu).
+        private static void EnsureLoaded()
+        {
+            string key = WorldKey.Current();
+            if (key == null || key == _worldKey) return; // pas pret (menu) ou deja charge
+            _worldKey = key;
+            _nodes.Clear();
+            _edges.Clear();
+            _dirty = false;
+            WorldKey.MigrateLegacyIfDev("graph", key); // dev seulement : recupere l'ancien fichier par slot
             try
             {
-                string path = FilePath(id);
+                string path = FilePath(key);
                 if (File.Exists(path))
                     foreach (var raw in File.ReadAllLines(path, Encoding.UTF8))
                         ParseLine(raw);
             }
             catch (Exception ex) { Diag.Error("A11yBeaconGraph", ex); }
-            Diag.Log("A11yBeaconGraph", "load world=" + id
+            Diag.Log("A11yBeaconGraph", "load world=" + key
                 + " nodes=" + _nodes.Count + " edges=" + _edges.Count);
         }
 
@@ -100,17 +112,11 @@ namespace CoreKeeperAccess.Navigation
             }
         }
 
-        private static int CurrentWorldId()
-        {
-            try { return Manager.saves != null ? Manager.saves.GetWorldId() : 0; }
-            catch { return 0; }
-        }
-
-        private static string FilePath(int id)
+        private static string FilePath(string key)
         {
             string dir = Path.Combine(Application.persistentDataPath, "CoreKeeperAccess", "graph");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, id + ".txt");
+            return Path.Combine(dir, key + ".txt");
         }
 
         // Cree le noeud s'il n'existe pas a cette case ; sinon ne touche a rien (la
@@ -316,6 +322,7 @@ namespace CoreKeeperAccess.Navigation
         private static void Save()
         {
             _dirty = false;
+            if (_worldKey == null) return; // pas de monde identifie -> jamais de fichier fantome
             try
             {
                 var sb = new StringBuilder();
@@ -327,8 +334,8 @@ namespace CoreKeeperAccess.Navigation
                     sb.Append("e|").Append(e.ax).Append('|').Append(e.ay)
                       .Append('|').Append(e.bx).Append('|').Append(e.by)
                       .Append('|').Append(e.w.ToString("0.##", CultureInfo.InvariantCulture)).Append('\n');
-                File.WriteAllText(FilePath(_worldId), sb.ToString(), new UTF8Encoding(false));
-                Diag.Log("A11yBeaconGraph", "save world=" + _worldId
+                File.WriteAllText(FilePath(_worldKey), sb.ToString(), new UTF8Encoding(false));
+                Diag.Log("A11yBeaconGraph", "save world=" + _worldKey
                     + " nodes=" + _nodes.Count + " edges=" + _edges.Count);
             }
             catch (Exception ex) { Diag.Error("A11yBeaconGraph", ex); }

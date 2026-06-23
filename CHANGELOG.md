@@ -2,6 +2,26 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.2 (open beta) — June 2026
+
+Game-menu readability, a screen to learn the sounds, and an important fix to each world's own navigation memory.
+
+### Additions
+
+- **Sound learning menu.** From the help menu, a new screen lets you listen to each of the mod's sounds, sorted by category (tile and movement sonification, combat); the sound plays on hover so you can learn to recognise them.
+- **Quick-start guide.** A new document (English and French), linked from the README, walks a new player through the basics: game overview, perception by ear (tile cursor, laser cane, sonar), world and character creation, core controls.
+
+### Improvements
+
+- **Options-menu bars read as a percentage.** Slider settings (volumes in particular) used to announce an unreadable string of symbols; they now announce a clear percentage that updates as you change the value.
+- **Clearer world creation.** The "random seed" button is now announced, and the two tabs at the top of the screen (General and World) are too, with a word on what each contains.
+- **Refined controller learning.** Buttons are named more simply, a reminder points out the two small central buttons if you haven't tried them, and the final screen can be replayed at will.
+- **Customisation names are localisable.** Character variant names (colours, hairstyles, body types) now live in the language files — English is provided, and other languages can be added easily.
+
+### Fixes
+
+- **Navigation and journal follow the world, not the save slot.** If you deleted a world and then created a new one in the same slot, the new world inherited the old one's beacons, navigation network and journal. Each world now has its own memory, and deleting a world cleanly erases its navigation data.
+
 ## 1.0.1 (open beta) — June 2026
 
 A small polish update on top of 1.0.

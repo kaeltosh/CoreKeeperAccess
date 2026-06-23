@@ -630,6 +630,40 @@ namespace CoreKeeperAccess.Gameplay
             return string.Join(", ", parts);
         }
 
+        // --- Apercus pour le menu d'apprentissage des sons (SoundGuide) ---
+        // Chaque apercu rejoue le son du curseur mais CENTRE (pan 0, hauteur neutre), au volume
+        // de navigation regle, pour l'ecouter au calme. Le mur et le minerai passent par le
+        // materiau PAR DEFAUT (le timbre exact depend de la tuile reelle en jeu).
+        public static void PreviewCursorTick() => PlayMoveTick(0, 0);
+        public static void PreviewWater() => PlaySpecialSurface(0, 0, SfxID.fish_splash_1_02);
+        public static void PreviewPit() => PlaySpecialSurface(0, 0, SfxID.ui_plop_1_01);
+
+        public static void PreviewWall()
+            => GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.defaultTileDestroy, SelfRenderPos(),
+                WallSfxVolume * A11ySettings.NavigationVolume, 1f);
+
+        public static void PreviewOre()
+            => GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit, SelfRenderPos(),
+                WallSfxVolume * A11ySettings.NavigationVolume, 1f);
+
+        // Marqueur interactible : le son porteur (tick) PUIS le marqueur greffe par-dessus,
+        // exactement comme en jeu (le marqueur seul, tres faible, n'a pas de sens isole).
+        public static void PreviewInteractable()
+        {
+            PlayMoveTick(0, 0);
+            GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, 0f, 1f, ObjectMarkerVolume * A11ySettings.NavigationVolume);
+        }
+
+        // Position RENDER du joueur (= centre, pan 0, distance nulle) pour les apercus de sons
+        // de table spatialises. Joueur absent (hors monde) -> origine, sans incidence.
+        private static Vector3 SelfRenderPos()
+        {
+            var p = Manager.main != null ? Manager.main.player : null;
+            if (p == null) return Vector3.zero;
+            int2 r = EntityMonoBehaviour.ToRenderFromWorld(ToTile(p.WorldPosition));
+            return new Vector3(r.x, 0f, r.y);
+        }
+
         private static void Reset()
         {
             _detached = false;

@@ -65,6 +65,10 @@
                       "guid":  "330fc950073ea764b84e995a347a2f9b"
                   },
                   {
+                      "path":  "Scripts/Controls/SoundGuide.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/TextEntry.cs",
                       "guid":  "9f8a05aab8ead5d47bc5709c8419a49e"
                   },
@@ -249,6 +253,10 @@
                       "guid":  "9ece7eab6b99461459038e7b244b4859"
                   },
                   {
+                      "path":  "Scripts/Navigation/WorldKey.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Patches/ColorNamer.cs",
                       "guid":  ""
                   },
@@ -275,6 +283,10 @@
                   {
                       "path":  "Scripts/Patches/TtsText.cs",
                       "guid":  "5e11ce31708d4894f9cebe583028c722"
+                  },
+                  {
+                      "path":  "Scripts/Patches/WorldDeletePatch.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Settings/A11ySettings.cs",

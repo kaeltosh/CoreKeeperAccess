@@ -61,21 +61,41 @@ namespace CoreKeeperAccess.Controls
         // ClosedKey : cle i18n annoncee a la fermeture (null = fermeture silencieuse).
         // OnTick : appele en tete de chaque Tick (ex. timer d'apercu du sonar cote panneau).
         // OnClose : appele a la fermeture, avant l'earcon (ex. couper un apercu en cours).
+        // AutoPreview : si vrai, le son de l'option survolee (Preview) joue AUTOMATIQUEMENT a
+        // chaque changement de selection, en plus du Triangle + Haut manuel. Pour le menu
+        // d'apprentissage des sons (SoundGuide), ou ecouter le son EST le but.
         private readonly string _closedKey;
         private readonly Action _onTick;
         private readonly Action _onClose;
+        private readonly bool _autoPreview;
+        // SilentNav : coupe les earcons de navigation du menu (clic/butee/validation). Pour le
+        // menu d'apprentissage des sons, ou ces clics se telescoperaient avec le son ecoute (le
+        // TTS suffit a porter la navigation).
+        private readonly bool _silentNav;
 
-        public TreeMenu(string closedKey = null, Action onTick = null, Action onClose = null)
+        public TreeMenu(string closedKey = null, Action onTick = null, Action onClose = null, bool autoPreview = false, bool silentNav = false)
         {
             _closedKey = closedKey;
             _onTick = onTick;
             _onClose = onClose;
+            _autoPreview = autoPreview;
+            _silentNav = silentNav;
         }
+
+        // Earcons de navigation, etouffes en mode SilentNav.
+        private void NavEntry() { if (!_silentNav) UiSfx.Entry(); }
+        private void NavCycle() { if (!_silentNav) UiSfx.Cycle(); }
+        private void NavValidate() { if (!_silentNav) UiSfx.Validate(); }
 
         // --- Etat ---
         public bool Active { get; private set; }
 
         private Category _root;
+
+        // Saute l'input de la frame d'OUVERTURE : le bouton qui vient de lancer ce menu (ex.
+        // Croix sur "Apprendre les sons" dans le menu d'aide) est encore enfonce cette frame et
+        // serait relu ici -> on entrerait direct dans la 1re categorie. Meme parade que PadLearn.
+        private bool _justOpened;
 
         // Pile de navigation : un niveau ouvert = sa categorie + l'index focalise (la position
         // est memorisee quand on entre/ressort, comme l'explorateur Windows).
@@ -103,8 +123,10 @@ namespace CoreKeeperAccess.Controls
             Active = true;
             _stack.Clear();
             _stack.Add(new Level { Cat = _root, Idx = 0 });
-            UiSfx.Validate();   // ouverture = entree dans le menu
+            _justOpened = true; // ignore le Croix de lancement encore enfonce cette frame
+            NavValidate();   // ouverture = entree dans le menu
             TtsText.Say(ResolveLabel(_root) + ", " + Describe(Cur), true);
+            AutoPreview();
         }
 
         public void Close()
@@ -114,7 +136,7 @@ namespace CoreKeeperAccess.Controls
             _stack.Clear();
             _root = null;
             _onClose?.Invoke();
-            UiSfx.Entry();   // fermeture
+            NavEntry();   // fermeture
             if (!string.IsNullOrEmpty(_closedKey)) TtsText.Say(Strings.L(_closedKey), true);
         }
 
@@ -126,6 +148,11 @@ namespace CoreKeeperAccess.Controls
             if (!ReInput.isReady) return;
             var joy = ReInput.controllers.GetLastActiveController<Joystick>();
             if (joy == null) return;
+
+            // Frame d'ouverture : on ne lit pas les boutons (le Croix de lancement est encore
+            // enfonce et nous ferait entrer dans la 1re entree). Une frame suffit : des la
+            // suivante, GetButtonDown du Croix maintenu est faux.
+            if (_justOpened) { _justOpened = false; return; }
 
             if (Down(joy, IdDown)) Move(+1);
             // Triangle (physique) MAINTENU + haut = apercu du son de l'option ; sinon nav.
@@ -139,6 +166,14 @@ namespace CoreKeeperAccess.Controls
         // Apercu sonore (Triangle + Haut) : joue le son de l'option survolee. Null = rien.
         private void PreviewCurrent() => Cur.Preview?.Invoke();
 
+        // Apercu AUTOMATIQUE au changement de selection (mode autoPreview seulement). Joue le
+        // son de l'entree qu'on vient de survoler, apres son libelle TTS.
+        private void AutoPreview()
+        {
+            if (!_autoPreview || Current.Children.Count == 0) return;
+            Cur.Preview?.Invoke();
+        }
+
         // Navigation haut/bas avec CYCLAGE + son de butee au franchissement de la couture.
         private void Move(int delta)
         {
@@ -150,15 +185,16 @@ namespace CoreKeeperAccess.Controls
             if (ni < 0) { ni = n - 1; wrapped = true; }
             else if (ni >= n) { ni = 0; wrapped = true; }
             Index = ni;
-            if (wrapped) UiSfx.Cycle(); else UiSfx.Entry(); // cyclage debut/fin sinon survol d'entree
+            if (wrapped) NavCycle(); else NavEntry(); // cyclage debut/fin sinon survol d'entree
             TtsText.Say(Describe(items[ni]), true);
+            AutoPreview();
         }
 
         private void OnRight()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
-            else if (n is Toggle t) { if (!t.Get()) t.Set(true); UiSfx.Validate(); SayValue(t); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() + s.Step, s.Min, s.Max)); NavEntry(); SayValue(s); }
+            else if (n is Toggle t) { if (!t.Get()) t.Set(true); NavValidate(); SayValue(t); }
             else if (n is Category c) Enter(c);
             // Command (feuille Action) : droite neutre, elle ne se "regle" pas.
         }
@@ -166,8 +202,8 @@ namespace CoreKeeperAccess.Controls
         private void OnLeft()
         {
             var n = Cur;
-            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, s.Min, s.Max)); UiSfx.Entry(); SayValue(s); }
-            else if (n is Toggle t) { if (t.Get()) t.Set(false); UiSfx.Validate(); SayValue(t); }
+            if (n is Slider s) { s.Set(Mathf.Clamp(s.Get() - s.Step, s.Min, s.Max)); NavEntry(); SayValue(s); }
+            else if (n is Toggle t) { if (t.Get()) t.Set(false); NavValidate(); SayValue(t); }
             else if (n is Category) Back(); // categorie focalisee : gauche = remonter
             // Command : gauche neutre.
         }
@@ -176,7 +212,7 @@ namespace CoreKeeperAccess.Controls
         {
             var n = Cur;
             if (n is Category c) Enter(c);
-            else if (n is Toggle t) { t.Set(!t.Get()); UiSfx.Validate(); SayValue(t); }
+            else if (n is Toggle t) { t.Set(!t.Get()); NavValidate(); SayValue(t); }
             else if (n is Command cmd) Activate(cmd);
             else SayValue(n); // slider : re-annonce la valeur
         }
@@ -184,30 +220,32 @@ namespace CoreKeeperAccess.Controls
         private void Activate(Command cmd)
         {
             // Run null = entree informative : relit + reste ouverte (pas de fermeture).
-            if (cmd.Run == null) { UiSfx.Entry(); TtsText.Say(ResolveLabel(cmd), true); return; }
+            if (cmd.Run == null) { NavEntry(); TtsText.Say(ResolveLabel(cmd), true); return; }
             // On ferme AVANT d'executer : l'action peut rearmer un input (fermer la carte) qui
             // ne doit plus etre gele par Active.
             Active = false;
             _stack.Clear();
             _root = null;
-            UiSfx.Validate();   // execution d'une action = validation
+            NavValidate();   // execution d'une action = validation
             cmd.Run.Invoke();
         }
 
         private void Enter(Category c)
         {
-            if (c.Children.Count == 0) { UiSfx.Cycle(); TtsText.Say(Describe(c), true); return; }
+            if (c.Children.Count == 0) { NavCycle(); TtsText.Say(Describe(c), true); return; }
             _stack.Add(new Level { Cat = c, Idx = 0 });
-            UiSfx.Validate();   // entrer un sous-menu = validation
+            NavValidate();   // entrer un sous-menu = validation
             TtsText.Say(ResolveLabel(c) + ", " + Describe(Cur), true);
+            AutoPreview();
         }
 
         private void Back()
         {
             if (_stack.Count <= 1) { Close(); return; }
             _stack.RemoveAt(_stack.Count - 1);
-            UiSfx.Entry();   // remonter = navigation entre entrees
+            NavEntry();   // remonter = navigation entre entrees
             TtsText.Say(ResolveLabel(Current) + ", " + Describe(Cur), true);
+            AutoPreview();
         }
 
         // --- TTS ---

@@ -84,6 +84,13 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             BeaconGraph.FlushIfDue();
+
+            // Reveil des deux magasins paresseux (noms de balises + journal) : sinon leur
+            // migration dev ne se ferait qu'a un acces (carte / replique du Coeur). Ici, entrer
+            // en jeu suffit a tout convertir. EnsureLoaded est garde par sentinelle -> cout nul
+            // une fois le monde charge.
+            BeaconStore.Warmup();
+            DialogueLog.Warmup();
         }
 
         // (La reconnaissance des noeuds torches/portes est centralisee dans BeaconObjects.)

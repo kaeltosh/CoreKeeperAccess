@@ -58,6 +58,35 @@ namespace CoreKeeperAccess.Patches
                 parts.Add(s);
             }
 
+            // Onglets de la creation/reglages de monde (General / World / Contenu) : ils se
+            // lisent deja via leur libelle, mais rien n'indique que ce sont des onglets
+            // basculant entre des pages, ni ce que chacun contient. On compose une annonce
+            // explicite, identifiee par reference aux onglets du WorldSettingsMenu (robuste
+            // au libelle natif, qui pourrait n'etre qu'une icone).
+            if (option is WorldSettingsTab tab)
+            {
+                AddPart(Strings.L("worldtab.prefix"));
+                var wsm = option.GetComponentInParent<WorldSettingsMenu>();
+                string key = null;
+                if (wsm != null)
+                {
+                    if (ReferenceEquals(tab, wsm.worldInfoMenu.tab)) key = "worldtab.general";
+                    else if (ReferenceEquals(tab, wsm.worldGenerationMenu.tab)) key = "worldtab.world";
+                    else if (wsm.worldContentMenu.tab != null
+                        && ReferenceEquals(tab, wsm.worldContentMenu.tab)) key = "worldtab.content";
+                }
+                if (key != null)
+                {
+                    AddPart(Strings.L(key));
+                    AddPart(Strings.L(key + ".desc"));
+                }
+                else if (option.labelText != null)
+                {
+                    AddPart(ResolvePugText(option.labelText)); // identite inconnue : libelle natif
+                }
+                return parts.Count > 0 ? string.Join(", ", parts) : null;
+            }
+
             var parentSlot = option.GetComponentInParent<WorldSlot>();
             if (parentSlot != null && parentSlot.number != null)
             {
@@ -83,7 +112,13 @@ namespace CoreKeeperAccess.Patches
             }
             if (option.valueText != null)
             {
-                AddPart(ResolvePugText(option.valueText));
+                // Sliders du jeu (volumes ET reglages graphiques) : leur valueText est une
+                // barre de losanges pleins/vides, illisible en TTS. On lit le pourcentage de
+                // remplissage a la place. Deux classes distinctes rendent cette barre.
+                if (TryGetBarPercent(option, out int pct))
+                    AddPart(pct + " " + Strings.L("menu.percent"));
+                else
+                    AddPart(ResolvePugText(option.valueText));
                 seenTexts.Add(option.valueText);
             }
 
@@ -128,6 +163,13 @@ namespace CoreKeeperAccess.Patches
                     AddPart(translated);
             }
 
+            // Bouton "graine aleatoire" (icone de des) de la creation de monde :
+            // RadicalMenuOption generique sans aucun texte, cable dans le prefab -> muet.
+            // On le repere a sa position (dans le WorldInfoMenu, distinct du champ graine
+            // qui, lui, porte un libelle donc n'arrive jamais ici sans texte).
+            if (parts.Count == 0 && IsRandomizeSeedButton(option))
+                AddPart(Strings.L("worldinfo.randomseed"));
+
             // Dernier recours pour un bouton-icone sans aucun texte (bandeau "ID de
             // jeu" du menu pause : rafraichir / copier / masquer...) : son libelle vit
             // dans le texte d'info partage PauseMenuIconSelectionInfoText, hors de la
@@ -166,6 +208,51 @@ namespace CoreKeeperAccess.Patches
                 }
             }
             return null;
+        }
+
+        // Deux classes distinctes rendent la barre de losanges :
+        //  - RadicalOptionsMenuOption_Slider (reglages graphiques) : cran/total, champs prives.
+        //  - RadicalOptionsMenuOption_Volume (volumes) : valeur 0..1 dans une propriete privee.
+        // On lit le pourcentage de remplissage par reflection dans les deux cas.
+        private static readonly FieldInfo SliderCurrentStep =
+            AccessTools.Field(typeof(RadicalOptionsMenuOption_Slider), "_currentStep");
+        private static readonly FieldInfo SliderNumberOfSteps =
+            AccessTools.Field(typeof(RadicalOptionsMenuOption_Slider), "_numberOfSteps");
+        private static readonly MethodInfo VolumeGetter =
+            AccessTools.PropertyGetter(typeof(RadicalOptionsMenuOption_Volume), "volume");
+
+        private static bool TryGetBarPercent(RadicalMenuOption option, out int percent)
+        {
+            percent = 0;
+            try
+            {
+                if (option is RadicalOptionsMenuOption_Slider slider
+                    && SliderCurrentStep != null && SliderNumberOfSteps != null)
+                {
+                    int step = (int)SliderCurrentStep.GetValue(slider);
+                    int steps = (int)SliderNumberOfSteps.GetValue(slider);
+                    if (steps <= 0) return false;
+                    percent = Mathf.RoundToInt(100f * step / steps);
+                    return true;
+                }
+                if (option is RadicalOptionsMenuOption_Volume volume && VolumeGetter != null)
+                {
+                    float v = (float)VolumeGetter.Invoke(volume, null);
+                    percent = Mathf.RoundToInt(100f * v);
+                    return true;
+                }
+            }
+            catch { return false; }
+            return false;
+        }
+
+        // Le bouton "graine aleatoire" est un RadicalMenuOption generique sans texte, dans
+        // la hierarchie du WorldInfoMenu. Les autres options du menu (nom, graine, icone,
+        // mode) portent un libelle ou sont gerees a part -> elles n'atteignent jamais ce
+        // test avec parts vide. La presence du WorldInfoMenu en parent suffit donc.
+        private static bool IsRandomizeSeedButton(RadicalMenuOption option)
+        {
+            return option != null && option.GetComponentInParent<WorldInfoMenu>() != null;
         }
 
         // Index courant d'une categorie de customisation : vit dans un champ prive de

@@ -2,6 +2,26 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.2 (bêta ouverte) — juin 2026
+
+Lisibilité des menus du jeu, un écran pour apprendre les sons, et un correctif important sur la mémoire de navigation propre à chaque monde.
+
+### Ajouts
+
+- **Menu d'apprentissage des sons.** Depuis le menu d'aide, un nouvel écran te laisse écouter chaque son du mod, classé par catégorie (sonification des tuiles et du déplacement, combat) ; le son se joue au survol pour que tu apprennes à les reconnaître.
+- **Guide de démarrage rapide.** Un nouveau document (français et anglais), lié depuis le README, accompagne le nouveau joueur : présentation du jeu, perception à l'oreille (curseur de tuile, canne laser, sonar), création de monde et de personnage, commandes de base.
+
+### Améliorations
+
+- **Les barres du menu Options sont lues en pourcentage.** Les réglages à barre (volumes notamment) annonçaient une suite de symboles illisible ; ils annoncent désormais un pourcentage clair, qui se met à jour quand tu changes la valeur.
+- **Création de partie plus claire.** Le bouton « graine aléatoire » est maintenant annoncé, et les deux onglets en haut de l'écran (Général et Monde) le sont aussi, avec un mot sur ce que chacun contient.
+- **Apprentissage de la manette affiné.** Les boutons sont nommés plus simplement, un rappel signale les deux petits boutons centraux si tu ne les as pas essayés, et l'écran final peut être réécouté à volonté.
+- **Noms de personnalisation traduisibles.** Les noms des variantes de personnage (couleurs, coupes, morphologies) vivent désormais dans les fichiers de langue — l'anglais est fourni, et d'autres langues peuvent être ajoutées facilement.
+
+### Correctifs
+
+- **La navigation et le journal suivent le monde, pas l'emplacement de sauvegarde.** Si tu supprimais un monde puis en recréais un sur le même emplacement, le nouveau héritait des balises, du réseau de navigation et du journal de l'ancien. Chaque monde a maintenant sa propre mémoire, et supprimer un monde efface proprement ses données de navigation.
+
 ## 1.0.1 (bêta ouverte) — juin 2026
 
 Petite mise à jour de finitions par-dessus la 1.0.

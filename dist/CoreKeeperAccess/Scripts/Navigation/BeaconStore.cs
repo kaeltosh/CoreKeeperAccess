@@ -26,7 +26,7 @@ namespace CoreKeeperAccess.Navigation
     internal static class BeaconStore
     {
         private const string Header = "v1";
-        private static int _worldId = int.MinValue; // monde charge en memoire (sentinelle)
+        private static string _worldKey; // monde charge en memoire (sentinelle, guid - cf. WorldKey)
         private static int _nextId = 1;
         private static readonly Dictionary<long, BeaconEntry> _byPos = new Dictionary<long, BeaconEntry>();
 
@@ -35,20 +35,21 @@ namespace CoreKeeperAccess.Navigation
         // Recharge si le monde courant a change (changement de save sans relancer le jeu).
         private static void EnsureLoaded()
         {
-            int id = CurrentWorldId();
-            if (id == _worldId) return;
-            _worldId = id;
+            string key = WorldKey.Current();
+            if (key == null || key == _worldKey) return; // pas pret (menu) ou deja charge
+            _worldKey = key;
             _nextId = 1;
             _byPos.Clear();
+            WorldKey.MigrateLegacyIfDev("beacons", key); // dev seulement : recupere l'ancien fichier par slot
             try
             {
-                string path = FilePath(id);
+                string path = FilePath(key);
                 if (File.Exists(path))
                     foreach (var raw in File.ReadAllLines(path, Encoding.UTF8))
                         ParseLine(raw);
             }
             catch (Exception ex) { Diag.Error("A11yBeaconStore", ex); }
-            Diag.Log("A11yBeaconStore", "load world=" + id + " n=" + _byPos.Count + " nextId=" + _nextId);
+            Diag.Log("A11yBeaconStore", "load world=" + key + " n=" + _byPos.Count + " nextId=" + _nextId);
         }
 
         private static void ParseLine(string line)
@@ -69,21 +70,16 @@ namespace CoreKeeperAccess.Navigation
             _byPos[Key(new int2(x, y))] = new BeaconEntry { x = x, y = y, name = name };
         }
 
-        private static int CurrentWorldId()
-        {
-            try { return Manager.saves != null ? Manager.saves.GetWorldId() : 0; }
-            catch { return 0; }
-        }
-
-        private static string FilePath(int id)
+        private static string FilePath(string key)
         {
             string dir = Path.Combine(Application.persistentDataPath, "CoreKeeperAccess", "beacons");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, id + ".txt");
+            return Path.Combine(dir, key + ".txt");
         }
 
         private static void Save()
         {
+            if (_worldKey == null) return; // pas de monde identifie -> jamais de fichier fantome
             try
             {
                 var sb = new StringBuilder();
@@ -91,10 +87,24 @@ namespace CoreKeeperAccess.Navigation
                 sb.Append("nextId=").Append(_nextId).Append('\n');
                 foreach (var e in _byPos.Values)
                     sb.Append(e.x).Append('|').Append(e.y).Append('|').Append(e.name).Append('\n');
-                File.WriteAllText(FilePath(_worldId), sb.ToString(), new UTF8Encoding(false));
-                Diag.Log("A11yBeaconStore", "save world=" + _worldId + " n=" + _byPos.Count);
+                File.WriteAllText(FilePath(_worldKey), sb.ToString(), new UTF8Encoding(false));
+                Diag.Log("A11yBeaconStore", "save world=" + _worldKey + " n=" + _byPos.Count);
             }
             catch (Exception ex) { Diag.Error("A11yBeaconStore", ex); }
+        }
+
+        // Force le (re)chargement du monde courant (et sa migration dev) sans rien lire :
+        // appele a l'entree en jeu pour que la conversion ne depende pas d'un acces aux noms.
+        public static void Warmup() => EnsureLoaded();
+
+        // Oublie le monde charge en memoire (cache vide, sentinelle remise a zero) : appele a la
+        // suppression d'un monde pour qu'aucun Flush tardif ne reecrive le fichier qu'on vient
+        // d'effacer, et que le prochain monde recharge proprement depuis le disque.
+        public static void ForgetCurrent()
+        {
+            _worldKey = null;
+            _nextId = 1;
+            _byPos.Clear();
         }
 
         public static string GetName(int2 pos)

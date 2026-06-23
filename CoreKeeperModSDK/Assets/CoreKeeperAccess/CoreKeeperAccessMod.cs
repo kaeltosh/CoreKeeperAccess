@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.1 beta";
+    private const string ReleaseTag = "1.0.2 beta";
     private const string BuildTag = "build 1";
 
     public void Init()

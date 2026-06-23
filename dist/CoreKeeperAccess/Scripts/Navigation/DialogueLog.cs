@@ -47,13 +47,30 @@ namespace CoreKeeperAccess.Navigation
         private const float ConvGapSeconds = 30f; // au-dela, une nouvelle replique du Coeur ouvre une conversation
         private const int ActivationConv = 1;     // conversation reservee au dialogue d'activation
 
-        private static int _worldId = int.MinValue;
+        private static string _worldKey; // sentinelle : monde charge en memoire (guid - cf. WorldKey)
         private static int _nextConv = 2;          // 1 reserve a l'activation -> le live commence a 2
         private static readonly List<DialogueEntry> _entries = new List<DialogueEntry>();
 
         // Suivi de la conversation courante du Coeur (en memoire, non persiste).
         private static int _lastCoreConv = -1;
         private static float _lastCoreTime = -9999f;
+
+        // Force le (re)chargement du monde courant (et sa migration dev) sans rien lire :
+        // appele a l'entree en jeu pour que la conversion ne depende pas d'une replique du Coeur
+        // ou de l'ouverture de l'onglet Journal.
+        public static void Warmup() => EnsureLoaded();
+
+        // Oublie le monde charge en memoire (cache vide, sentinelle remise a zero) : appele a la
+        // suppression d'un monde pour qu'aucun Save tardif ne reecrive le fichier qu'on vient
+        // d'effacer, et que le prochain monde recharge proprement depuis le disque.
+        public static void ForgetCurrent()
+        {
+            _worldKey = null;
+            _nextConv = 2;
+            _lastCoreConv = -1;
+            _lastCoreTime = -9999f;
+            _entries.Clear();
+        }
 
         // --- Capture ---
 
@@ -179,16 +196,17 @@ namespace CoreKeeperAccess.Navigation
 
         private static void EnsureLoaded()
         {
-            int id = CurrentWorldId();
-            if (id == _worldId) return;
-            _worldId = id;
+            string key = WorldKey.Current();
+            if (key == null || key == _worldKey) return; // pas pret (menu) ou deja charge
+            _worldKey = key;
             _nextConv = 2;
             _lastCoreConv = -1;
             _lastCoreTime = -9999f;
             _entries.Clear();
+            WorldKey.MigrateLegacyIfDev("dialogues", key); // dev seulement : recupere l'ancien fichier par slot
             try
             {
-                string path = FilePath(id);
+                string path = FilePath(key);
                 if (!File.Exists(path)) return;
                 var lines = File.ReadAllLines(path, Encoding.UTF8);
                 bool v2 = lines.Length > 0 && lines[0] == HeaderV2;
@@ -202,7 +220,7 @@ namespace CoreKeeperAccess.Navigation
                 if (_nextConv < 2) _nextConv = 2;
             }
             catch (Exception ex) { Diag.Error("A11yDialogueLog", ex); }
-            Diag.Log("A11yDialogueLog", "load world=" + id + " n=" + _entries.Count + " nextConv=" + _nextConv);
+            Diag.Log("A11yDialogueLog", "load world=" + key + " n=" + _entries.Count + " nextConv=" + _nextConv);
         }
 
         private static void ParseEntry(string line)
@@ -226,6 +244,7 @@ namespace CoreKeeperAccess.Navigation
 
         private static void Save()
         {
+            if (_worldKey == null) return; // pas de monde identifie -> jamais de fichier fantome
             try
             {
                 var sb = new StringBuilder();
@@ -233,22 +252,16 @@ namespace CoreKeeperAccess.Navigation
                 sb.Append("nextConv=").Append(_nextConv).Append('\n');
                 foreach (var e in _entries)
                     sb.Append(e.section).Append('|').Append(e.conv).Append('|').Append(e.text).Append('\n');
-                File.WriteAllText(FilePath(_worldId), sb.ToString(), new UTF8Encoding(false));
+                File.WriteAllText(FilePath(_worldKey), sb.ToString(), new UTF8Encoding(false));
             }
             catch (Exception ex) { Diag.Error("A11yDialogueLog", ex); }
         }
 
-        private static int CurrentWorldId()
-        {
-            try { return Manager.saves != null ? Manager.saves.GetWorldId() : 0; }
-            catch { return 0; }
-        }
-
-        private static string FilePath(int id)
+        private static string FilePath(string key)
         {
             string dir = Path.Combine(Application.persistentDataPath, "CoreKeeperAccess", "dialogues");
             Directory.CreateDirectory(dir);
-            return Path.Combine(dir, id + ".txt");
+            return Path.Combine(dir, key + ".txt");
         }
     }
 }

@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.1 beta";
+    private const string ReleaseTag = "1.0.2 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -141,6 +141,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
+        CoreKeeperAccess.Controls.SoundGuide.Tick(); // menu d'apprentissage des sons (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (force 1re fois en jeu, modal)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
