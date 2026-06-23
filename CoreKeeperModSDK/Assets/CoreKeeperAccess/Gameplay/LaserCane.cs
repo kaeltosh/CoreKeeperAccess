@@ -249,6 +249,14 @@ namespace CoreKeeperAccess.Gameplay
         // au centre, au volume de navigation actuellement regle.
         public static void Preview() => GameplayAudio.PlaySpatial(EnemySfxPlaceholder, 0f, 1f, EnemyVolume * A11ySettings.NavigationVolume);
 
+        // Apercu d'une cible NON hostile (creature paisible) pour le menu d'apprentissage des
+        // sons : timbre des passifs, centre, au volume regle.
+        public static void PreviewPassive() => GameplayAudio.PlaySpatial(PassiveCreatureSfxPlaceholder, 0f, 1f, PassiveVolume * A11ySettings.NavigationVolume);
+
+        // Apercu d'un OBJET passif pose au sol (champignon, drop, meuble) pour le menu
+        // d'apprentissage : son distinct de la creature, centre, au volume regle.
+        public static void PreviewObject() => GameplayAudio.PlaySpatial(PassiveObjectSfxPlaceholder, 0f, 1f, PassiveVolume * A11ySettings.NavigationVolume);
+
         private static void PlayEnemy(float2 worldPos)
         {
             var p = Manager.main != null ? Manager.main.player : null;

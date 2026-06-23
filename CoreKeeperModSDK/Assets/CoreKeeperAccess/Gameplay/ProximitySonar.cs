@@ -67,7 +67,7 @@ namespace CoreKeeperAccess.Gameplay
             if (_previewing) return;
             // Panneau de reglages ouvert (hors apercu) : sonar EN PAUSE (le joueur ne bouge pas,
             // l'input est gele) -> pas de nappe parasite pendant qu'on regle.
-            if (SettingsMenu.Active) { Stop(); return; }
+            if (SettingsMenu.Active || SoundGuide.Active) { Stop(); return; }
             // Menu principal (pas encore en jeu) ou menu pause (monde fige) : sonar EN PAUSE.
             if (!InputContext.InWorld || InputContext.MenuOpen) { Stop(); _hasCell = false; return; }
             if (!A11ySettings.ProximitySonar || player == null) { Stop(); _hasCell = false; return; }
@@ -147,6 +147,15 @@ namespace CoreKeeperAccess.Gameplay
             _previewing = true;
             if (which == 0 || which == 2) SetLayer(0, 1, NearVol * A11ySettings.SonarVolMedium);
             if (which == 1 || which == 2) SetLayer(2, 1, NearVol * A11ySettings.SonarVolGrave);
+        }
+
+        // Apercu d'un GOUFFRE (clapotis) au lieu d'un mur : texture trou (tex=2) sur la couche
+        // medium centree. Pour le menu d'apprentissage des sons (SoundGuide).
+        public static void StartPreviewPit()
+        {
+            EnsureInit();
+            _previewing = true;
+            SetLayer(0, 2, NearVol * A11ySettings.SonarVolMedium);
         }
 
         public static void StopPreview() { _previewing = false; Stop(); }

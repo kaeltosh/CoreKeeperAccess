@@ -69,6 +69,8 @@ namespace CoreKeeperAccess.Controls
             outList.Clear();
             // Toujours en TETE : (re)lancer le mode decouverte de la manette (executable).
             outList.Add(new HelpItem { Gesture = "", Label = Strings.L("help.learn"), Run = PadLearn.Start });
+            // Juste apres : ouvrir le menu d'apprentissage des sons du mod.
+            outList.Add(new HelpItem { Gesture = "", Label = Strings.L("sound.learn"), Run = SoundGuide.Start });
             for (int i = 0; i < _entries.Count; i++)
                 if (_entries[i].When())
                     outList.Add(new HelpItem { Gesture = _entries[i].Gesture(), Label = Strings.L(_entries[i].LabelKey), Run = null });
