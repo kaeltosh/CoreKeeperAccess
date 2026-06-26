@@ -183,6 +183,16 @@ namespace CoreKeeperAccess.Gameplay
         public static readonly int[] ObjDist = new int[4];
     }
 
+    // Pont détecteur de sol dangereux (sol vaseux acide...). Scanné en continu à ~10 Hz
+    // par TileReaderSystem : carré 5×5 via TileAccessor + PugDatabase.TryGetTileItemInfo
+    // pour identifier le tileset sans hardcoder sa valeur numérique. FireProximity lit
+    // Found/Tile pour inclure les tuiles de sol dans l'alerte positionnelle.
+    internal static class HazardGroundScan
+    {
+        public static bool Found;
+        public static int2 Tile;   // case la plus proche dans le rayon 2
+    }
+
     // Index case -> objet pose, reconstruit periodiquement depuis les ENTITES
     // (position + emprise prefab lue dans PugDatabase). Capte les objets SANS
     // collider physique - etabli en fer, generateur, Core, torches... - que les
@@ -373,6 +383,7 @@ namespace CoreKeeperAccess.Gameplay
         private EntityQuery _dbQuery;
         private EntityQuery _creatureQuery;
         private float _nextIndex;
+        private float _nextHazardScan;
 
         protected override void OnCreate()
         {
@@ -440,6 +451,22 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     SonarScan.ResultValid = true;
                     Diag.Error("A11ySonarDiag", ex);
+                }
+            }
+
+            // Sol dangereux : scan continu ~10 Hz du carré 5×5 autour du joueur.
+            if (UnityEngine.Time.unscaledTime >= _nextHazardScan)
+            {
+                _nextHazardScan = UnityEngine.Time.unscaledTime + 0.1f;
+                try
+                {
+                    var taH = new TileAccessor(ref CheckedStateRef, true);
+                    ScanHazardGround(ref taH);
+                }
+                catch (System.Exception ex)
+                {
+                    HazardGroundScan.Found = false;
+                    Diag.Error("A11yHazardScan", ex);
                 }
             }
 
@@ -831,6 +858,39 @@ namespace CoreKeeperAccess.Gameplay
                 SonarScan.ObjDist[d] = objDist;
             }
             SonarScan.ResultValid = true;
+        }
+
+        // Scanne le carré 5×5 autour du joueur pour détecter les sols dangereux
+        // (TileType.groundSlime à tileset acide). PugDatabase.TryGetTileItemInfo résout
+        // le tileset sans en hardcoder la valeur numérique, même chemin que le curseur.
+        private static void ScanHazardGround(ref TileAccessor ta)
+        {
+            int2 center = new int2(
+                (int)math.round(ObjectIndex.Center.x),
+                (int)math.round(ObjectIndex.Center.y));
+            const int R = 2;
+            bool found = false;
+            float best = float.MaxValue;
+            int2 bestTile = default;
+
+            for (int dy = -R; dy <= R; dy++)
+            {
+                for (int dx = -R; dx <= R; dx++)
+                {
+                    int2 t = new int2(center.x + dx, center.y + dy);
+                    var top = ta.GetTop(t);
+                    if (top.tileType != TileType.groundSlime) continue;
+                    ObjectInfo info;
+                    try { info = PugDatabase.TryGetTileItemInfo(top.tileType, top.tileset); }
+                    catch { continue; }
+                    if (info == null || info.objectID != ObjectID.GroundAcidSlime) continue;
+                    float d2 = dx * dx + dy * dy;
+                    if (d2 < best) { best = d2; bestTile = t; found = true; }
+                }
+            }
+
+            HazardGroundScan.Found = found;
+            HazardGroundScan.Tile = bestTile;
         }
 
         // Balaye les creatures dans le rayon du ping et publie position + bord.
