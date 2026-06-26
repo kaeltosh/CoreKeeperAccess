@@ -484,6 +484,14 @@ namespace CoreKeeperAccess.Gameplay
                         ? EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world).objectID
                         : ObjectID.None;
 
+                    // Oeuf de la ruche dormant (health==0, collider inactif) : ni ennemi ni
+                    // passif, le faisceau le traverse en silence. Actif (health>0, active par
+                    // le boss) : ennemi normal -> bip de verrouillage comme tout hostile.
+                    if (oid == ObjectID.LarvaHiveEgg
+                        && EntityUtility.HasComponentData<HealthCD>(h.Entity, world)
+                        && EntityUtility.GetComponentData<HealthCD>(h.Entity, world).health <= 0)
+                        continue;
+
                     bool hostile = !critter
                         && EntityUtility.HasComponentData<FactionCD>(h.Entity, world)
                         && IsEnemy(EntityUtility.GetComponentData<FactionCD>(h.Entity, world).faction)
