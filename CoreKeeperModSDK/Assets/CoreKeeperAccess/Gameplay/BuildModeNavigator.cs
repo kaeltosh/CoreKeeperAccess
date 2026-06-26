@@ -536,7 +536,7 @@ namespace CoreKeeperAccess.Gameplay
         }
 
         // Libelle d'un sol notable. Priorites : cles cursor.* JSON > TryGetTileItemInfo
-        // (revele le contenu reel du sol, vary par biome/tileset, ex. chrysalis) > SplitEnumName.
+        // (revele le contenu reel du sol, varie par biome/tileset, ex. chrysalis) > nom brut.
         private static string GroundLabel(TileType g, int tileset = 0)
         {
             if (g == TileType.dugUpGround) return Strings.L("cursor.tilled");
@@ -545,7 +545,11 @@ namespace CoreKeeperAccess.Gameplay
             try
             {
                 ObjectInfo info = PugDatabase.TryGetTileItemInfo(g, tileset);
-                if (info != null) return InGameTtsCore.ResolveObjectName(info.objectID);
+                if (info != null)
+                {
+                    string name = InGameTtsCore.ResolveObjectName(info.objectID);
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
             }
             catch { }
             return g.ToString();
