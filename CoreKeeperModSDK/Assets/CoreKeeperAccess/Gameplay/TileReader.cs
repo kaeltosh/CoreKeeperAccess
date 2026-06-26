@@ -233,7 +233,7 @@ namespace CoreKeeperAccess.Gameplay
     // de l'arene de boss) la plus proche, captee par TileReaderSystem au fil de son scan
     // d'objets (aucun scan dedie). Found=false = aucune SummonArea a portee (cas normal
     // hors arene) -> le drone du repere se tait.
-    internal static class CenterScan
+    internal static class SummonScan
     {
         public static bool Found;
         public static float2 Pos;
@@ -592,10 +592,7 @@ namespace CoreKeeperAccess.Gameplay
                     if (od.objectID == ObjectID.None) continue;
 
                     if (od.objectID == ObjectID.SummonArea)
-                    {
-                        float caD2 = math.lengthsq(p - center);
-                        if (caD2 < caBest) { caBest = caD2; caPos = p; caFound = true; }
-                    }
+                        continue; // sol de la salle : position via ServerWorld uniquement
 
                     int2 size;
                     int2 corner;
@@ -771,8 +768,48 @@ namespace CoreKeeperAccess.Gameplay
                     }
                 }
                 ents.Dispose();
-                CenterScan.Found = caFound;
-                CenterScan.Pos = caPos;
+
+                // Fallback : la SummonAreaCD n'est pas replicuee au ClientWorld ->
+                // en solo, les deux mondes tournent dans le meme process ; on lit le
+                // ServerWorld directement pour trouver la rune de la Hive Mother.
+                if (!caFound)
+                {
+                    try
+                    {
+                        var sw = Manager.ecs.ServerWorld;
+                        if (sw != null)
+                        {
+                            var sem = sw.EntityManager;
+                            var sq = sem.CreateEntityQuery(
+                                ComponentType.ReadOnly<SummonAreaCD>(),
+                                ComponentType.ReadOnly<LocalTransform>());
+                            var se = sq.ToEntityArray(Allocator.Temp);
+                            foreach (var e in se)
+                            {
+                                var sa = sem.GetComponentData<SummonAreaCD>(e);
+                                if (sa.bossToSummon == ObjectID.None) continue;
+                                var p3 = sem.GetComponentData<LocalTransform>(e).Position;
+                                float2 sp = new float2(p3.x, p3.z);
+                                float sd2 = math.lengthsq(sp - center);
+                                if (sd2 < caBest) { caBest = sd2; caPos = sp; caFound = true; }
+                            }
+                            se.Dispose();
+                            sq.Dispose();
+                        }
+                    }
+                    catch (System.Exception ex) { Diag.Error("A11yCenterSWDiag", ex); }
+                }
+
+                SummonScan.Found = caFound;
+                SummonScan.Pos = caPos;
+
+                // Injecte la rune dans ObjectIndex : le curseur de tuile peut alors
+                // l'annoncer comme n'importe quel interactible (prio max = 3).
+                if (caFound)
+                {
+                    int2 rc = new int2((int)math.round(caPos.x), (int)math.round(caPos.y));
+                    Place(rc, new ObjectIndex.Entry { Id = ObjectID.SummonArea, Interactable = true }, 3);
+                }
             }
             catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
         }

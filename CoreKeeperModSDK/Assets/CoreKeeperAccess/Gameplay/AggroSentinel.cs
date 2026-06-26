@@ -263,6 +263,7 @@ namespace CoreKeeperAccess.Gameplay
         private const float ScanInterval = 0.2f; // 5 Hz : position assez fraiche pour la file de bips
 
         private EntityQuery _query;
+        private EntityQuery _eggQuery;
         private float _next;
 
         protected override void OnCreate()
@@ -270,7 +271,12 @@ namespace CoreKeeperAccess.Gameplay
             _query = GetEntityQuery(
                 ComponentType.ReadOnly<IsInCombatCD>(),
                 ComponentType.ReadOnly<LocalTransform>());
-            // Diag de mise au point : confirme dans quel monde le systeme s'enregistre.
+            // LarvaHiveEgg : actifs (health>0) mais n'attaquent pas -> IsInCombatCD=false.
+            // On les injecte directement dans AggroScan comme des chasers normaux.
+            _eggQuery = GetEntityQuery(
+                ComponentType.ReadOnly<ObjectDataCD>(),
+                ComponentType.ReadOnly<HealthCD>(),
+                ComponentType.ReadOnly<LocalTransform>());
             Diag.Log("A11yAggroDiag", "AggroSentinelSystem cree dans " + World.Name);
         }
 
@@ -322,6 +328,31 @@ namespace CoreKeeperAccess.Gameplay
                     };
                 }
                 ents.Dispose();
+
+                // Oeufs actifs de la Hive Mother : pas IsInCombatCD -> invisibles a la
+                // boucle principale. On les injecte ici comme chasers normaux.
+                var eggs = _eggQuery.ToEntityArray(Allocator.Temp);
+                foreach (var egg in eggs)
+                {
+                    if (n >= AggroScan.Chasers.Length) break;
+                    var od = EntityManager.GetComponentData<ObjectDataCD>(egg);
+                    if (od.objectID != ObjectID.LarvaHiveEgg) continue;
+                    var hp = EntityManager.GetComponentData<HealthCD>(egg);
+                    if (hp.health <= 0) continue;
+                    var pos = EntityManager.GetComponentData<LocalTransform>(egg).Position;
+                    float2 ep = new float2(pos.x, pos.z);
+                    float2 ed = ep - AggroScan.PlayerPos;
+                    // Zone 2x plus large que la camera : oeufs hors ecran restent audibles.
+                    if (math.abs(ed.x) > AggroScan.CamHalf.x * 2f || math.abs(ed.y) > AggroScan.CamHalf.y * 2f) continue;
+                    AggroScan.Chasers[n++] = new AggroScan.Chaser
+                    {
+                        Key    = EntityKey.Of(egg),
+                        Pos    = ep,
+                        Obj    = ObjectID.LarvaHiveEgg,
+                        IsBoss = false,
+                    };
+                }
+                eggs.Dispose();
 
                 AggroScan.Count = n;
                 AggroScan.Version++;

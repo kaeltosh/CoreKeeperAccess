@@ -1,7 +1,7 @@
-using System.Collections.Generic;
 using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
+using HarmonyLib;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,192 +10,164 @@ using UnityEngine;
 
 namespace CoreKeeperAccess.Gameplay
 {
-    // Alerte des actions du boss de la ruche (Hive Mother) via lecture de l'AnimationBuffer
-    // replique cote client (GhostField confirme). Deux signaux detectables :
-    //   - hash 1203776827 : tir acide (ShootMortarProjectileStateSystem / MeleeAttackStateSystem)
-    //   - hash 1354651601 : enrage (EnrageStateSystem)
-    // Le tir acide declenche egalement un scan immediat des oeufs actifs (LarvaHiveEgg
-    // health>0) et les annonce positionnellement. Le scan des oeufs est ponctuel (declenche
-    // par l'evenement, pas permanent) -> pas de cout hors combat du boss.
+    // Alerte des actions de la Hive Mother via Animation Events du MonoBehaviour.
     //
-    // Architecture pont : BossAnimScan publie les donnees ECS,
-    // BossAnimAlertSystem fait le scan, BossAnimAlert.Tick() consomme et sonifie.
+    // - Tir acide : AE_AnticipationSound() est appellée par le système d'animation
+    //   Unity juste avant le tir → TTS + son spatial + scan des œufs actifs.
+    // - Enrage    : poll de EnrageStateCD.isEnraged dans Tick() (premier passage à true).
+    //
+    // Architecture : patch Harmony (tir) + Tick poll (enrage) + BossEggScanSystem ECS
+    // (query précompilée pour les œufs, déclenchée à la demande).
     internal static class BossAnimAlert
     {
-        private const int AcidAttackAnimID = 1203776827;
-        private const int EnrageAnimID     = 1354651601;
-
-        private static int _lastVersion;
+        private static LarvaHiveBoss _boss;
+        private static bool _wasEnraged;
+        private static bool _eggResultPending;
 
         public static void Tick()
         {
-            var player = Manager.main != null ? Manager.main.player : null;
-            if (player == null) { BossAnimScan.Active = false; return; }
-            if (!InputContext.InGameFree) { BossAnimScan.Active = false; return; }
+            if (!InputContext.InGameFree) { _boss = null; _wasEnraged = false; return; }
 
-            BossAnimScan.PlayerPos = new float2(player.WorldPosition.x, player.WorldPosition.z);
-            BossAnimScan.Active = true;
-
-            if (!BossAnimScan.ResultValid) return;
-            if (BossAnimScan.Version == _lastVersion) return;
-            _lastVersion = BossAnimScan.Version;
-            if (BossAnimScan.EventCount == 0) return;
-
-            float2 playerPos = BossAnimScan.PlayerPos;
-            for (int i = 0; i < BossAnimScan.EventCount; i++)
+            // Trouve la Hive Mother si absente du cache
+            if (_boss == null)
             {
-                var ev = BossAnimScan.Events[i];
-                if (ev.AnimID == AcidAttackAnimID)
+                var arr = Object.FindObjectsByType<LarvaHiveBoss>(
+                    FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+                if (arr == null || arr.Length == 0) { _wasEnraged = false; return; }
+                _boss = arr[0];
+                _wasEnraged = false;
+            }
+
+            try
+            {
+                // Poll enrage
+                bool enraged = EntityUtility.GetComponentData<EnrageStateCD>(
+                    _boss.entity, _boss.world).isEnraged;
+                if (enraged && !_wasEnraged)
                 {
-                    TtsText.Say(Strings.L("boss.hive.acid"), true);
-                    PlayAlert(ev.BossPos, playerPos);
-                    AnnounceEggs(playerPos);
-                }
-                else if (ev.AnimID == EnrageAnimID)
-                {
+                    _wasEnraged = true;
                     TtsText.Say(Strings.L("boss.hive.enrage"), true);
-                    PlayAlert(ev.BossPos, playerPos);
+                    PlayBossSound(_boss);
                 }
+            }
+            catch { _boss = null; }
+
+            // Consomme le scan d'œufs déclenché par AE_AnticipationSound
+            if (_eggResultPending && BossEggScan.ResultReady)
+            {
+                _eggResultPending = false;
+                AnnounceEggs();
             }
         }
 
-        private static void AnnounceEggs(float2 playerPos)
+        // Appelé par HiveBossAnticipationPatch (Animation Event AE_AnticipationSound)
+        internal static void OnAnticipation(LarvaHiveBoss boss)
         {
-            int n = BossAnimScan.ActiveEggCount;
+            if (!InputContext.InGameFree) return;
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null) return;
+
+            TtsText.Say(Strings.L("boss.hive.acid"), true);
+            PlayBossSound(boss);
+
+            // Déclenche le scan des œufs (résultat disponible la frame suivante)
+            float2 pp = new float2(player.WorldPosition.x, player.WorldPosition.z);
+            BossEggScan.PlayerPos   = pp;
+            BossEggScan.ResultReady = false;
+            BossEggScan.Requested   = true;
+            _eggResultPending = true;
+        }
+
+        private static void AnnounceEggs()
+        {
+            int n = BossEggScan.Count;
             if (n == 0) return;
             string key = n == 1 ? "boss.hive.egg_one" : "boss.hive.eggs_n";
             TtsText.Say(Strings.L(key).Replace("{0}", n.ToString()), false);
+            float2 pp = BossEggScan.PlayerPos;
             for (int i = 0; i < n; i++)
             {
-                float2 d = BossAnimScan.ActiveEggs[i] - playerPos;
-                float pan   = GameplayAudio.PanFromTiles(d.x);
-                float pitch = Mathf.Pow(2f, d.y / 12f);
-                GameplayAudio.PlaySpatial(SfxID.proximity_sensor_set, pan, pitch,
+                float2 d = BossEggScan.Positions[i] - pp;
+                GameplayAudio.PlaySpatial(SfxID.proximity_sensor_set,
+                    GameplayAudio.PanFromTiles(d.x),
+                    Mathf.Pow(2f, d.y / 12f),
                     0.6f * A11ySettings.SentinelBossVolume);
             }
         }
 
-        private static void PlayAlert(float2 bossPos, float2 playerPos)
+        private static void PlayBossSound(LarvaHiveBoss boss)
         {
-            float2 d   = bossPos - playerPos;
-            float pan   = GameplayAudio.PanFromTiles(d.x);
-            float pitch = Mathf.Pow(2f, d.y / 12f);
-            GameplayAudio.PlaySpatial(SfxID.dg2, pan, pitch,
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null) return;
+            float2 pp = new float2(player.WorldPosition.x, player.WorldPosition.z);
+            float2 d  = new float2(boss.transform.position.x, boss.transform.position.z) - pp;
+            GameplayAudio.PlaySpatial(SfxID.dg2,
+                GameplayAudio.PanFromTiles(d.x),
+                Mathf.Pow(2f, d.y / 12f),
                 0.8f * A11ySettings.SentinelBossVolume);
         }
     }
 
-    // Donnees publiees par BossAnimAlertSystem, consommees par BossAnimAlert.Tick.
-    internal static class BossAnimScan
+    // Pont BossAnimAlert ↔ BossEggScanSystem
+    internal static class BossEggScan
     {
-        public struct AnimEvent
-        {
-            public int    AnimID;
-            public float2 BossPos;
-        }
-
-        public static bool   Active;
-        public static float2 PlayerPos;
-        public static bool   ResultValid;
-        public static int    Version;
-        public static int    EventCount;
-        public static readonly AnimEvent[] Events = new AnimEvent[8];
-
-        public static int    ActiveEggCount;
-        public static readonly float2[] ActiveEggs = new float2[16];
+        public static bool    Requested;
+        public static bool    ResultReady;
+        public static float2  PlayerPos;
+        public static int     Count;
+        public static readonly float2[] Positions = new float2[16];
     }
 
-    // Systeme ECS client-side. Scan a 10 Hz des entites LarvaHiveBoss : detecte les
-    // nouvelles entrees dans leur AnimationBuffer (via AnimationBufferPointer.NextIndex).
-    // Si un tir acide est detecte, scanne immediatement les LarvaHiveEgg actifs.
+    // Système ECS client-side : scanne les LarvaHiveEgg actifs (health>0) à la demande.
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial class BossAnimAlertSystem : SystemBase
+    public partial class BossEggScanSystem : SystemBase
     {
-        private EntityQuery _bossQuery;
         private EntityQuery _eggQuery;
-        private readonly Dictionary<long, byte> _lastIdx = new Dictionary<long, byte>();
-        private const float ScanInterval = 0.1f; // 10 Hz
-        private float _next;
 
         protected override void OnCreate()
         {
-            _bossQuery = GetEntityQuery(
-                ComponentType.ReadOnly<ObjectDataCD>(),
-                ComponentType.ReadOnly<AnimationBufferPointer>(),
-                ComponentType.ReadOnly<LocalTransform>());
             _eggQuery = GetEntityQuery(
                 ComponentType.ReadOnly<ObjectDataCD>(),
                 ComponentType.ReadOnly<HealthCD>(),
                 ComponentType.ReadOnly<LocalTransform>());
-            Diag.Log("A11yBossAnimDiag", "BossAnimAlertSystem cree dans " + World.Name);
         }
 
         protected override void OnUpdate()
         {
-            if (!BossAnimScan.Active) return;
-            if (UnityEngine.Time.unscaledTime < _next) return;
-            _next = UnityEngine.Time.unscaledTime + ScanInterval;
+            if (!BossEggScan.Requested) return;
+            BossEggScan.Requested = false;
 
             try
             {
-                int  eventCount = 0;
-                int  eggCount   = 0;
-                bool scanEggs   = false;
-
-                var bossEnts = _bossQuery.ToEntityArray(Allocator.Temp);
-                foreach (var e in bossEnts)
+                int n = 0;
+                var ents = _eggQuery.ToEntityArray(Allocator.Temp);
+                foreach (var e in ents)
                 {
-                    var obj = EntityManager.GetComponentData<ObjectDataCD>(e);
-                    if (obj.objectID != ObjectID.LarvaHiveBoss) continue;
-
-                    var ptr = EntityManager.GetComponentData<AnimationBufferPointer>(e);
-                    long key = EntityKey.Of(e);
-                    byte ni  = ptr.NextIndex;
-                    byte last;
-                    bool known = _lastIdx.TryGetValue(key, out last);
-                    _lastIdx[key] = ni;
-                    if (!known || ni == last) continue;
-
-                    var buf = EntityManager.GetBuffer<AnimationBuffer>(e);
-                    if (buf.Length == 0) continue;
-                    // NextIndex = prochaine position d'ecriture dans le ring buffer ;
-                    // le dernier animID ecrit est a (NextIndex-1+256) % buf.Length.
-                    int idx    = ((int)ni - 1 + 256) % buf.Length;
-                    int animID = buf[idx].animID;
-
-                    if (eventCount >= BossAnimScan.Events.Length) continue;
+                    if (n >= BossEggScan.Positions.Length) break;
+                    var od = EntityManager.GetComponentData<ObjectDataCD>(e);
+                    if (od.objectID != ObjectID.LarvaHiveEgg) continue;
+                    var hp = EntityManager.GetComponentData<HealthCD>(e);
+                    if (hp.health <= 0) continue;
                     var pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
-                    BossAnimScan.Events[eventCount++] = new BossAnimScan.AnimEvent
-                    {
-                        AnimID  = animID,
-                        BossPos = new float2(pos.x, pos.z),
-                    };
-                    if (animID == 1203776827) scanEggs = true;
+                    BossEggScan.Positions[n++] = new float2(pos.x, pos.z);
                 }
-                bossEnts.Dispose();
-
-                if (scanEggs)
-                {
-                    var eggEnts = _eggQuery.ToEntityArray(Allocator.Temp);
-                    foreach (var e in eggEnts)
-                    {
-                        if (eggCount >= BossAnimScan.ActiveEggs.Length) break;
-                        var obj = EntityManager.GetComponentData<ObjectDataCD>(e);
-                        if (obj.objectID != ObjectID.LarvaHiveEgg) continue;
-                        var hp = EntityManager.GetComponentData<HealthCD>(e);
-                        if (hp.health <= 0) continue;
-                        var pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
-                        BossAnimScan.ActiveEggs[eggCount++] = new float2(pos.x, pos.z);
-                    }
-                    eggEnts.Dispose();
-                }
-
-                BossAnimScan.EventCount     = eventCount;
-                BossAnimScan.ActiveEggCount = eggCount;
-                BossAnimScan.Version++;
-                BossAnimScan.ResultValid = true;
+                ents.Dispose();
+                BossEggScan.Count       = n;
+                BossEggScan.ResultReady = true;
             }
-            catch (System.Exception ex) { Diag.Error("A11yBossAnimDiag", ex); }
+            catch (System.Exception ex) { Diag.Error("A11yBossEggDiag", ex); }
+        }
+    }
+
+    // Patch sur l'Animation Event du boss : appelé par l'animator juste avant le tir acide.
+    [HarmonyPatch(typeof(LarvaHiveBoss), "AE_AnticipationSound")]
+    internal static class HiveBossAnticipationPatch
+    {
+        [HarmonyPostfix]
+        public static void Postfix(LarvaHiveBoss __instance)
+        {
+            try { BossAnimAlert.OnAnticipation(__instance); }
+            catch (System.Exception ex) { Diag.Error("A11yBossAnimPatch", ex); }
         }
     }
 }
