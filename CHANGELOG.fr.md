@@ -2,6 +2,25 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.4 (bêta ouverte) — juin 2026
+
+Combat de la Hive Mother, guide vers le sigil d'invocation pour tous les boss, et sol acide détecté.
+
+### Ajouts
+
+- **Combat Hive Mother.** Le mod annonce le tir acide ("La ruche tire !") juste avant que le projectile parte, et l'enrage ("La ruche s'enrage !") au changement de phase. Les œufs en train d'éclore sont détectés par la sentinelle d'aggro et bippent positionnellement — tu sais où ils sont sans les voir.
+- **Guide sonore vers le sigil d'invocation.** Quand tu entres dans la salle d'un boss, un drone discret t'indique la direction de la rune d'invocation (pan gauche/droite, pitch haut/bas). À 1,5 case, le mod annonce "Rune d'invocation".
+
+### Corrections
+
+- **Faux positif canne laser sur les œufs de ruche.** La canne laser bippait sur les œufs passifs de la Hive Mother comme si c'étaient des ennemis. Ils sont maintenant ignorés jusqu'à leur éclosion.
+
+### Améliorations
+
+- **Détection des zones de danger plus réactive.** Le sol acide et les pièges de feu sont scannés deux fois plus vite — utile quand on court ou quand un tir de mortier crée une zone de feu d'un coup.
+
+---
+
 ## 1.0.3 (bêta ouverte) — juin 2026
 
 Nommage des sols spéciaux et des plantes en croissance.

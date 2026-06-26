@@ -48,6 +48,14 @@ namespace CoreKeeperAccess.Gameplay
                 float d2 = math.distancesq(new float2(t.x, t.y), new float2(me.x, me.y));
                 if (d2 < best) { best = d2; bestTile = t; found = true; }
             }
+            // Sol vaseux acide (tuile groundSlime, tileset acide) : pas dans ObjectIndex.
+            if (HazardGroundScan.Found)
+            {
+                int2 t = HazardGroundScan.Tile;
+                float d2 = math.distancesq(new float2(t.x, t.y), new float2(me.x, me.y));
+                if (d2 < best) { best = d2; bestTile = t; found = true; }
+            }
+
             if (!found) return;
 
             float dist = math.sqrt(best);
@@ -70,6 +78,8 @@ namespace CoreKeeperAccess.Gameplay
         private static bool IsFire(ObjectID id)
             => id == ObjectID.FireAoeDamage
             || id == ObjectID.FireTrap
-            || id == ObjectID.OilFireTrap;
+            || id == ObjectID.OilFireTrap
+            || id == ObjectID.GroundAcidSlime
+            || id == ObjectID.HiveSpikeTrap;
     }
 }

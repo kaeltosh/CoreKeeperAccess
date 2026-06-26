@@ -2,6 +2,25 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.4 (open beta) — June 2026
+
+Hive Mother combat, summoning sigil guide for all bosses, and acid ground detection.
+
+### Additions
+
+- **Hive Mother combat.** The mod announces the acid spit ("The hive is spitting!") just before the projectile launches, and the enrage ("The hive is enraging!") on phase change. Hatching eggs are tracked by the aggro sentinel and beep positionally — you know where they are without seeing them.
+- **Summoning sigil audio guide.** When you enter a boss room, a subtle drone points toward the summoning rune (left/right pan, up/down pitch). At 1.5 tiles away, the mod announces "Summoning rune".
+
+### Fixes
+
+- **Laser cane false positive on hive eggs.** The laser cane was beeping on passive Hive Mother eggs as if they were enemies. They are now ignored until they hatch.
+
+### Improvements
+
+- **Hazard zone detection is more reactive.** Acid ground and fire traps are now scanned twice as fast — helpful when running or when a mortar shot suddenly creates a fire zone.
+
+---
+
 ## 1.0.3 (open beta) — June 2026
 
 Special ground tiles and growing plants now named correctly.

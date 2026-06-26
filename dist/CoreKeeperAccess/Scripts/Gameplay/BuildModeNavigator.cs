@@ -328,7 +328,15 @@ namespace CoreKeeperAccess.Gameplay
                     PlayObjectSfx(tile, in info, dx, dy);
                 else
                     PlayMoveTick(dx, dy);
-                if (speak) text = AppendIndustry(AppendPlant(InGameTtsCore.ResolveObjectName(info.ObjectId), in info), in info, false);
+                if (speak)
+                {
+                    // SummonArea non-interactible = sol physique de la salle de boss -> muet.
+                    // SummonArea interactible = case injectee synthetiquement (vraie rune) -> annonce.
+                    string objName = (info.ObjectId == ObjectID.SummonArea && !info.ObjectInteractable)
+                        ? null
+                        : InGameTtsCore.ResolveObjectName(info.ObjectId);
+                    text = AppendIndustry(AppendPlant(objName, in info), in info, false);
+                }
             }
             else
             {

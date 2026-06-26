@@ -183,6 +183,16 @@ namespace CoreKeeperAccess.Gameplay
         public static readonly int[] ObjDist = new int[4];
     }
 
+    // Pont détecteur de sol dangereux (sol vaseux acide...). Scanné en continu à ~10 Hz
+    // par TileReaderSystem : carré 5×5 via TileAccessor + PugDatabase.TryGetTileItemInfo
+    // pour identifier le tileset sans hardcoder sa valeur numérique. FireProximity lit
+    // Found/Tile pour inclure les tuiles de sol dans l'alerte positionnelle.
+    internal static class HazardGroundScan
+    {
+        public static bool Found;
+        public static int2 Tile;   // case la plus proche dans le rayon 2
+    }
+
     // Index case -> objet pose, reconstruit periodiquement depuis les ENTITES
     // (position + emprise prefab lue dans PugDatabase). Capte les objets SANS
     // collider physique - etabli en fer, generateur, Core, torches... - que les
@@ -223,7 +233,7 @@ namespace CoreKeeperAccess.Gameplay
     // de l'arene de boss) la plus proche, captee par TileReaderSystem au fil de son scan
     // d'objets (aucun scan dedie). Found=false = aucune SummonArea a portee (cas normal
     // hors arene) -> le drone du repere se tait.
-    internal static class CenterScan
+    internal static class SummonScan
     {
         public static bool Found;
         public static float2 Pos;
@@ -373,6 +383,7 @@ namespace CoreKeeperAccess.Gameplay
         private EntityQuery _dbQuery;
         private EntityQuery _creatureQuery;
         private float _nextIndex;
+        private float _nextHazardScan;
 
         protected override void OnCreate()
         {
@@ -440,6 +451,22 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     SonarScan.ResultValid = true;
                     Diag.Error("A11ySonarDiag", ex);
+                }
+            }
+
+            // Sol dangereux : scan continu ~20 Hz du carré 5×5 autour du joueur.
+            if (UnityEngine.Time.unscaledTime >= _nextHazardScan)
+            {
+                _nextHazardScan = UnityEngine.Time.unscaledTime + 0.05f;
+                try
+                {
+                    var taH = new TileAccessor(ref CheckedStateRef, true);
+                    ScanHazardGround(ref taH);
+                }
+                catch (System.Exception ex)
+                {
+                    HazardGroundScan.Found = false;
+                    Diag.Error("A11yHazardScan", ex);
                 }
             }
 
@@ -565,10 +592,7 @@ namespace CoreKeeperAccess.Gameplay
                     if (od.objectID == ObjectID.None) continue;
 
                     if (od.objectID == ObjectID.SummonArea)
-                    {
-                        float caD2 = math.lengthsq(p - center);
-                        if (caD2 < caBest) { caBest = caD2; caPos = p; caFound = true; }
-                    }
+                        continue; // sol de la salle : position via ServerWorld uniquement
 
                     int2 size;
                     int2 corner;
@@ -744,8 +768,48 @@ namespace CoreKeeperAccess.Gameplay
                     }
                 }
                 ents.Dispose();
-                CenterScan.Found = caFound;
-                CenterScan.Pos = caPos;
+
+                // Fallback : la SummonAreaCD n'est pas replicuee au ClientWorld ->
+                // en solo, les deux mondes tournent dans le meme process ; on lit le
+                // ServerWorld directement pour trouver la rune de la Hive Mother.
+                if (!caFound)
+                {
+                    try
+                    {
+                        var sw = Manager.ecs.ServerWorld;
+                        if (sw != null)
+                        {
+                            var sem = sw.EntityManager;
+                            var sq = sem.CreateEntityQuery(
+                                ComponentType.ReadOnly<SummonAreaCD>(),
+                                ComponentType.ReadOnly<LocalTransform>());
+                            var se = sq.ToEntityArray(Allocator.Temp);
+                            foreach (var e in se)
+                            {
+                                var sa = sem.GetComponentData<SummonAreaCD>(e);
+                                if (sa.bossToSummon == ObjectID.None) continue;
+                                var p3 = sem.GetComponentData<LocalTransform>(e).Position;
+                                float2 sp = new float2(p3.x, p3.z);
+                                float sd2 = math.lengthsq(sp - center);
+                                if (sd2 < caBest) { caBest = sd2; caPos = sp; caFound = true; }
+                            }
+                            se.Dispose();
+                            sq.Dispose();
+                        }
+                    }
+                    catch (System.Exception ex) { Diag.Error("A11yCenterSWDiag", ex); }
+                }
+
+                SummonScan.Found = caFound;
+                SummonScan.Pos = caPos;
+
+                // Injecte la rune dans ObjectIndex : le curseur de tuile peut alors
+                // l'annoncer comme n'importe quel interactible (prio max = 3).
+                if (caFound)
+                {
+                    int2 rc = new int2((int)math.round(caPos.x), (int)math.round(caPos.y));
+                    Place(rc, new ObjectIndex.Entry { Id = ObjectID.SummonArea, Interactable = true }, 3);
+                }
             }
             catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
         }
@@ -831,6 +895,39 @@ namespace CoreKeeperAccess.Gameplay
                 SonarScan.ObjDist[d] = objDist;
             }
             SonarScan.ResultValid = true;
+        }
+
+        // Scanne le carré 5×5 autour du joueur pour détecter les sols dangereux
+        // (TileType.groundSlime à tileset acide). PugDatabase.TryGetTileItemInfo résout
+        // le tileset sans en hardcoder la valeur numérique, même chemin que le curseur.
+        private static void ScanHazardGround(ref TileAccessor ta)
+        {
+            int2 center = new int2(
+                (int)math.round(ObjectIndex.Center.x),
+                (int)math.round(ObjectIndex.Center.y));
+            const int R = 2;
+            bool found = false;
+            float best = float.MaxValue;
+            int2 bestTile = default;
+
+            for (int dy = -R; dy <= R; dy++)
+            {
+                for (int dx = -R; dx <= R; dx++)
+                {
+                    int2 t = new int2(center.x + dx, center.y + dy);
+                    var top = ta.GetTop(t);
+                    if (top.tileType != TileType.groundSlime) continue;
+                    ObjectInfo info;
+                    try { info = PugDatabase.TryGetTileItemInfo(top.tileType, top.tileset); }
+                    catch { continue; }
+                    if (info == null || info.objectID != ObjectID.GroundAcidSlime) continue;
+                    float d2 = dx * dx + dy * dy;
+                    if (d2 < best) { best = d2; bestTile = t; found = true; }
+                }
+            }
+
+            HazardGroundScan.Found = found;
+            HazardGroundScan.Tile = bestTile;
         }
 
         // Balaye les creatures dans le rayon du ping et publie position + bord.

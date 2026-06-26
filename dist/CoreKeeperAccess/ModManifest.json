@@ -101,12 +101,12 @@
                       "guid":  "e45d8d7dd596ab744b85aa9f339291c6"
                   },
                   {
-                      "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
-                      "guid":  "a4f909a49da822d428713da67ca23293"
+                      "path":  "Scripts/Gameplay/BossAnimAlert.cs",
+                      "guid":  ""
                   },
                   {
-                      "path":  "Scripts/Gameplay/CenterBeacon.cs",
-                      "guid":  "15f97aede0de03c4b8af4ef175c8975a"
+                      "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
+                      "guid":  "a4f909a49da822d428713da67ca23293"
                   },
                   {
                       "path":  "Scripts/Gameplay/CombatSlowMotion.cs",
@@ -167,6 +167,10 @@
                   {
                       "path":  "Scripts/Gameplay/StatsWheel.cs",
                       "guid":  "7b3c6824ce175e9479add528e94eee24"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/SummonBeacon.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/TileReader.cs",
