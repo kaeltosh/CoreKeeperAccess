@@ -335,7 +335,7 @@ namespace CoreKeeperAccess.Gameplay
                 // Sol : tick de position. Sol notable annonce (le sol de base reste muet).
                 PlayMoveTick(dx, dy);
                 if (speak && info.Ground != TileType.ground)
-                    text = GroundLabel(info.Ground);
+                    text = GroundLabel(info.Ground, info.GroundTileset);
             }
 
             if (speak && !string.IsNullOrEmpty(text)) TtsText.Say(text, true);
@@ -500,7 +500,7 @@ namespace CoreKeeperAccess.Gameplay
                 text = AppendIndustry(AppendPlant(InGameTtsCore.ResolveObjectName(TileQuery.ObjectId), in snap), in snap, true);
             }
             else
-                text = GroundLabel(TileQuery.Ground);
+                text = GroundLabel(TileQuery.Ground, TileQuery.GroundTileset);
 
             // Coordonnees monde de la case pointee, en queue de l'annonce (demande
             // utilisateur : repere absolu pour noter/retrouver un endroit).
@@ -535,13 +535,19 @@ namespace CoreKeeperAccess.Gameplay
             return null;
         }
 
-        // Libelle d'un sol notable. Sols agricoles traduits (labour/arrosage = info clef
-        // pour cultiver a l'aveugle) ; tout autre sol notable garde son nom brut (dette
-        // i18n mineure existante, rarement declenchee).
-        private static string GroundLabel(TileType g)
+        // Libelle d'un sol notable. Priorites : cles cursor.* JSON > TryGetTileItemInfo
+        // (revele le contenu reel du sol, vary par biome/tileset, ex. chrysalis) > SplitEnumName.
+        private static string GroundLabel(TileType g, int tileset = 0)
         {
             if (g == TileType.dugUpGround) return Strings.L("cursor.tilled");
             if (g == TileType.wateredGround) return Strings.L("cursor.watered");
+            if (Strings.TryL("cursor." + g.ToString(), out string custom)) return custom;
+            try
+            {
+                ObjectInfo info = PugDatabase.TryGetTileItemInfo(g, tileset);
+                if (info != null) return InGameTtsCore.ResolveObjectName(info.objectID);
+            }
+            catch { }
             return g.ToString();
         }
 
