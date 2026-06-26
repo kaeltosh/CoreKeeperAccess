@@ -2,6 +2,17 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.3 (bêta ouverte) — juin 2026
+
+Nommage des sols spéciaux et des plantes en croissance.
+
+### Corrections
+
+- **Sols spéciaux nommés correctement.** Certains types de sols (chrysalis, sol gluant…) s'annonçaient avec leur nom technique interne au lieu d'un nom lisible. Le curseur résout maintenant le vrai contenu du sol selon le biome.
+- **Plantes en croissance sans traduction.** Quelques plantes (`GrubKapokPlant`, `CoralRootPlant`, `GleamRootPlant`) s'annonçaient en anglais. Elles ont maintenant leur nom français.
+
+---
+
 ## 1.0.2 (bêta ouverte) — juin 2026
 
 Lisibilité des menus du jeu, un écran pour apprendre les sons, et un correctif important sur la mémoire de navigation propre à chaque monde.

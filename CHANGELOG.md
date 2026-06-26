@@ -2,6 +2,17 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.3 (open beta) — June 2026
+
+Special ground tiles and growing plants now named correctly.
+
+### Fixes
+
+- **Special ground tiles named correctly.** Some ground types (chrysalis, slime ground…) were announced with their internal technical name instead of a readable label. The cursor now resolves the actual ground content based on the biome.
+- **Growing plants without French translation.** A few plants (`GrubKapokPlant`, `CoralRootPlant`, `GleamRootPlant`) were announced in English. They now have their French name.
+
+---
+
 ## 1.0.2 (open beta) — June 2026
 
 Game-menu readability, a screen to learn the sounds, and an important fix to each world's own navigation memory.

@@ -28,6 +28,7 @@ namespace CoreKeeperAccess.Gameplay
     public struct TileInfo
     {
         public TileType Ground;        // type de sol de la case
+        public int GroundTileset;
         public bool HasWall;           // tuile bloquante (mur) presente
         public TileType WallType;
         public int WallTileset;
@@ -58,6 +59,7 @@ namespace CoreKeeperAccess.Gameplay
         public static bool ResultValid;   // un resultat a ete publie
         public static int2 ResultTile;    // case effectivement lue
         public static TileType Ground;
+        public static int GroundTileset;
         public static bool HasWall;
         public static TileType WallType;
         public static int WallTileset;
@@ -78,6 +80,7 @@ namespace CoreKeeperAccess.Gameplay
         public static TileInfo Snapshot() => new TileInfo
         {
             Ground = Ground,
+            GroundTileset = GroundTileset,
             HasWall = HasWall,
             WallType = WallType,
             WallTileset = WallTileset,
@@ -256,7 +259,9 @@ namespace CoreKeeperAccess.Gameplay
         public static TileInfo Read(ref TileAccessor ta, int2 t, World world)
         {
             var info = new TileInfo();
-            info.Ground = ta.GetTopType(t);
+            var groundTile = ta.GetTop(t);
+            info.Ground = groundTile.tileType;
+            info.GroundTileset = groundTile.tileset;
             bool hasWall = ta.TryGetBlockingTile(t, out TileCD wall, true);
             info.HasWall = hasWall;
             info.WallType = hasWall ? wall.tileType : default;
@@ -487,6 +492,7 @@ namespace CoreKeeperAccess.Gameplay
                 int2 t = TileQuery.Tile;
                 var info = TileScan.Read(ref ta, t, World);
                 TileQuery.Ground = info.Ground;
+                TileQuery.GroundTileset = info.GroundTileset;
                 TileQuery.HasWall = info.HasWall;
                 TileQuery.WallType = info.WallType;
                 TileQuery.WallTileset = info.WallTileset;
