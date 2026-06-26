@@ -454,10 +454,10 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
-            // Sol dangereux : scan continu ~10 Hz du carré 5×5 autour du joueur.
+            // Sol dangereux : scan continu ~20 Hz du carré 5×5 autour du joueur.
             if (UnityEngine.Time.unscaledTime >= _nextHazardScan)
             {
-                _nextHazardScan = UnityEngine.Time.unscaledTime + 0.1f;
+                _nextHazardScan = UnityEngine.Time.unscaledTime + 0.05f;
                 try
                 {
                     var taH = new TileAccessor(ref CheckedStateRef, true);
