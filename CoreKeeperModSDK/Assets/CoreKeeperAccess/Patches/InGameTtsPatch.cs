@@ -40,9 +40,11 @@ namespace CoreKeeperAccess.Patches
             Add(BuildSkillTalentInfo(element));
             Add(BuildSoulInfo(element));
             Add(FillLevelLabel(element.GetContainedObject().objectData));
+            Add(BuildPetLevel(element));
             Add(BuildCraftInfo(element));
             Add(BuildMerchantInfo(element));
             Add(BuildSizeInfo(element));
+            Add(BuildSetBonusInfo(element));
 
             // Tooltip : description puis stats, lus directement a la selection.
             // Pour zapper, il suffit de bouger (l'annonce suivante interrompt).
@@ -100,6 +102,8 @@ namespace CoreKeeperAccess.Patches
             // FillLevelLabel qui dit vide/plein). NB : ne PAS elargir a la durabilite ni a
             // l'xp (l'amount EST l'info utile pour eux, regression vecue le 15 juin).
             if (od.objectID != ObjectID.None && PugDatabase.HasComponent<FullnessCD>(od))
+                return 1;
+            if (od.objectID != ObjectID.None && PugDatabase.HasComponent<PetCD>(od))
                 return 1;
             return od.amount;
         }
@@ -209,6 +213,140 @@ namespace CoreKeeperAccess.Patches
             if (saves == null) return null;
             if (!saves.HasCollectedSoul(soul.soulID)) return Strings.L("soul.locked");
             return Strings.L(saves.SoulPowerIsEnabled(soul.soulID) ? "soul.enabled" : "soul.disabled");
+        }
+
+        // Niveau d'un objet équipable lu via LevelCD (variation stocke le niveau après forge).
+        // Public : appelé depuis InventoryNavigator.AnnounceDetail (Triangle+Haut).
+        public static string BuildItemLevel(UIelement element)
+        {
+            try
+            {
+                var od = element.GetContainedObject().objectData;
+                if (od.objectID <= ObjectID.None) return null;
+                if (!PugDatabase.HasComponent<LevelCD>(od.objectID, 0)) return null;
+                int level = PugDatabase.GetComponent<LevelCD>(od.objectID, 0).level;
+                if (od.variation > 0) level = od.variation;
+                if (level <= 0) return null;
+                string text = PugText.ProcessText("ItemLevel", new string[] { level.ToString() },
+                    true, false, false, PugTextStyle.Capitalization.normal, false, null);
+                return (!string.IsNullOrEmpty(text) && !text.StartsWith("missing:") && !text.StartsWith("<missing>"))
+                    ? text : null;
+            }
+            catch { return null; }
+        }
+
+        // Niveau d'un familier déduit de son XP (od.amount = XP stocké dans le slot pet).
+        // PetExtensions.GetLevelFromXP retourne 1–10 ; réutilise la clé I2 "ItemLevel".
+        private static string BuildPetLevel(UIelement element)
+        {
+            try
+            {
+                var od = element.GetContainedObject().objectData;
+                if (od.objectID <= ObjectID.None) return null;
+                if (!PugDatabase.HasComponent<PetCD>(od)) return null;
+                int xp = od.amount;
+                int level = PetExtensions.GetLevelFromXP(xp);
+                string label = string.Format(Strings.L("pet.level"), level);
+                if (PetExtensions.IsAtMaxLevel(xp)) return label;
+                int cur = PetExtensions.GetCurrentXpForCurrentLevel(xp);
+                int total = PetExtensions.GetTotalXpNeededToLevelUp(xp);
+                int pct = total > 0 ? (int)(cur * 100f / total) : 0;
+                return label + ", " + pct + Strings.L("vitals.percent");
+            }
+            catch { return null; }
+        }
+
+        // Tooltip standard : nom du set + compte N/total seulement — pas de ProcessText sur
+        // les conditions pour éviter la latence. Le détail complet est sur Triangle+Haut.
+        private static string BuildSetBonusInfo(UIelement element)
+        {
+            try
+            {
+                var od = element.GetContainedObject().objectData;
+                if (od.objectID <= ObjectID.None) return null;
+                var table = Manager.ui?.mouse?.setBonusesTable;
+                if (table == null) return null;
+                var setId = table.GetSetBonusID(od.objectID);
+                if (setId == SetBonusID.None) return null;
+                var info = table.GetSetBonusInfo(setId);
+                if (info == null || info.availablePieces == null) return null;
+
+                int equipped = 0, total = info.availablePieces.Count;
+                var player = Manager.main?.player;
+                if (player != null)
+                    foreach (var piece in info.availablePieces)
+                        if (player.equipmentHandler.HasNonBrokenGearPieceEquipped(piece))
+                            equipped++;
+
+                string setName = SplitEnumName(setId.ToString());
+                return setName + ", " + string.Format(Strings.L("set.equipped"), equipped, total);
+            }
+            catch { return null; }
+        }
+
+        // Détail complet du set (Triangle+Haut) : bonus ligne par ligne + pièces manquantes.
+        // Reproduit la formule UIMouse ("Conditions/<id>" + "set"). Public pour AnnounceDetail.
+        public static string BuildSetBonusDetail(UIelement element)
+        {
+            try
+            {
+                var od = element.GetContainedObject().objectData;
+                if (od.objectID <= ObjectID.None) return null;
+                var table = Manager.ui?.mouse?.setBonusesTable;
+                if (table == null) return null;
+                var setId = table.GetSetBonusID(od.objectID);
+                if (setId == SetBonusID.None) return null;
+                var info = table.GetSetBonusInfo(setId);
+                if (info == null || info.availablePieces == null || info.setBonusDatas == null) return null;
+
+                var player = Manager.main?.player;
+                var equipped = new System.Collections.Generic.HashSet<ObjectID>();
+                if (player != null)
+                    foreach (var piece in info.availablePieces)
+                        if (player.equipmentHandler.HasNonBrokenGearPieceEquipped(piece))
+                            equipped.Add(piece);
+
+                var parts = new List<string>();
+
+                foreach (var data in info.setBonusDatas)
+                {
+                    try
+                    {
+                        string valStr = ConditionUI.GetConditionValueString(
+                            data.conditionData.conditionID, data.conditionData.value, true);
+                        string condText = PugText.ProcessText(
+                            "Conditions/" + data.conditionData.conditionID.ToString(),
+                            new string[] { valStr }, true, false, false,
+                            PugTextStyle.Capitalization.normal, false, null);
+                        string line = PugText.ProcessText("set",
+                            new string[] { data.requiredPieces.ToString(), condText },
+                            true, false, false, PugTextStyle.Capitalization.normal, false, null);
+                        if (string.IsNullOrEmpty(line) || line.StartsWith("missing:") || line.StartsWith("<missing>")) continue;
+                        if (equipped.Count < data.requiredPieces) line += ", " + Strings.L("set.inactive");
+                        parts.Add(line);
+                    }
+                    catch { }
+                }
+
+                var missing = new List<string>();
+                foreach (var piece in info.availablePieces)
+                {
+                    if (equipped.Contains(piece)) continue;
+                    try
+                    {
+                        string n = PugText.ProcessText("Items/" + piece.ToString(), null, true, false,
+                            false, PugTextStyle.Capitalization.normal, false, null);
+                        if (string.IsNullOrEmpty(n) || n.StartsWith("missing:")) n = ResolveObjectName(piece);
+                        if (!string.IsNullOrEmpty(n)) missing.Add(n);
+                    }
+                    catch { missing.Add(ResolveObjectName(piece) ?? piece.ToString()); }
+                }
+                if (missing.Count > 0)
+                    parts.Add(Strings.L("set.missing") + " " + string.Join(", ", missing));
+
+                return parts.Count > 0 ? string.Join(". ", parts) : null;
+            }
+            catch { return null; }
         }
 
         // Nom(s) du ou des talents prerequis d'un talent verrouille : les talents qui le
