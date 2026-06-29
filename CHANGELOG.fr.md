@@ -2,6 +2,22 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.5 (bêta ouverte) — juin 2026
+
+Tooltip des équipements enrichi et corrections.
+
+### Ajouts
+
+- **Set bonus dans le tooltip.** Le tooltip d'une pièce d'armure appartenant à un ensemble affiche maintenant le nom du set et le nombre de pièces équipées (ex. : "Armure Larve, 2/3"). Triangle+Haut révèle le détail complet : chaque bonus par seuil (actif ou inactif), et la liste des pièces manquantes.
+- **Niveau du familier.** Le tooltip du familier équipable indique son niveau et sa progression dans le niveau courant en pourcentage (ex. : "Niveau 5, 30%").
+
+### Corrections
+
+- **Max serviteurs affiché correctement.** La roue de stats affichait "0 serviteur max" même sans équipement dédié — la base de 1 serviteur n'était pas comptée.
+- **Sonar silencieux au menu principal.** En quittant un monde, le sonar de proximité continuait à sonner dans le menu principal. Il s'arrête maintenant dès la sortie du monde.
+
+---
+
 ## 1.0.4 (bêta ouverte) — juin 2026
 
 Combat de la Hive Mother, guide vers le sigil d'invocation pour tous les boss, et sol acide détecté.

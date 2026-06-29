@@ -130,7 +130,7 @@ namespace CoreKeeperAccess.Gameplay
                     count = EntityUtility.GetComponentData<MinionCountTrackerCD>(player.entity, player.world).count;
             }
             catch { }
-            try { max = EntityUtility.GetConditionEffectValue(ConditionEffect.MaxMinions, player.entity, player.world); }
+            try { max = MinionExtensions.GetMaxMinions(EntityUtility.GetBuffer<SummarizedConditionEffectsBuffer>(player.entity, player.world)); }
             catch { }
             s += ", " + count + " " + Strings.L("vitals.minions");
             if (max > 0) s += " " + Strings.L("vitals.outof") + " " + max;

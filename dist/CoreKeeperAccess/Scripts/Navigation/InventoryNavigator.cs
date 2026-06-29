@@ -169,17 +169,15 @@ namespace CoreKeeperAccess.Navigation
         internal static void AnnounceDetail()
         {
             if (_current == null) return;
-            string info = BuildRecipeComponents(_current);
-            string station = Gameplay.StationCommands.BuildStationDetail(_current);
-            if (!string.IsNullOrEmpty(station))
-                info = string.IsNullOrEmpty(info) ? station : info + ". " + station;
-            string forge = Gameplay.StationCommands.BuildForgeDetail();
-            if (!string.IsNullOrEmpty(forge))
-                info = string.IsNullOrEmpty(info) ? forge : info + ". " + forge;
-            string merchant = InGameTtsCore.BuildMerchantDetail();
-            if (!string.IsNullOrEmpty(merchant))
-                info = string.IsNullOrEmpty(info) ? merchant : info + ". " + merchant;
-            if (!string.IsNullOrEmpty(info)) TtsText.Say(info, true);
+            var parts = new List<string>();
+            void Append(string s) { if (!string.IsNullOrEmpty(s)) parts.Add(s); }
+            Append(BuildRecipeComponents(_current));
+            Append(Gameplay.StationCommands.BuildStationDetail(_current));
+            Append(Gameplay.StationCommands.BuildForgeDetail());
+            Append(InGameTtsCore.BuildMerchantDetail());
+            Append(Patches.InGameTtsCore.BuildItemLevel(_current));
+            Append(Patches.InGameTtsCore.BuildSetBonusDetail(_current));
+            if (parts.Count > 0) TtsText.Say(string.Join(". ", parts), true);
         }
 
         // "Requiert 3 Bois, 2 Cuivre" pour une recette ; null si l'element n'est pas une

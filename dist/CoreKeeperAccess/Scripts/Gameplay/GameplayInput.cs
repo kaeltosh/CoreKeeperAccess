@@ -39,7 +39,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void Tick()
         {
             var player = Manager.main != null ? Manager.main.player : null;
-            if (player == null) { _prospectPending = false; return; }
+            if (player == null) { ProximitySonar.Stop(); _prospectPending = false; return; }
 
             // Centre de l'index d'objets (TileReaderSystem le reconstruit autour).
             ObjectIndex.Center = new float2(player.WorldPosition.x, player.WorldPosition.z);

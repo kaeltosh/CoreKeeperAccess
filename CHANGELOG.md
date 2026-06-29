@@ -2,6 +2,22 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.5 (open beta) — June 2026
+
+Enriched equipment tooltips and bug fixes.
+
+### Additions
+
+- **Set bonus in tooltip.** The tooltip of an armor piece belonging to a set now shows the set name and how many pieces you have equipped (e.g. "Larva Armor, 2/3"). Triangle+Up reveals the full detail: each threshold bonus (active or inactive) and the list of missing pieces.
+- **Familiar level.** The equippable familiar's tooltip now shows its level and the current level's XP progress as a percentage (e.g. "Level 5, 30%").
+
+### Fixes
+
+- **Correct max-servant count.** The stats wheel was showing "0 servants max" even without dedicated equipment — the base value of 1 was not being counted.
+- **Sonar silent on the main menu.** When leaving a world, the proximity sonar kept playing in the main menu. It now stops as soon as the world is exited.
+
+---
+
 ## 1.0.4 (open beta) — June 2026
 
 Hive Mother combat, summoning sigil guide for all bosses, and acid ground detection.
