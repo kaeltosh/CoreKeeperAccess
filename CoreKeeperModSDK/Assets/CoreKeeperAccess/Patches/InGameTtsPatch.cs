@@ -38,6 +38,7 @@ namespace CoreKeeperAccess.Patches
             }
 
             Add(BuildSkillTalentInfo(element));
+            Add(BuildPetTalentInfo(element));
             Add(BuildSoulInfo(element));
             Add(FillLevelLabel(element.GetContainedObject().objectData));
             Add(BuildPetLevel(element));
@@ -254,6 +255,64 @@ namespace CoreKeeperAccess.Patches
                 return label + ", " + pct + Strings.L("vitals.percent");
             }
             catch { return null; }
+        }
+
+        // Etat d'une case de talent de familier (fenetre des talents du familier), suffixe au
+        // titre. L'arbre est BINAIRE : chaque case est achetee ou non (1 point), on gagne 1
+        // point tous les 2 niveaux du familier, et debloquer une rangee demande d'avoir deja
+        // depense assez de points (index/3). Etat exclusif :
+        //  - "achete" ;
+        //  - "verrouille, requiert N points depenses" (prerequis de rangee non rempli) ;
+        //  - "disponible" (debloque + un point en banque) ;
+        //  - "niveau de familier insuffisant" (debloque mais aucun point disponible).
+        // Tout via PetExtensions (public, pas de reflection). Null pour tout autre element.
+        private static string BuildPetTalentInfo(UIelement element)
+        {
+            if (!(element is PetTalentUIElement)) return null;
+            int index = Navigation.SlotSections.PetTalentIndexOf(element);
+            if (index < 0) return null;
+            var player = Manager.main != null ? Manager.main.player : null;
+            if (player == null) return null;
+            try
+            {
+                var contained = player.equipmentHandler.petInventoryHandler.GetContainedObjectData(0);
+                if (contained.objectID <= ObjectID.None) return null;
+
+                if (PetExtensions.HasTalent(index, contained)) return Strings.L("pettalent.bought");
+
+                int spent = PetExtensions.GetSpentTalentPoints(contained);
+                int required = index / 3; // points a avoir depenses pour debloquer la rangee
+                if (spent < required) return string.Format(Strings.L("pettalent.locked"), required);
+
+                int available = PetExtensions.GetTotalTalentPoints(contained.amount) - spent;
+                return Strings.L(available > 0 ? "talent.available" : "pettalent.needLevel");
+            }
+            catch { return null; }
+        }
+
+        // Libelle du bouton-fleche d'ouverture des talents du familier : nom de section +
+        // points a depenser (ce qui justifie d'aller dans la fenetre). Le bouton n'a pas de
+        // hover title utile, d'ou ce libelle dedie. Public : appele par InventoryNavigator.
+        public static string BuildPetTalentButtonLabel()
+        {
+            string name = Strings.L("section.pettalents");
+            try
+            {
+                var player = Manager.main != null ? Manager.main.player : null;
+                if (player != null)
+                {
+                    var contained = player.equipmentHandler.petInventoryHandler.GetContainedObjectData(0);
+                    if (contained.objectID > ObjectID.None)
+                    {
+                        int avail = PetExtensions.GetAvailableTalentPoints(contained.amount, contained);
+                        return name + ", " + (avail > 0
+                            ? string.Format(Strings.L("pettalent.spendable"), avail)
+                            : Strings.L("pettalent.nospend"));
+                    }
+                }
+            }
+            catch { }
+            return name;
         }
 
         // Tooltip standard : nom du set + compte N/total seulement — pas de ProcessText sur
@@ -648,10 +707,20 @@ namespace CoreKeeperAccess.Patches
             // Quand notre navigation a11y force la selection, c'est elle qui annonce
             // (avec le contexte de section) : on etouffe l'annonce passive.
             if (Navigation.InventoryNavState.SuppressPassiveAnnounce) return;
+            // Sur les cases de talent de familier, le curseur natif balaie les cases voisines
+            // et les bourses en arriere-plan : on coupe l'annonce passive (nos annonces utiles
+            // viennent de la nav, pas d'ici). Voir InventoryNavState.OnPetTalent.
+            if (Navigation.InventoryNavState.OnPetTalent) return;
             // BlockingUIElement = bloqueur invisible (pose par les overlays, ex. la
             // fiche de stats) ; il n'a jamais de titre lisible et le curseur manette
             // tend a deraper dessus -> on l'ignore pour ne pas lire un "Vide" parasite.
-            if (uiElement == null || uiElement.isMenuOption || uiElement is BlockingUIElement) return;
+            // Cases de talent de familier : le curseur natif les balaie en arriere-plan meme
+            // quand on navigue ailleurs (inventaire, bourses) -> "Pointeur laser" en boucle.
+            // Nos annonces de talents passent par la nav, jamais par ce postfix : on les coupe
+            // ici inconditionnellement. (Le flag OnPetTalent ci-dessus couvre le cas miroir :
+            // etouffer les bourses balayees quand on tient une case de talent.)
+            if (uiElement == null || uiElement.isMenuOption || uiElement is BlockingUIElement
+                || uiElement is PetTalentUIElement) return;
             // Boutons par joueur de l'ecran "gerer les joueurs" : annonces par notre
             // patch dedie (PlayerListEntryButton.OnSelected). Sans ce skip, ce patch
             // in-game ne sait pas les lire et ecrase l'annonce utile par un "Vide".

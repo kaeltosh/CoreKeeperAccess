@@ -93,6 +93,7 @@ namespace CoreKeeperAccess.Navigation
             // Slot de contenu de bourse sous masque : on l'expose au patch d'input AVANT
             // de lire les boutons, pour qu'il etouffe le Croix natif cette frame.
             InventoryNavState.OnMaskedSlot = IsMaskedSlot(_current);
+            InventoryNavState.OnPetTalent = _current is PetTalentUIElement;
             // Menu modal a11y (menu d'aide / reglages / saisie de nom) ouvert PAR-DESSUS
             // l'inventaire : il a la main et lit le D-pad / stick lui-meme -> on gele NOTRE
             // nav ET la roue d'actions pour ne pas piloter les deux a la fois.
@@ -544,6 +545,18 @@ namespace CoreKeeperAccess.Navigation
                 return;
             }
 
+            // Cases de talent de familier : overlay flottant qui ne tient pas non plus le
+            // curseur manette virtuel (il derive vers une case voisine -- toutes au meme nom
+            // tant que le familier n'a pas de talents -- ou vers un slot de bourse, et
+            // _current suivrait en boucle). Comme pour les bourses, on ignore le derapage et
+            // on reimpose notre selection logique en recollant le pointeur dessus, ce qui
+            // stabilise UIMouse. Un D-pad volontaire a deja mis a jour _current, donc cale.
+            if (_current is PetTalentUIElement)
+            {
+                ForceSelect(_current);
+                return;
+            }
+
             // Overlay stats ouvert mais pas encore bascule dessus (ses lignes ne sont
             // peuplees qu'une frame apres l'ouverture) : on ignore les derapages du
             // curseur (slot vide derriere l'overlay) le temps que le saut se fasse,
@@ -632,9 +645,13 @@ namespace CoreKeeperAccess.Navigation
             {
                 int idx = section.Slots.IndexOf(slot);
                 string role = SlotSections.RoleLabel(section, slot, idx);
-                string content = section.Kind == "stats"
-                    ? InGameTtsCore.BuildStatLine(slot)
-                    : InGameTtsCore.BuildElementAnnouncement(slot);
+                // Bouton d'ouverture des talents du familier : libelle dedie (nom + points a
+                // depenser), prioritaire pour garantir un compte de points a jour.
+                string content = SlotSections.IsPetTalentButton(slot)
+                    ? InGameTtsCore.BuildPetTalentButtonLabel()
+                    : section.Kind == "stats"
+                        ? InGameTtsCore.BuildStatLine(slot)
+                        : InGameTtsCore.BuildElementAnnouncement(slot);
                 // L'etoile n'a pas de hover title : libelle de repli.
                 if (string.IsNullOrEmpty(content) && SlotSections.IsStatsButton(slot))
                     content = Strings.L("section.stats");
