@@ -928,4 +928,64 @@ namespace CoreKeeperAccess.Patches
             return true;
         }
     }
+
+    // Reset de l'arbre de talents (compétences).
+    // forceReset=true = appel interne (correction données négatives) → toujours muet.
+    // Le préfixe capture CanResetTalents() AVANT que ResetTree tourne : après un reset
+    // réussi, hasPlacedAnyPoints passe à false et CanResetTalents() retournerait false
+    // même en cas de succès, ce qui rendrait le postfix aveugle.
+    [HarmonyPatch(typeof(SkillTalentTreeUI), nameof(SkillTalentTreeUI.ResetTree))]
+    internal static class SkillTalentTreeResetPatch
+    {
+        private static readonly System.Reflection.MethodInfo _canReset =
+            typeof(SkillTalentTreeUI).GetMethod("CanResetTalents",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private static bool _wasEligible;
+
+        [HarmonyPrefix]
+        public static void Prefix(SkillTalentTreeUI __instance, bool forceReset)
+            => PatchGuard.Run("A11yTalentResetPre", () =>
+        {
+            _wasEligible = false;
+            if (forceReset) return;
+            try { if (_canReset != null) _wasEligible = (bool)_canReset.Invoke(__instance, null); } catch { }
+        });
+
+        [HarmonyPostfix]
+        public static void Postfix(bool forceReset) => PatchGuard.Run("A11yTalentReset", () =>
+        {
+            if (forceReset) return;
+            TtsText.Say(_wasEligible
+                ? Strings.L("talent.reset.done")
+                : Strings.L("talent.reset.no_coins"), false);
+        });
+    }
+
+    // Idem pour les talents de familier.
+    [HarmonyPatch(typeof(PetTalentsWindow), nameof(PetTalentsWindow.ResetTree))]
+    internal static class PetTalentWindowResetPatch
+    {
+        private static readonly System.Reflection.MethodInfo _canReset =
+            typeof(PetTalentsWindow).GetMethod("CanResetTalents",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private static bool _wasEligible;
+
+        [HarmonyPrefix]
+        public static void Prefix(PetTalentsWindow __instance, bool forceReset)
+            => PatchGuard.Run("A11yPetTalentResetPre", () =>
+        {
+            _wasEligible = false;
+            if (forceReset) return;
+            try { if (_canReset != null) _wasEligible = (bool)_canReset.Invoke(__instance, null); } catch { }
+        });
+
+        [HarmonyPostfix]
+        public static void Postfix(bool forceReset) => PatchGuard.Run("A11yPetTalentReset", () =>
+        {
+            if (forceReset) return;
+            TtsText.Say(_wasEligible
+                ? Strings.L("talent.reset.done")
+                : Strings.L("talent.reset.no_coins"), false);
+        });
+    }
 }

@@ -86,6 +86,7 @@ namespace CoreKeeperAccess.Navigation
             AddElementSection<SkillUIElement>(sections, "skills");
             AddElementSection<SkillTalentUIElement>(sections, "talents");
             AddElementSection<PetTalentUIElement>(sections, "pettalents");
+            AppendTalentResetButtons(sections);
             // Onglet ames (debloque seulement si HasUnlockedSouls). Chaque SoulsUIElement
             // expose deja titre/description/effet + OnLeftClicked (toggle on/off), donc le
             // pattern generique suffit. On ecarte les emplacements sans ame (soulID None)
@@ -227,6 +228,43 @@ namespace CoreKeeperAccess.Navigation
         {
             var cw = Manager.ui != null ? Manager.ui.characterWindow : null;
             return cw != null && e != null && cw.statsButton == e;
+        }
+
+        // Boutons de réinitialisation des talents (compétences + familiers), mis en cache
+        // à chaque Build() pour IsResetButton(). Appended en queue de leur section.
+        private static readonly HashSet<UIelement> _resetButtons = new HashSet<UIelement>();
+
+        public static bool IsResetButton(UIelement e) => e != null && _resetButtons.Contains(e);
+
+        // Appende le resetButton de SkillTalentTreeUI à la section "talents" et celui de
+        // PetTalentsWindow à "pettalents", si l'arbre est ouvert et le bouton cliquable
+        // (canBeClicked = hasPlacedAnyPoints). Positionné en dernier : l'utilisateur y
+        // arrive en descendant depuis le dernier talent (navigation liste en boucle).
+        private static void AppendTalentResetButtons(List<SlotSection> sections)
+        {
+            _resetButtons.Clear();
+
+            var skillSection = sections.Find(s => s.Kind == "talents");
+            if (skillSection != null)
+            {
+                var tree = Object.FindObjectOfType<SkillTalentTreeUI>();
+                if (tree != null && tree.isShowing && tree.resetButton != null && tree.resetButton.canBeClicked)
+                {
+                    skillSection.Slots.Add(tree.resetButton);
+                    _resetButtons.Add(tree.resetButton);
+                }
+            }
+
+            var petSection = sections.Find(s => s.Kind == "pettalents");
+            if (petSection != null)
+            {
+                var pet = Object.FindObjectOfType<PetTalentsWindow>();
+                if (pet != null && pet.isShowing && pet.resetButton != null && pet.resetButton.canBeClicked)
+                {
+                    petSection.Slots.Add(pet.resetButton);
+                    _resetButtons.Add(pet.resetButton);
+                }
+            }
         }
 
         // Cree une section (mode liste) a partir de tous les UIelement d'un type donne

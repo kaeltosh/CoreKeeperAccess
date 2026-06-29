@@ -638,6 +638,8 @@ namespace CoreKeeperAccess.Navigation
                 // L'etoile n'a pas de hover title : libelle de repli.
                 if (string.IsNullOrEmpty(content) && SlotSections.IsStatsButton(slot))
                     content = Strings.L("section.stats");
+                if (string.IsNullOrEmpty(content) && SlotSections.IsResetButton(slot))
+                    content = Strings.L("talent.reset.label");
                 if (string.IsNullOrEmpty(content)) content = Strings.L("ingame.slot.empty");
                 body = string.IsNullOrEmpty(role) ? content : role + ", " + content;
 
