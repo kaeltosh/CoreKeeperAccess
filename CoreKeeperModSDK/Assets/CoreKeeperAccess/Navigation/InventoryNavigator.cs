@@ -217,6 +217,7 @@ namespace CoreKeeperAccess.Navigation
             _active = false;
             InventoryNavState.SuppressNativeInput = false;
             InventoryNavState.OnMaskedSlot = false;
+            InventoryNavState.OnPetTalent = false;
             _sections = new List<SlotSection>();
             _sectionIndex = 0;
             _current = null;
