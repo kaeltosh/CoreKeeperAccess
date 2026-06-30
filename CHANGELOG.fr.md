@@ -2,6 +2,17 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.6 (bêta ouverte) — juin 2026
+
+Drone de détection des relais de téléportation non activés, et filtre sur la liste des POI.
+
+### Ajouts
+
+- **Drone "Relais proche".** Quand un relais de téléportation non encore activé est visible à l'écran, un drone sinusoïdal pulsé se déclenche. Le panoramique indique gauche/droite, la hauteur du son indique avant/arrière. Le drone cesse dès que le relais quitte l'écran ou est activé. Ajouté à l'apprentissage des sons (catégorie Exploration).
+- **Filtre des relais dans la liste POI.** La liste des points d'intérêt de la carte masque désormais les portails et relais non encore découverts, pour être cohérente avec la carte native.
+
+---
+
 ## 1.0.5 (bêta ouverte) — juin 2026
 
 Tooltip des équipements enrichi et corrections.

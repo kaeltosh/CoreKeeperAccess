@@ -65,6 +65,7 @@ namespace CoreKeeperAccess.Controls
                 Leaf("sound.stepbeep", "sound.desc.stepbeep",
                     One(() => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume))),
                 Leaf("sound.beaconguide", "sound.desc.beaconguide", One(BeaconGuide.Preview)),
+                Leaf("sound.relaybeacon", "sound.desc.relaybeacon", () => { StopSonarPreview(); RelayBeacon.StartPreview(); }),
                 Leaf("sound.lasercreature", "sound.desc.lasercreature", One(LaserCane.PreviewPassive)),
                 Leaf("sound.laserobject", "sound.desc.laserobject", One(LaserCane.PreviewObject))));
 
@@ -115,6 +116,7 @@ namespace CoreKeeperAccess.Controls
 
         private static void StopSonarPreview()
         {
+            RelayBeacon.StopPreview();
             if (_sonarStopAt <= 0f) return;
             ProximitySonar.StopPreview();
             _sonarStopAt = 0f;
@@ -122,6 +124,7 @@ namespace CoreKeeperAccess.Controls
 
         private static void SonarPreviewTick()
         {
+            RelayBeacon.PreviewTick();
             if (_sonarStopAt > 0f && Time.unscaledTime >= _sonarStopAt) StopSonarPreview();
         }
     }

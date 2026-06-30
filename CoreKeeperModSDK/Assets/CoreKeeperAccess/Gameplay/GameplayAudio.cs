@@ -266,6 +266,8 @@ namespace CoreKeeperAccess.Gameplay
         private static AudioSource _toneSource;
         private static AudioSource _droneL, _droneR;
         private static bool _droneOn;
+        private static AudioSource _relayL, _relayR;
+        private static bool _relayOn;
         private static float[] _toneData;
         private static float[] _bossData;
         private static AudioClip[] _toneBank;
@@ -630,6 +632,29 @@ namespace CoreKeeperAccess.Gameplay
             return clip;
         }
 
+        // Pilote le drone des relais non actives. Meme mecanique que SetCenterDrone mais
+        // timbre battement 440+444 Hz. Source independante -> coexiste avec le drone de centre.
+        public static void SetRelayDrone(bool active, float pan, float pitch, float volume)
+        {
+            EnsureInit();
+            if (_relayL == null || _relayR == null) return;
+            if (!active)
+            {
+                if (_relayOn) { _relayL.Stop(); _relayR.Stop(); _relayOn = false; }
+                return;
+            }
+            if (!_relayOn) { _relayL.Play(); _relayR.Play(); _relayOn = true; }
+            float ang = (Mathf.Clamp(pan, -1f, 1f) + 1f) * Mathf.PI * 0.25f;
+            float gl = Mathf.Cos(ang), gr = Mathf.Sin(ang);
+            float p = Mathf.Clamp(pitch, 0.05f, 4f);
+            float lfo = 0.5f + 0.5f * Mathf.Sin(Time.time * 2f * Mathf.PI * 4f);
+            float v = volume * lfo * A11ySettings.MasterVolume;
+            _relayL.volume = v * gl;
+            _relayR.volume = v * gr;
+            _relayL.pitch = p;
+            _relayR.pitch = p;
+        }
+
         // Pilote le drone du repere de centre. active=false coupe. pan -1..+1 (est-ouest
         // du centre), pitch libre (nord-sud), volume tres faible. Idempotent par frame.
         public static void SetCenterDrone(bool active, float pan, float pitch, float volume)
@@ -781,6 +806,16 @@ namespace CoreKeeperAccess.Gameplay
             var droneSine = BuildLoopSine(220.0);
             _droneL.clip = BakeHardPan(droneSine, true);
             _droneR.clip = BakeHardPan(droneSine, false);
+
+            _relayL = go.AddComponent<AudioSource>();
+            _relayR = go.AddComponent<AudioSource>();
+            ConfigureSource(_relayL);
+            ConfigureSource(_relayR);
+            _relayL.loop = true;
+            _relayR.loop = true;
+            var relaySine = BuildLoopSine(440.0);
+            _relayL.clip = BakeHardPan(relaySine, true);
+            _relayR.clip = BakeHardPan(relaySine, false);
         }
     }
 }

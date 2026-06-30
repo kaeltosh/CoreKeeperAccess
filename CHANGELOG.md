@@ -2,6 +2,17 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.6 (open beta) — June 2026
+
+Relay beacon drone for unactivated teleport relays, and POI list filtering.
+
+### Additions
+
+- **"Nearby relay" drone.** When an unactivated teleport relay is visible on screen, a pulsing sine drone activates. Pan indicates left/right, pitch indicates forward/backward. The drone stops as soon as the relay leaves the screen or is activated. Added to the sound guide (Exploration category).
+- **Relay filter in POI list.** The map's point-of-interest list now hides portals and relays that haven't been discovered yet, matching the behavior of the native map.
+
+---
+
 ## 1.0.5 (open beta) — June 2026
 
 Enriched equipment tooltips and bug fixes.
