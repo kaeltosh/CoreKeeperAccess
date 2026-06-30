@@ -302,6 +302,8 @@
   "map.poi": "Points of interest",
   "map.poi.none": "no points of interest",
   "map.poi.marker": "Marker",
+  "map.poi.group.one": "1 marker",
+  "map.poi.group.many": "{0} markers",
   "map.poi.notteleport": "Not teleportable",
   "map.beacons": "My beacons",
   "map.beacons.none": "no beacons",

@@ -303,6 +303,8 @@
   "map.poi": "Points d'intérêt",
   "map.poi.none": "aucun point d'intérêt",
   "map.poi.marker": "Marqueur",
+  "map.poi.group.one": "1 marqueur",
+  "map.poi.group.many": "{0} marqueurs",
   "map.poi.notteleport": "Pas téléportable",
   "map.beacons": "Mes balises",
   "map.beacons.none": "aucune balise",
