@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.5 beta";
+    private const string ReleaseTag = "1.0.6 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -154,6 +154,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.AggroSentinel.Tick();
         CoreKeeperAccess.Gameplay.CombatSlowMotion.Tick(); // apres la sentinelle : etat de combat frais
         CoreKeeperAccess.Gameplay.SummonBeacon.Tick();     // guide sonore vers le sigil d'invocation du boss
+        CoreKeeperAccess.Gameplay.RelayBeacon.Tick();      // drone battement vers le relais non active le plus proche
         CoreKeeperAccess.Gameplay.FireProximity.Tick();    // alerte de proximite des zones de feu
         CoreKeeperAccess.Gameplay.BossAnimAlert.Tick();   // actions du boss de la ruche (tir acide, enrage, oeufs)
         // Apres le tick de tous les modules : les gardes de contexte lisent des etats

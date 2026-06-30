@@ -4,12 +4,20 @@
 
 ## 1.0.6 (open beta) — June 2026
 
-Relay beacon drone for unactivated teleport relays, and POI list filtering.
+Familiar talent tree, relay beacon drone, and POI list improvements.
 
 ### Additions
 
+- **Familiar talent tree.** Accessible from the equipment screen: press the button on your familiar's slot to open its full talent tree. Each talent shows its name and status (locked, available, or purchased). Triangle+Right purchases a talent; the points available are announced on the button. A "Reset talents" entry at the end of the list refunds all spent points, with a TTS confirmation of success or insufficient coins.
 - **"Nearby relay" drone.** When an unactivated teleport relay is visible on screen, a pulsing sine drone activates. Pan indicates left/right, pitch indicates forward/backward. The drone stops as soon as the relay leaves the screen or is activated. Added to the sound guide (Exploration category).
-- **Relay filter in POI list.** The map's point-of-interest list now hides portals and relays that haven't been discovered yet, matching the behavior of the native map.
+
+### Improvements
+
+- **POI list reorganized and filtered.** Points of interest are now sorted alphabetically by name. Activated teleport relays appear in the list. Portals and relays that haven't been discovered yet are hidden, matching the behavior of the native map.
+
+### Fixes
+
+- **Set bonus name corrected.** Armor sets were announced with their internal English identifier (e.g. "LarvaSet") instead of the localized name (e.g. "Larva Armor").
 
 ---
 

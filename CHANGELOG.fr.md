@@ -4,12 +4,20 @@
 
 ## 1.0.6 (bêta ouverte) — juin 2026
 
-Drone de détection des relais de téléportation non activés, et filtre sur la liste des POI.
+Arbre de talents du familier, drone de détection des relais, et améliorations de la liste des POI.
 
 ### Ajouts
 
+- **Arbre de talents du familier.** Accessible depuis l'équipement : appuie sur le bouton du slot du familier pour ouvrir son arbre de talents complet. Chaque talent indique son nom et son état (verrouillé, disponible ou acheté). Triangle+Droite achète un talent ; les points disponibles sont annoncés sur le bouton. Une entrée « Réinitialiser les talents » en fin de liste rembourse tous les points dépensés, avec une confirmation TTS succès ou pièces insuffisantes.
 - **Drone "Relais proche".** Quand un relais de téléportation non encore activé est visible à l'écran, un drone sinusoïdal pulsé se déclenche. Le panoramique indique gauche/droite, la hauteur du son indique avant/arrière. Le drone cesse dès que le relais quitte l'écran ou est activé. Ajouté à l'apprentissage des sons (catégorie Exploration).
-- **Filtre des relais dans la liste POI.** La liste des points d'intérêt de la carte masque désormais les portails et relais non encore découverts, pour être cohérente avec la carte native.
+
+### Améliorations
+
+- **Liste des POI réorganisée et filtrée.** Les points d'intérêt sont maintenant triés par ordre alphabétique. Les relais de téléportation déjà activés apparaissent dans la liste. Les portails et relais non encore découverts sont masqués, pour être cohérents avec la carte native.
+
+### Corrections
+
+- **Nom du set bonus corrigé.** Les ensembles d'armure s'annonçaient avec leur identifiant anglais interne (ex. : "LarvaSet") au lieu du nom localisé correct (ex. : "Armure Larve").
 
 ---
 

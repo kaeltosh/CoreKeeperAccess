@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.4 beta (build 1). Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.6 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
@@ -13,6 +13,7 @@ Current as of 1.0.4 beta (build 1). Please check this list before opening an iss
 
 ## Known bugs
 
+- **Familiar talent tree resets on world reload.** When you leave and re-enter a world, the familiar's in-memory talent data resets to its base state (a game-engine limitation). The familiar still works, but its talents are temporarily invisible to the mod. **Workaround**: pick up the familiar and place it again — this forces the game to regenerate its data correctly.
 - **A generator placed on top of an ancient wire is silent to the tile cursor.** The indestructible wire network found in the Core ruins masks the object placed on it (two passive objects, the wire's collider wins). The generator works fine; the cursor just won't name it.
 - **Notable floor tiles are sometimes announced in raw English** (internal tile name), whatever the game language. Rare: standard ground is silent by design, only special floors are affected.
 
@@ -21,7 +22,6 @@ Current as of 1.0.4 beta (build 1). Please check this list before opening an iss
 - **Item names are only spoken on the first pickup of each type.** That is native game behavior (later pickups only update a silent visual counter). A future version may hook the actual inventory insert.
 - **Light and darkness are not perceived.** Real-time lighting is shader-rendered and unreadable by the mod. Planned approach: reading light *sources* (torches as audio beacons) instead of the rendered light.
 - **No assistance to return to your place of death.** In non-Casual modes your inventory drops where you died, and nothing guides you back to it — hence the strong recommendation to play Casual (character and world), see the README.
-- **The character appearance screen (body, skin, hair…) is not adapted.** It is purely cosmetic carousel selectors; pick nothing and validate directly if you don't care about looks.
 - **Name input requires a physical keyboard.** There is no accessible on-screen keyboard for gamepad-only setups.
 
 ## Not covered yet (planned)

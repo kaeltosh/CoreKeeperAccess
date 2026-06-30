@@ -161,6 +161,10 @@
                       "guid":  "5dcaef6fd331b804c871b755c6101b9f"
                   },
                   {
+                      "path":  "Scripts/Gameplay/RelayBeacon.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Gameplay/StationCommands.cs",
                       "guid":  "bc7f64148f329e04ebfad80f83359e00"
                   },

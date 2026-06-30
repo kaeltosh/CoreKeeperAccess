@@ -85,7 +85,8 @@ namespace CoreKeeperAccess.Navigation
             // des UIelement navigables, captes comme des sections en mode liste.
             AddElementSection<SkillUIElement>(sections, "skills");
             AddElementSection<SkillTalentUIElement>(sections, "talents");
-            AddElementSection<PetTalentUIElement>(sections, "pettalents");
+            AddPetTalentSection(sections);
+            AppendTalentResetButtons(sections);
             // Onglet ames (debloque seulement si HasUnlockedSouls). Chaque SoulsUIElement
             // expose deja titre/description/effet + OnLeftClicked (toggle on/off), donc le
             // pattern generique suffit. On ecarte les emplacements sans ame (soulID None)
@@ -94,6 +95,7 @@ namespace CoreKeeperAccess.Navigation
             // Fiche de stats (overlay de l'etoile) : section a part car ses lignes ne
             // sont pas des slots mais des StatTextUIElement, avec titres de section.
             AddStatsSection(sections);
+            AppendWindowTabsToProgressViews(sections);
             return sections;
         }
 
@@ -229,6 +231,84 @@ namespace CoreKeeperAccess.Navigation
             return cw != null && e != null && cw.statsButton == e;
         }
 
+        // Boutons de réinitialisation des talents (compétences + familiers), mis en cache
+        // à chaque Build() pour IsResetButton(). Appended en queue de leur section.
+        private static readonly HashSet<UIelement> _resetButtons = new HashSet<UIelement>();
+
+        public static bool IsResetButton(UIelement e) => e != null && _resetButtons.Contains(e);
+
+        // Bouton-fleche d'ouverture des talents du familier (capte dans la section
+        // equipement). Reference rafraichie a chaque Build via AppendPetTalentButton.
+        private static UIelement _petTalentButton;
+
+        public static bool IsPetTalentButton(UIelement e) => e != null && e == _petTalentButton;
+
+        // Index reel (0..8) de chaque case de talent de familier = sa position dans la liste
+        // petTalentUIElements du jeu (UpdateTalent(i, ...) lui assigne cet index). Necessaire
+        // pour calculer l'etat (achete / prerequis de rangee), que la position a l'ecran ne
+        // donnerait pas. Rempli par AddPetTalentSection, lu par BuildPetTalentInfo.
+        private static readonly Dictionary<UIelement, int> _petTalentIndices = new Dictionary<UIelement, int>();
+
+        public static int PetTalentIndexOf(UIelement e)
+            => e != null && _petTalentIndices.TryGetValue(e, out var i) ? i : -1;
+
+        // Section des talents du familier, en LISTE, construite depuis l'ordre reel du jeu
+        // (window.petTalentUIElements) pour disposer de l'index de chaque case. Les 9 cases
+        // sont gardees meme verrouillees (parite : un voyant voit les cases grisees) ; l'etat
+        // est verbalise par BuildPetTalentInfo. N'apparait que si la fenetre est ouverte. Le
+        // resetButton est appende ensuite par AppendTalentResetButtons.
+        private static void AddPetTalentSection(List<SlotSection> sections)
+        {
+            _petTalentIndices.Clear();
+            var window = Object.FindObjectOfType<PetTalentsWindow>();
+            if (window == null || !window.isShowing || window.petTalentUIElements == null) return;
+
+            var list = new List<UIelement>();
+            for (int i = 0; i < window.petTalentUIElements.Count; i++)
+            {
+                var e = window.petTalentUIElements[i];
+                if (e == null || e.gameObject == null || !e.gameObject.activeInHierarchy || !e.isShowing) continue;
+                _petTalentIndices[e] = i;
+                list.Add(e);
+            }
+            if (list.Count == 0) return;
+
+            var section = new SlotSection { Kind = "pettalents", NameKey = NameKeys["pettalents"], IsList = true };
+            section.Slots.AddRange(list);
+            sections.Add(section);
+        }
+
+        // Appende le resetButton de SkillTalentTreeUI à la section "talents" et celui de
+        // PetTalentsWindow à "pettalents", si l'arbre est ouvert et le bouton cliquable
+        // (canBeClicked = hasPlacedAnyPoints). Positionné en dernier : l'utilisateur y
+        // arrive en descendant depuis le dernier talent (navigation liste en boucle).
+        private static void AppendTalentResetButtons(List<SlotSection> sections)
+        {
+            _resetButtons.Clear();
+
+            var skillSection = sections.Find(s => s.Kind == "talents");
+            if (skillSection != null)
+            {
+                var tree = Object.FindObjectOfType<SkillTalentTreeUI>();
+                if (tree != null && tree.isShowing && tree.resetButton != null && tree.resetButton.canBeClicked)
+                {
+                    skillSection.Slots.Add(tree.resetButton);
+                    _resetButtons.Add(tree.resetButton);
+                }
+            }
+
+            var petSection = sections.Find(s => s.Kind == "pettalents");
+            if (petSection != null)
+            {
+                var pet = Object.FindObjectOfType<PetTalentsWindow>();
+                if (pet != null && pet.isShowing && pet.resetButton != null && pet.resetButton.canBeClicked)
+                {
+                    petSection.Slots.Add(pet.resetButton);
+                    _resetButtons.Add(pet.resetButton);
+                }
+            }
+        }
+
         // Cree une section (mode liste) a partir de tous les UIelement d'un type donne
         // actuellement affiches. Sert pour les compétences / talents.
         private static void AddElementSection<T>(List<SlotSection> sections, string kind,
@@ -273,6 +353,39 @@ namespace CoreKeeperAccess.Navigation
             if (star != null && star.gameObject != null && star.gameObject.activeInHierarchy
                 && star.isShowing && !equip.Slots.Contains(star))
                 equip.Slots.Add(star);
+            AppendPetTalentButton(equip);
+        }
+
+        // Bouton-fleche d'ouverture des talents du familier, pose a la suite de la section
+        // equipement (a cote du slot familier). canBeClicked = familier equipe -> on ne le
+        // capte que dans ce cas. Croix dessus ouvre la fenetre (ToggleTalentWindow natif) ;
+        // un coup de bumper amene ensuite sur la section pettalents. _petTalentButton sert a
+        // IsPetTalentButton (libelle de repli + points a depenser dans l'annonce).
+        private static void AppendPetTalentButton(SlotSection equip)
+        {
+            _petTalentButton = null;
+            var ptw = Object.FindObjectOfType<PetTalentsWindow>();
+            var btn = ptw != null ? ptw.openTalentWindowButton : null;
+            if (btn != null && btn.gameObject != null && btn.gameObject.activeInHierarchy
+                && btn.isShowing && btn.canBeClicked && !equip.Slots.Contains(btn))
+            {
+                equip.Slots.Add(btn);
+                _petTalentButton = btn;
+            }
+        }
+
+        // Les onglets de bascule (equipement / talents joueur / ames) ne vivent que dans la
+        // section equipement -- or cet onglet DISPARAIT quand on bascule sur talents ou ames
+        // (vues mutuellement exclusives), ce qui coince sans retour possible. On les append
+        // donc aussi aux sous-vues perso pour pouvoir toujours revenir a l'equipement.
+        private static void AppendWindowTabsToProgressViews(List<SlotSection> sections)
+        {
+            var cw = Manager.ui != null ? Manager.ui.characterWindow : null;
+            if (cw == null || cw.windowTabs == null) return;
+            foreach (var sec in sections)
+                if (sec.Kind == "skills" || sec.Kind == "talents" || sec.Kind == "pettalents"
+                    || sec.Kind == "souls" || sec.Kind == "stats")
+                    AppendTabs(sec, cw.windowTabs);
         }
 
         private static void AppendTabs(SlotSection section, List<CharacterWindowTab> tabs)
