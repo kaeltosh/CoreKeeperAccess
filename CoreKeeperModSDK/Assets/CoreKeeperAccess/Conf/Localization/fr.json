@@ -241,6 +241,7 @@
   "soul.locked": "à débloquer",
   "soul.enabled": "activée",
   "soul.disabled": "désactivée",
+  "set.label": "Ensemble,",
   "set.equipped": "{0}/{1} équipées",
   "set.inactive": "inactif",
   "set.missing": "Manquant",

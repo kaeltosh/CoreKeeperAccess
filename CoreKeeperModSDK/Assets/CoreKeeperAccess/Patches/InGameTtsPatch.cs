@@ -337,8 +337,7 @@ namespace CoreKeeperAccess.Patches
                         if (player.equipmentHandler.HasNonBrokenGearPieceEquipped(piece))
                             equipped++;
 
-                string setName = SplitEnumName(setId.ToString());
-                return setName + ", " + string.Format(Strings.L("set.equipped"), equipped, total);
+                return Strings.L("set.label") + " " + string.Format(Strings.L("set.equipped"), equipped, total);
             }
             catch { return null; }
         }

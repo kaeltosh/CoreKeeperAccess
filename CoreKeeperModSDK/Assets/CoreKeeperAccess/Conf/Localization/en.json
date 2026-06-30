@@ -241,6 +241,7 @@
   "soul.locked": "to unlock",
   "soul.enabled": "enabled",
   "soul.disabled": "disabled",
+  "set.label": "Set,",
   "set.equipped": "{0}/{1} equipped",
   "set.inactive": "inactive",
   "set.missing": "Missing",
