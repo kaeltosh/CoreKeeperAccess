@@ -80,6 +80,11 @@ namespace CoreKeeperAccess.Gameplay
             || id == ObjectID.FireTrap
             || id == ObjectID.OilFireTrap
             || id == ObjectID.GroundAcidSlime
-            || id == ObjectID.HiveSpikeTrap;
+            || id == ObjectID.HiveSpikeTrap
+            // Pilier de foudre d'Azeos (BirdBossBeam) : filet de securite au contact, couvre
+            // notamment le pattern anneau (delaisse par AzeosBoss - sans canal dedie, cf.
+            // AzeosScanSystem.ClassifyWave). Deja indexe par ObjectIndex comme tout objet
+            // pose (aucun filtre EnemyCD/ProjectileCD ne l'exclut).
+            || id == ObjectID.BirdBossBeam;
     }
 }

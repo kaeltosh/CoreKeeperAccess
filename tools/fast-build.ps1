@@ -98,6 +98,13 @@ function Remove-Orphans {
             if (-not $script:deployedPaths.Contains($rel)) { Remove-Item $_.FullName -Force; $script:removed++ }
         }
     }
+    $soundsDir = Join-Path $installDir "Sounds"
+    if (Test-Path $soundsDir) {
+        Get-ChildItem $soundsDir -Filter *.wav -Recurse -File | ForEach-Object {
+            $rel = "Sounds/" + (($_.FullName.Substring($soundsDir.Length).TrimStart('\','/')) -replace '\\','/')
+            if (-not $script:deployedPaths.Contains($rel)) { Remove-Item $_.FullName -Force; $script:removed++ }
+        }
+    }
 }
 
 # MIROIR (2/2) : reecrit le champ "files" du ModManifest.json sur les fichiers REELLEMENT
@@ -112,7 +119,7 @@ function Sync-Manifest {
     }
     foreach ($f in $m.files) {
         $p = $f.path
-        $managed = ($p -like 'Conf/*') -or (($p -like 'Scripts/*') -and ($p -notmatch '(^|/)Generated/'))
+        $managed = ($p -like 'Conf/*') -or ($p -like 'Sounds/*') -or (($p -like 'Scripts/*') -and ($p -notmatch '(^|/)Generated/'))
         if (-not $managed) { $newFiles.Add([pscustomobject]@{ path = $f.path; guid = $f.guid }) }
     }
     $m.files = $newFiles
@@ -149,6 +156,17 @@ if (Test-Path $locSrc) {
         $relNorm = ($rel -replace '\\','/')
         $destFile = Join-Path (Join-Path $installDir "Localization") $rel
         Copy-One $_.FullName $destFile "Localization/$relNorm"
+    }
+}
+
+# Sounds/*.wav (charges a la volee par le mod, LoadedMod.GetFile - aucun asset Unity)
+$soundsSrc = Join-Path $ModSource "Sounds"
+if (Test-Path $soundsSrc) {
+    Get-ChildItem -Path $soundsSrc -Filter "*.wav" -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($soundsSrc.Length).TrimStart('\','/')
+        $relNorm = ($rel -replace '\\','/')
+        $destFile = Join-Path (Join-Path $installDir "Sounds") $rel
+        Copy-One $_.FullName $destFile "Sounds/$relNorm"
     }
 }
 

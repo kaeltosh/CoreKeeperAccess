@@ -157,6 +157,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.RelayBeacon.Tick();      // drone battement vers le relais non active le plus proche
         CoreKeeperAccess.Gameplay.FireProximity.Tick();    // alerte de proximite des zones de feu
         CoreKeeperAccess.Gameplay.BossAnimAlert.Tick();   // actions du boss de la ruche (tir acide, enrage, oeufs)
+        CoreKeeperAccess.Gameplay.AzeosBoss.Tick();       // combat d'Azeos (piliers/rangees/cristaux/etats)
         // Apres le tick de tous les modules : les gardes de contexte lisent des etats
         // frais (curseur detache, nav inventaire...) au moment de router les combos.
         ComboDispatcher.Tick();
