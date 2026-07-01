@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using CoreKeeperAccess.Localization;
+using CoreKeeperAccess.Patches;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -6,16 +8,15 @@ using Unity.Transforms;
 
 namespace CoreKeeperAccess.Gameplay
 {
-    // Canal sonore auquel un pilier de foudre (BirdBossBeam) a ete affecte, decide UNE FOIS
-    // a son apparition (voir AzeosScanSystem.ClassifyWave) d'apres la FORME du groupe qui
-    // spawn avec lui - jamais d'apres son etat interne (BirdBossBeamCD est confirme non
-    // replique au client : internalState/moveDirection restent figes a leur valeur de
-    // fabrication, verifie en jeu). Seuls ColonneV/LigneHaut/LigneBas ont un consommateur
-    // dedie (AzeosBoss.TickRangees). None (anneau, pattern 1) et Aleatoire (pattern 0, la
-    // "sentinelle" dediee a ete retiree - juge trop bruyante en jeu) tombent tous les deux
-    // sur le filet de securite generique FireProximity (BirdBossBeam ajoute a sa liste
-    // surveillee) - la distinction reste calculee pour un usage futur eventuel, mais aucun
-    // canal ne les consomme aujourd'hui.
+    // Canal sonore d'un pilier de foudre (BirdBossBeam). Determine EXCLUSIVEMENT depuis le
+    // ServerWorld (cf. AzeosScanSystem.ScanServer) via le comportement reel du pilier
+    // (BirdBossBeamCD.moveDirection/moveSideWays) - jamais par geometrie/statistiques sur les
+    // positions (ancienne approche, abandonnee : trop fragile face a la replication reseau
+    // qui fragmentait les vagues). BirdBossBeamCD est confirme NON REPLIQUE au ClientWorld
+    // (fige a sa valeur de fabrication) - sans ServerWorld (client distant qui rejoint la
+    // partie d'un hote), aucune distinction de forme n'est possible : tout tombe sur
+    // Aleatoire, qui partage de toute facon le meme filet de securite generique (FireProximity)
+    // que None (anneau) - aucun consommateur ne les distingue a ce jour.
     public enum AzeosBeamChannel : byte { None = 0, ColonneV = 1, LigneHaut = 2, LigneBas = 3, Aleatoire = 4 }
 
     // Pont mod <-> AzeosScanSystem pour les piliers actifs a portee.
@@ -61,35 +62,34 @@ namespace CoreKeeperAccess.Gameplay
 
     // Systeme de detection/classification pour le combat Azeos, dedie (separe de
     // TileReaderSystem pour ne pas alourdir un fichier deja consequent - meme choix que
-    // BossEggScanSystem pour la Hive Mother). Cadence 10 Hz : assez frais pour suivre un
-    // pilier qui glisse et classer une vague des sa premiere frame de spawn.
+    // BossEggScanSystem pour la Hive Mother). Cadence 10 Hz.
+    //
+    // Piliers de foudre (BirdBossBeam) : lecture DIRECTE du ServerWorld a CHAQUE poll quand on
+    // heberge (solo ou hote multi - le seul cas ou ServerWorld existe dans notre process, cf.
+    // ECSManager.StartEcs). Ni replication reseau, ni devinette geometrique : la position et le
+    // comportement (moveDirection/moveSideWays) du pilier viennent direct de la simulation qui
+    // fait autorite. Client distant (rejoint la partie d'un hote sans le mod) : ServerWorld est
+    // null chez lui, fallback minimal ci-dessous (position seule, pas de forme).
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class AzeosScanSystem : SystemBase
     {
         private const float ScanInterval = 0.1f;
-        private const float AxisTight = 1.5f;      // ecart-type max (cases) pour dire "meme axe" (ligne)
-        private const float RingMinRadius = 1f;    // sous ce rayon moyen, pas assez de recul pour juger un cercle
-        private const float RingDevRatio = 0.25f;  // ecart-type / rayon moyen sous ce seuil -> cercle net (anneau)
-        private const int MinWaveForShape = 3;     // sous ce nombre, pas assez de points -> aleatoire par defaut
+        private const int MinWaveForShape = 3;      // sous ce nombre, pas assez de points -> aleatoire par defaut
+        private const float BeamMajority = 0.7f;     // 100% attendu sur un motif structure, ~50/50 sur l'aleatoire
+        private const float AwaitTimeout = 2f;       // abandon si les piliers ne se materialisent jamais (rate)
 
         private EntityQuery _objQuery;
         private float _next;
 
-        private readonly HashSet<long> _knownBeamKeys = new HashSet<long>();
-        private readonly Dictionary<long, AzeosBeamChannel> _beamChannel = new Dictionary<long, AzeosBeamChannel>();
-        private readonly HashSet<long> _currentBeamKeys = new HashSet<long>();
+        // Etat d'attaque du boss (screech + armement de la classification).
+        private int _prevSpawnBeamsState = -1;
+        private bool _awaitingServerWave;
+        private float _awaitingSince;
 
-        // Vague en attente de classification : les ~30 piliers d'une meme vague n'arrivent
-        // PAS tous au client dans le meme tick reseau (replication etalee sur plusieurs
-        // snapshots) - classer des paquets de 1-2 piliers a la fois les fait tous tomber par
-        // defaut dans "aleatoire" (bug constate en jeu). On accumule donc une COURTE fenetre
-        // (WaveWindow) depuis le 1er pilier vu avant de juger la forme du groupe complet.
-        // Sans risque : les piliers restent IMMOBILES pendant tout le telegraphe (~1,1-1,3s,
-        // confirme en jeu), tres au-dela de cette fenetre - la position captee a la 1re vue
-        // reste valide au moment du flush.
-        private const float WaveWindow = 0.3f;
-        private readonly List<(long key, float2 pos)> _pendingWave = new List<(long, float2)>();
-        private float _pendingDeadline;
+        // Classification des piliers, cle = entite SERVEUR (ServerWorld only).
+        private readonly Dictionary<long, AzeosBeamChannel> _serverBeamChannel = new Dictionary<long, AzeosBeamChannel>();
+        private readonly HashSet<long> _pendingKeys = new HashSet<long>();
+        private readonly List<(long key, float2 pos, float3 dir, bool sideways)> _pendingBatch = new List<(long, float2, float3, bool)>();
 
         protected override void OnCreate()
         {
@@ -108,9 +108,9 @@ namespace CoreKeeperAccess.Gameplay
 
         private void Scan(float now)
         {
-            _currentBeamKeys.Clear();
+            var serverWorld = Manager.ecs != null ? Manager.ecs.ServerWorld : null;
+            bool hosting = serverWorld != null && serverWorld.IsCreated;
 
-            int beamCount = 0;
             int stoneCount = 0;
             bool bossFound = false; float2 bossPos = default; bool hasAppeared = false; bool enraged = false;
 
@@ -119,24 +119,13 @@ namespace CoreKeeperAccess.Gameplay
             {
                 var od = EntityManager.GetComponentData<ObjectDataCD>(e);
 
-                if (od.objectID == ObjectID.BirdBossBeam)
+                if (od.objectID == ObjectID.BirdBossStone)
                 {
                     if (!EntityManager.HasComponent<LocalTransform>(e)) continue;
-                    var pos3 = EntityManager.GetComponentData<LocalTransform>(e).Position;
-                    float2 pos = new float2(pos3.x, pos3.z);
-                    long key = EntityKey.Of(e);
-                    _currentBeamKeys.Add(key);
-                    if (_knownBeamKeys.Add(key))
-                    {
-                        if (_pendingWave.Count == 0) _pendingDeadline = now + WaveWindow;
-                        _pendingWave.Add((key, pos));
-                    }
-                    if (beamCount < AzeosBeamScan.MaxBeams && _beamChannel.TryGetValue(key, out var ch))
-                        AzeosBeamScan.Beams[beamCount++] = new AzeosBeamScan.Beam { Key = key, Pos = pos, Channel = ch };
-                }
-                else if (od.objectID == ObjectID.BirdBossStone)
-                {
-                    if (!EntityManager.HasComponent<LocalTransform>(e)) continue;
+                    // Cadavre ecarte : vie a zero mais entite encore presente ~2s (destroyTimer
+                    // natif, cf. SetEntitiesDestroyedSystem) le temps de l'anim de destruction.
+                    if (EntityManager.HasComponent<HealthCD>(e)
+                        && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
                     if (stoneCount >= AzeosStoneScan.MaxStones) continue;
                     var pos3 = EntityManager.GetComponentData<LocalTransform>(e).Position;
                     bool active = EntityManager.HasComponent<HealNearbyEntitiesCD>(e)
@@ -161,39 +150,11 @@ namespace CoreKeeperAccess.Gameplay
                     if (EntityManager.HasComponent<EnrageStateCD>(e))
                         enraged = EntityManager.GetComponentData<EnrageStateCD>(e).isEnraged;
                 }
+                // BirdBossBeam n'est PLUS lu ici : cf. ScanServer (ServerWorld) / fallback client.
             }
             ents.Dispose();
 
-            // Nettoyage des piliers disparus (detruits en fin de vie) : evite une fuite lente
-            // des dictionnaires/sets au fil des vagues d'un combat qui dure.
-            _knownBeamKeys.RemoveWhere(k => !_currentBeamKeys.Contains(k));
-            if (_beamChannel.Count > 0)
-            {
-                var stale = new List<long>();
-                foreach (var kv in _beamChannel)
-                    if (!_currentBeamKeys.Contains(kv.Key)) stale.Add(kv.Key);
-                foreach (var k in stale) _beamChannel.Remove(k);
-            }
-
-            // Flush de la vague en attente une fois la fenetre ecoulee (cf. commentaire sur
-            // _pendingWave) : classification PAR SA FORME (positions de spawn brutes, avant
-            // tout mouvement) - jamais par un champ d'etat du jeu (non fiable, cf. commentaire
-            // AzeosBeamChannel). Injectee ensuite dans le tableau publie de cette meme frame
-            // (ces piliers n'y etaient pas encore lors du remplissage ci-dessus, TryGetValue
-            // avait echoue faute d'entree dans _beamChannel).
-            if (_pendingWave.Count > 0 && now >= _pendingDeadline)
-            {
-                if (_pendingWave.Count >= MinWaveForShape) ClassifyWave(_pendingWave);
-                else foreach (var nb in _pendingWave) _beamChannel[nb.key] = AzeosBeamChannel.Aleatoire;
-
-                foreach (var nb in _pendingWave)
-                {
-                    if (beamCount >= AzeosBeamScan.MaxBeams) break;
-                    if (_beamChannel.TryGetValue(nb.key, out var ch2))
-                        AzeosBeamScan.Beams[beamCount++] = new AzeosBeamScan.Beam { Key = nb.key, Pos = nb.pos, Channel = ch2 };
-                }
-                _pendingWave.Clear();
-            }
+            int beamCount = hosting ? ScanServer(serverWorld, now) : ScanClientBeamsFallback();
 
             AzeosBeamScan.Count = beamCount;
             AzeosBeamScan.ResultValid = true;
@@ -207,59 +168,174 @@ namespace CoreKeeperAccess.Gameplay
             AzeosBossScan.Enraged = enraged;
         }
 
-        // Forme du groupe qui vient d'apparaitre ensemble (meme frame de spawn) :
-        //  - ecart-type de X quasi nul, Z variable -> ligne VERTICALE (rangee V, pattern 3)
-        //    -> canal colonne (pan est-ouest).
-        //  - ecart-type de Z quasi nul, X variable -> ligne HORIZONTALE (rangee H, pattern 2)
-        //    -> canal ligne du dessus OU du dessous selon la position du groupe par rapport
-        //    au joueur au moment du spawn.
-        //  - ni l'un ni l'autre : distances au centroide quasi CONSTANTES -> anneau
-        //    (pattern 1), delibrement SANS canal dedie (laisse a FireProximity, cf. tache
-        //    "brancher BirdBossBeam sur FireProximity").
-        //  - sinon : disperse -> aleatoire (pattern 0), file de bips dediee cote AzeosBoss.
-        private void ClassifyWave(List<(long key, float2 pos)> wave)
+        // Fallback client distant (pas d'hote local) : aucune forme lisible (BirdBossBeamCD figee,
+        // non repliquee) - juste la position brute, canal Aleatoire uniforme pour le filet de
+        // securite generique (FireProximity). Pas de bookkeeping de vague : rien a classer.
+        private int ScanClientBeamsFallback()
         {
-            float2 centroid = float2.zero;
-            foreach (var w in wave) centroid += w.pos;
-            centroid /= wave.Count;
-
-            float sumX2 = 0f, sumZ2 = 0f;
-            foreach (var w in wave)
+            int count = 0;
+            var ents = _objQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in ents)
             {
-                float dx = w.pos.x - centroid.x, dz = w.pos.y - centroid.y;
-                sumX2 += dx * dx; sumZ2 += dz * dz;
+                if (count >= AzeosBeamScan.MaxBeams) break;
+                var od = EntityManager.GetComponentData<ObjectDataCD>(e);
+                if (od.objectID != ObjectID.BirdBossBeam) continue;
+                if (!EntityManager.HasComponent<LocalTransform>(e)) continue;
+                var pos3 = EntityManager.GetComponentData<LocalTransform>(e).Position;
+                AzeosBeamScan.Beams[count++] = new AzeosBeamScan.Beam
+                {
+                    Key = EntityKey.Of(e),
+                    Pos = new float2(pos3.x, pos3.z),
+                    Channel = AzeosBeamChannel.Aleatoire,
+                };
             }
-            float stdX = Unity.Mathematics.math.sqrt(sumX2 / wave.Count);
-            float stdZ = Unity.Mathematics.math.sqrt(sumZ2 / wave.Count);
+            ents.Dispose();
+            return count;
+        }
 
-            AzeosBeamChannel channel;
-            if (stdX < AxisTight && stdZ >= AxisTight)
+        // Coeur de la classification (ServerWorld uniquement) :
+        //  - moveSideWays == true sur un pilier => motif 1 (anneau), decide par le jeu lui-meme,
+        //    aucune ambiguite possible.
+        //  - sinon, l'axe DOMINANT du moveDirection (X ou Z, chaque pilier tire un cardinal exact,
+        //    cf. BirdBossSpawnBeamsJob) tranche colonne/ligne. Un motif structure (2 ou 3) a TOUS
+        //    ses piliers sur le MEME axe ; l'aleatoire (motif 0) pioche parmi les 4 cardinaux
+        //    independamment par pilier (GetRandomBeamMoveDirection) => environ moitie X, moitie Z,
+        //    jamais une majorite nette.
+        private AzeosBeamChannel ClassifyShapeFromBeamData(List<(long key, float2 pos, float3 dir, bool sideways)> beams)
+        {
+            int n = beams.Count;
+            int ringN = 0, xN = 0, zN = 0;
+            foreach (var b in beams)
             {
-                channel = AzeosBeamChannel.ColonneV;
+                if (b.sideways) { ringN++; continue; }
+                if (math.abs(b.dir.x) > math.abs(b.dir.z)) xN++; else zN++;
             }
-            else if (stdZ < AxisTight && stdX >= AxisTight)
+
+            if (ringN >= n * BeamMajority) return AzeosBeamChannel.None;
+            if (xN >= n * BeamMajority) return AzeosBeamChannel.ColonneV;
+            if (zN >= n * BeamMajority)
             {
+                float2 centroid = float2.zero;
+                foreach (var b in beams) centroid += b.pos;
+                centroid /= n;
                 float2 player = ObjectIndex.Center;
-                channel = (centroid.y > player.y) ? AzeosBeamChannel.LigneHaut : AzeosBeamChannel.LigneBas;
+                return (centroid.y > player.y) ? AzeosBeamChannel.LigneHaut : AzeosBeamChannel.LigneBas;
             }
+            return AzeosBeamChannel.Aleatoire;
+        }
+
+        // Lit le ServerWorld A CHAQUE poll (non-nul UNIQUEMENT si on heberge, cf. ECSManager.
+        // StartEcs) : position ET comportement du pilier viennent direct de la simulation qui
+        // fait autorite, sans replication ni devinette. Deux usages du champ prive
+        // BirdBossSpawnBeamsStateCD.internalState (jamais reppliqu au client) :
+        //  - 0 -> 1 : le cri de telegraphe vient de partir -> alerte precoce (avant meme que
+        //    les piliers n'existent).
+        //  - franchissement de 2 : les piliers viennent d'etre crees -> armement de la fenetre
+        //    de classification (_awaitingServerWave). Le lot est classe des qu'on a assez de
+        //    piliers NON ENCORE connus (_serverBeamChannel) ou apres un delai d'abandon.
+        private int ScanServer(Unity.Entities.World serverWorld, float now)
+        {
+            var em = serverWorld.EntityManager;
+
+            var stateQuery = Manager.ecs.GetServerEntityQuery(typeof(BirdBossSpawnBeamsStateCD), typeof(StateInfoCD));
+            var stateEnts = stateQuery.ToEntityArray(Allocator.Temp);
+            bool inSpawnBeamsState = false;
+            int internalState = -1;
+            if (stateEnts.Length > 0)
+            {
+                var stateInfo = em.GetComponentData<StateInfoCD>(stateEnts[0]);
+                inSpawnBeamsState = stateInfo.IsCurrentState(StateID.BirdBossSpawnBeams);
+                if (inSpawnBeamsState) internalState = em.GetComponentData<BirdBossSpawnBeamsStateCD>(stateEnts[0]).internalState;
+            }
+            stateEnts.Dispose();
+
+            if (!inSpawnBeamsState) { _prevSpawnBeamsState = -1; }
             else
             {
-                float sumDist = 0f;
-                var dists = new float[wave.Count];
-                for (int i = 0; i < wave.Count; i++)
+                if (internalState == 1 && _prevSpawnBeamsState == 0)
+                    TtsText.Say(Strings.L("boss.azeos.beams_incoming"), true);
+
+                // Franchissement (pas juste ==2) : si notre poll (10 Hz) saute par-dessus
+                // l'etat 1, on arme quand meme des qu'on constate qu'on y est deja.
+                if (internalState >= 2 && _prevSpawnBeamsState < 2)
                 {
-                    dists[i] = math.length(wave[i].pos - centroid);
-                    sumDist += dists[i];
+                    _awaitingServerWave = true;
+                    _awaitingSince = now;
+                    _pendingBatch.Clear();
+                    _pendingKeys.Clear();
                 }
-                float meanDist = sumDist / wave.Count;
-                float sumDevSq = 0f;
-                foreach (var d in dists) { float dd = d - meanDist; sumDevSq += dd * dd; }
-                float stdDist = Unity.Mathematics.math.sqrt(sumDevSq / wave.Count);
-                bool isRing = meanDist > RingMinRadius && (stdDist / meanDist) < RingDevRatio;
-                channel = isRing ? AzeosBeamChannel.None : AzeosBeamChannel.Aleatoire;
+                _prevSpawnBeamsState = internalState;
             }
 
-            foreach (var w in wave) _beamChannel[w.key] = channel;
+            var objQuery = Manager.ecs.GetServerEntityQuery(typeof(ObjectDataCD));
+            var objEnts = objQuery.ToEntityArray(Allocator.Temp);
+            var currentKeys = new HashSet<long>();
+            int count = 0;
+            foreach (var se in objEnts)
+            {
+                var sod = em.GetComponentData<ObjectDataCD>(se);
+                if (sod.objectID != ObjectID.BirdBossBeam) continue;
+                if (!em.HasComponent<LocalTransform>(se) || !em.HasComponent<BirdBossBeamCD>(se)) continue;
+
+                long key = EntityKey.Of(se);
+                currentKeys.Add(key);
+                var p3 = em.GetComponentData<LocalTransform>(se).Position;
+                var pos = new float2(p3.x, p3.z);
+
+                if (!_serverBeamChannel.TryGetValue(key, out var channel))
+                {
+                    if (_awaitingServerWave)
+                    {
+                        if (_pendingKeys.Add(key))
+                        {
+                            var beamCD = em.GetComponentData<BirdBossBeamCD>(se);
+                            _pendingBatch.Add((key, pos, beamCD.moveDirection, beamCD.moveSideWays));
+                        }
+                        channel = AzeosBeamChannel.Aleatoire; // provisoire, ecrase des que le lot est tranche
+                    }
+                    else
+                    {
+                        // Pilier non classe hors fenetre d'attente (cas limite : ne devrait pas
+                        // arriver, l'armement precede toujours la creation) - filet generique.
+                        channel = AzeosBeamChannel.Aleatoire;
+                        _serverBeamChannel[key] = channel;
+                    }
+                }
+
+                if (count < AzeosBeamScan.MaxBeams)
+                    AzeosBeamScan.Beams[count++] = new AzeosBeamScan.Beam { Key = key, Pos = pos, Channel = channel };
+            }
+            objEnts.Dispose();
+
+            if (_serverBeamChannel.Count > 0)
+            {
+                var stale = new List<long>();
+                foreach (var kv in _serverBeamChannel) if (!currentKeys.Contains(kv.Key)) stale.Add(kv.Key);
+                foreach (var k in stale) _serverBeamChannel.Remove(k);
+            }
+
+            if (_awaitingServerWave)
+            {
+                if (_pendingBatch.Count >= MinWaveForShape)
+                {
+                    var channel = ClassifyShapeFromBeamData(_pendingBatch);
+                    foreach (var b in _pendingBatch) _serverBeamChannel[b.key] = channel;
+                    Diag.Log("A11yAzeosWave", "vague de " + _pendingBatch.Count + " pilier(s) -> canal " + channel);
+                    GameplayAudio.PlayAzeosShapeCallout(channel);
+                    _awaitingServerWave = false;
+                    _pendingBatch.Clear();
+                    _pendingKeys.Clear();
+                }
+                else if (now - _awaitingSince > AwaitTimeout)
+                {
+                    foreach (var b in _pendingBatch) _serverBeamChannel[b.key] = AzeosBeamChannel.Aleatoire;
+                    _awaitingServerWave = false;
+                    _pendingBatch.Clear();
+                    _pendingKeys.Clear();
+                }
+            }
+
+            return count;
         }
     }
 }

@@ -607,6 +607,7 @@
   "boss.azeos.land": "Azeos lands!",
   "boss.azeos.teleport": "Azeos vanishes!",
   "boss.azeos.enrage": "Azeos enrages!",
+  "boss.azeos.beams_incoming": "Azeos screeches, lightning incoming!",
   "boss.azeos.crystal_contact": "Crystal in range",
   "boss.azeos.crystal_contact_urgent": "Active crystal in range!",
   "sound.fire": "Fire nearby",

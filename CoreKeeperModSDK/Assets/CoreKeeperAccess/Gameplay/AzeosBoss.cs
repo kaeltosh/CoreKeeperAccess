@@ -11,11 +11,12 @@ namespace CoreKeeperAccess.Gameplay
     // "Azeos the Sky Titan (BirdBoss) - reference a11y".
     internal static class AzeosBoss
     {
-        // Juges trop faibles a l'oreille (test en jeu) : montes par rapport au 0.5 de depart.
-        // Marge de securite : sons foudre normalises a crete -6 dBFS (0.5) -> x1.0 reste sous
-        // 1.0 plein-echelle. Balise cristal = sinus GENERE plein-echelle -> reste a 0.28/0.45.
-        private const float ColonneVolume = 1.0f;
-        private const float LigneVolume = 1.0f;
+        // Juges encore trop faibles a l'oreille (2e test en jeu) : montes a fond de marge.
+        // Sons foudre normalises a crete -6 dBFS (0.5) -> x2.0 atteint pile 1.0 plein-echelle,
+        // sans saturation (normalisation exacte, pas un plafond approximatif). Balise cristal
+        // = sinus GENERE plein-echelle -> reste a 0.28/0.45.
+        private const float ColonneVolume = 2.0f;
+        private const float LigneVolume = 2.0f;
         private const float CristalGuideVolume = 0.28f;
         private const float CristalUrgentVolume = 0.45f;
         // Pan/pitch EXAGERES en 3 positions par axe (gauche/centre/droite, haut/centre/bas)

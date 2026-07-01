@@ -429,10 +429,15 @@ namespace CoreKeeperAccess.Gameplay
                     // Stalagmite / OasisStalagmite : decor de terrain pur, jamais interactif
                     // ni minable (confirme en jeu) - exclues ICI seulement (le faisceau les
                     // ignore) pour ne pas accrocher/biper en rafale dans les zones ou elles
-                    // s'entassent (ex. arene d'Azeos). L'index partage n'est pas touche :
-                    // le sonar de proximite et les autres consommateurs les voient toujours.
+                    // s'entassent (ex. arene d'Azeos). BirdBossBeam (pilier de foudre) : deja
+                    // sonorise en dedie (colonne/lignes, AzeosBoss.TickRangees) + filet
+                    // FireProximity - le laser n'a rien a y ajouter, exclu pour ne pas biper
+                    // en double/rafale au passage du faisceau dans une vague. L'index partage
+                    // n'est pas touche : le sonar de proximite et les autres consommateurs les
+                    // voient toujours.
                     if (!foundPassive && ObjectIndex.TryGet(c, out var entry)
-                        && entry.Id != ObjectID.Stalagmite && entry.Id != ObjectID.OasisStalagmite)
+                        && entry.Id != ObjectID.Stalagmite && entry.Id != ObjectID.OasisStalagmite
+                        && entry.Id != ObjectID.BirdBossBeam)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);

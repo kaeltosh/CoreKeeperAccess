@@ -608,6 +608,7 @@
   "boss.azeos.land": "Azeos atterrit !",
   "boss.azeos.teleport": "Azeos disparaît !",
   "boss.azeos.enrage": "Azeos s'enrage !",
+  "boss.azeos.beams_incoming": "Azeos crie, foudre imminente !",
   "boss.azeos.crystal_contact": "Cristal à portée",
   "boss.azeos.crystal_contact_urgent": "Cristal actif à portée !",
   "sound.fire": "Feu à proximité",
