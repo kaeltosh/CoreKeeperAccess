@@ -561,9 +561,12 @@ namespace CoreKeeperAccess.Gameplay
                 float2 center = ObjectIndex.Center;
                 float r2 = IndexRadius * IndexRadius;
 
-                // Repere de centre : on capte au passage la SummonArea (sigil
-                // d'invocation = centre de l'arene de boss) la plus proche, sans
-                // scan dedie (ce balayage d'objets tourne deja a ~4 Hz).
+                // Repere de centre : on capte au passage la SummonArea ET tout
+                // BossSpawnLocationCD (sigil d'invocation = centre de l'arene de boss)
+                // les plus proches, sans scan dedie (ce balayage d'objets tourne deja
+                // a ~4 Hz). Les Titans (Azeos...) utilisent BossSpawnLocationCD, une
+                // entite normale repliquee client - contrairement a SummonArea (sol de
+                // salle, lu via ServerWorld plus bas), donc capturee ICI directement.
                 bool caFound = false; float caBest = float.MaxValue; float2 caPos = default;
                 var ents = _objQuery.ToEntityArray(Allocator.Temp);
                 foreach (var e in ents)
@@ -593,6 +596,22 @@ namespace CoreKeeperAccess.Gameplay
 
                     if (od.objectID == ObjectID.SummonArea)
                         continue; // sol de la salle : position via ServerWorld uniquement
+
+                    // Titans (Azeos...) : BossSpawnLocationCD remplace SummonArea. Meme
+                    // traitement que la rune classique - centre de drone + annonce "Rune
+                    // d'invocation" injectee plus bas, PAS le nom brut (SplitEnumName sur
+                    // "BirdBossSpawnLocation" etc. - invisible pour un voyant, marqueur
+                    // technique de spawn uniquement).
+                    if (EntityUtility.HasComponentData<BossSpawnLocationCD>(e, World))
+                    {
+                        var bsl = EntityUtility.GetComponentData<BossSpawnLocationCD>(e, World);
+                        if (bsl.bossID != ObjectID.None)
+                        {
+                            float bd2 = math.lengthsq(p - center);
+                            if (bd2 < caBest) { caBest = bd2; caPos = p; caFound = true; }
+                        }
+                        continue;
+                    }
 
                     int2 size;
                     int2 corner;
