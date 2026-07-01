@@ -426,7 +426,13 @@ namespace CoreKeeperAccess.Gameplay
                     // (gratuit, couvre aussi les objets sans collider ; rayon d'index 24 >
                     // portee 12, tout le faisceau est couvert). Une creature deja accrochee
                     // garde la main (plus saillante qu'un objet immobile).
-                    if (!foundPassive && ObjectIndex.TryGet(c, out var entry))
+                    // Stalagmite / OasisStalagmite : decor de terrain pur, jamais interactif
+                    // ni minable (confirme en jeu) - exclues ICI seulement (le faisceau les
+                    // ignore) pour ne pas accrocher/biper en rafale dans les zones ou elles
+                    // s'entassent (ex. arene d'Azeos). L'index partage n'est pas touche :
+                    // le sonar de proximite et les autres consommateurs les voient toujours.
+                    if (!foundPassive && ObjectIndex.TryGet(c, out var entry)
+                        && entry.Id != ObjectID.Stalagmite && entry.Id != ObjectID.OasisStalagmite)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);

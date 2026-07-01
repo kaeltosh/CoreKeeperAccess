@@ -1037,6 +1037,14 @@ namespace CoreKeeperAccess.Gameplay
         private void DumpAutomation()
         {
             int2 tile = AutomationDiag.Tile;
+            // Etat RESOLU de la case (ce que le joueur entend) : HasWall/WallType prime sur
+            // ObjectId dans SonifyTile/AnnounceCursorDetails - le voir ici permet de savoir SI
+            // la case est encore classee bloquante (pit/eau) au moment du dump, avant meme de
+            // regarder les entites brutes ci-dessous.
+            Diag.Log("A11yAutoDiag", "case " + tile.x + "," + tile.y
+                + " HasWall=" + TileQuery.HasWall + " WallType=" + TileQuery.WallType
+                + " ObjectId=" + TileQuery.ObjectId + " Interactable=" + TileQuery.ObjectInteractable
+                + " IsImmune=" + TileQuery.IsImmune);
             // On dumpe TOUTES les entites-objets dont la case-centre tombe sur la case visee
             // (pas seulement la gagnante de l'index) : c'est la seule facon de voir le cable
             // ET la machine posee dessus, le sens reel, l'orientation, le type d'automation.
