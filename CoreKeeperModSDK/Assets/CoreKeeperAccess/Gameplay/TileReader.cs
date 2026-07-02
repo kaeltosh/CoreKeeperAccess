@@ -183,6 +183,23 @@ namespace CoreKeeperAccess.Gameplay
         public static readonly int[] ObjDist = new int[4];
     }
 
+    // Pont du detecteur de collision directionnel (etage 3 navigation, stick gauche). Le mod
+    // pose une demande (case du joueur, direction NORMALISEE de l'intention de marche, portee
+    // en cases) ; le systeme avance le long de la direction (DDA, meme technique que la canne
+    // laser) et publie la distance du premier infranchissable (mur/pit/eau), ou Found=false si
+    // la portee est franche.
+    internal static class CollisionScan
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static float2 Direction;
+        public static float MaxRange;
+
+        public static bool ResultValid;
+        public static bool Found;
+        public static float Dist;
+    }
+
     // Pont détecteur de sol dangereux (sol vaseux acide...). Scanné en continu à ~10 Hz
     // par TileReaderSystem : carré 5×5 via TileAccessor + PugDatabase.TryGetTileItemInfo
     // pour identifier le tileset sans hardcoder sa valeur numérique. FireProximity lit
@@ -451,6 +468,23 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     SonarScan.ResultValid = true;
                     Diag.Error("A11ySonarDiag", ex);
+                }
+            }
+
+            // Detecteur de collision directionnel : DDA a la demande (independant du curseur).
+            if (CollisionScan.Requested)
+            {
+                CollisionScan.Requested = false;
+                try
+                {
+                    var taCol = new TileAccessor(ref CheckedStateRef, true);
+                    ScanCollision(ref taCol);
+                }
+                catch (System.Exception ex)
+                {
+                    CollisionScan.Found = false;
+                    CollisionScan.ResultValid = true;
+                    Diag.Error("A11yCollisionDiag", ex);
                 }
             }
 
@@ -914,6 +948,45 @@ namespace CoreKeeperAccess.Gameplay
                 SonarScan.ObjDist[d] = objDist;
             }
             SonarScan.ResultValid = true;
+        }
+
+        // Detecteur de collision directionnel (stick gauche) : avance case par case (DDA, meme
+        // pas d'echantillonnage 0.34 que la canne laser) dans Direction, jusqu'a MaxRange.
+        // S'arrete au premier INFRANCHISSABLE (mur ou pit/eau - TryGetBlockingTile(...,true)
+        // couvre les deux, comme le sonar de proximite) : distance CONTINUE (pas arrondie a la
+        // case) pour un calcul de volume fin cote mod.
+        private const float CollisionStep = 0.34f;
+
+        private static void ScanCollision(ref TileAccessor ta)
+        {
+            int2 c = CollisionScan.Center;
+            float2 dir = CollisionScan.Direction;
+            float maxRange = CollisionScan.MaxRange;
+            float2 origin = new float2(c.x, c.y);
+
+            int2 last = c;
+            bool found = false;
+            float dist = 0f;
+
+            for (float dd = CollisionStep; dd <= maxRange + 0.001f; dd += CollisionStep)
+            {
+                int2 t = new int2(
+                    (int)math.round(origin.x + dir.x * dd),
+                    (int)math.round(origin.y + dir.y * dd));
+                if (t.Equals(last)) continue;
+                last = t;
+
+                if (ta.TryGetBlockingTile(t, out _, true))
+                {
+                    found = true;
+                    dist = dd;
+                    break;
+                }
+            }
+
+            CollisionScan.Found = found;
+            CollisionScan.Dist = dist;
+            CollisionScan.ResultValid = true;
         }
 
         // Scanne le carré 5×5 autour du joueur pour détecter les sols dangereux
