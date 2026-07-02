@@ -106,6 +106,25 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.InWorld && !InputContext.MenuOpen,
                 CoreKeeperAccess.Settings.SettingsMenu.Open, "cmd.settings");
 
+            // Triangle + Rond = saut direct a la barre 1, slot 1. Le bouton est bloque cote
+            // natif quelle que soit son action (TriangleModifier.CircleActionIds +
+            // NativeInputSuppressionPatch), donc pas de double-declenchement a craindre.
+            // PIEGE (casse la barre en boucle si oublie) : hotbarStartIndex ET
+            // equippedSlotIndex doivent rester coherents a chaque instant - EquipSlot lit
+            // equippedSlotIndex - hotbarStartIndex des sa 1re ligne (IsAnySlotEquipped) AVANT
+            // de rien ecrire. Changer hotbarStartIndex seul laisse un equippedSlotIndex perime
+            // (ex. barre 2) hors bornes -> exception a CHAQUE frame ensuite (UpdateHitArea).
+            // On remet donc equippedSlotIndex a jour AVANT d'appeler EquipSlot.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Circle,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    var p = Player();
+                    p.hotbarStartIndex = 0;
+                    p.hotbarEndIndex = 10;
+                    p.equippedSlotIndex = 0;
+                    p.EquipSlot(0);
+                }, "cmd.hotbar.jumpfirst");
+
             // Double-tap Triangle = ouvrir/fermer la carte : on rejoue l'action native
             // TOGGLE_MAP (dont on a confisque le bouton) via l'armement d'input - le
             // jeu fait le reste (toggle, fermeture au B aussi).

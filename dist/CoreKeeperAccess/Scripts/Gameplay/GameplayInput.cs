@@ -39,7 +39,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void Tick()
         {
             var player = Manager.main != null ? Manager.main.player : null;
-            if (player == null) { ProximitySonar.Stop(); _prospectPending = false; return; }
+            if (player == null) { ProximitySonar.Stop(); CollisionRadar.Stop(); _prospectPending = false; return; }
 
             // Centre de l'index d'objets (TileReaderSystem le reconstruit autour).
             ObjectIndex.Center = new float2(player.WorldPosition.x, player.WorldPosition.z);
@@ -68,8 +68,10 @@ namespace CoreKeeperAccess.Gameplay
             PingSonar.Tick(player);
             StepEngine.Tick(player);
             ProximitySonar.Tick(player);
+            CollisionRadar.Tick(player);
             PlacementReader.Tick(player);
             StatsWheel.Tick(player);
+            HotbarJumpWheel.Tick(player);
 
             // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
             // (BuildModeNavigator pose FootprintDueAt), annonce apres un petit delai - le

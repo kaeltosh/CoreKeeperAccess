@@ -15,11 +15,19 @@ namespace CoreKeeperAccess.Controls
     {
         private const int ToggleMapActionId = 55;  // RewiredConsts.Action.ToggleMap
         private const int RotateActionId = 207;    // RewiredConsts.Action.Rotate (sur Croix en placement)
+        private const int CirclePhysicalId = 7;    // Rond/B (id physique template Rewired Gamepad)
 
         // Id physique du bouton Triangle, capte automatiquement depuis le binding de la carte
         // avant qu'on le supprime -> juste pour la manette reelle du joueur (PS/Xbox/...), pas
         // de valeur en dur. -1 tant que pas encore capte.
         public static int TriangleButtonId = -1;
+
+        // Actions natives actuellement liees au bouton physique Rond, recapturees chaque
+        // seconde comme TriangleButtonId : sert a bloquer TOUT ce qui est sur ce bouton
+        // pendant Triangle+Rond (roue de saut, cf. ComboBindings/NativeInputSuppressionPatch),
+        // quel que soit le nom de l'action. On NE retire PAS le binding (contrairement a
+        // ToggleMap/Rotate) : Rond garde son usage normal hors Triangle.
+        public static readonly HashSet<int> CircleActionIds = new HashSet<int>();
 
         private static float _nextCheck;
 
@@ -36,6 +44,7 @@ namespace CoreKeeperAccess.Controls
             if (Time.unscaledTime < _nextCheck) return;
             _nextCheck = Time.unscaledTime + 1f; // cout negligeable : balayage une fois/seconde
 
+            CircleActionIds.Clear();
             var toDelete = new List<int>();
             foreach (var player in ReInput.players.AllPlayers)
             {
@@ -53,6 +62,8 @@ namespace CoreKeeperAccess.Controls
                         // Rotate (207) : retiree de la manette pour que Croix ne pivote plus
                         // un objet par accident. On la rejoue via Triangle + R1 (armement).
                         else if (aem.actionId == RotateActionId) toDelete.Add(aem.id);
+
+                        if (aem.elementIdentifierId == CirclePhysicalId) CircleActionIds.Add(aem.actionId);
                     }
                     foreach (var id in toDelete) map.DeleteElementMap(id);
                 }

@@ -183,6 +183,23 @@ namespace CoreKeeperAccess.Gameplay
         public static readonly int[] ObjDist = new int[4];
     }
 
+    // Pont du detecteur de collision directionnel (etage 3 navigation, stick gauche). Le mod
+    // pose une demande (case du joueur, direction NORMALISEE de l'intention de marche, portee
+    // en cases) ; le systeme avance le long de la direction (DDA, meme technique que la canne
+    // laser) et publie la distance du premier infranchissable (mur/pit/eau), ou Found=false si
+    // la portee est franche.
+    internal static class CollisionScan
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static float2 Direction;
+        public static float MaxRange;
+
+        public static bool ResultValid;
+        public static bool Found;
+        public static float Dist;
+    }
+
     // Pont détecteur de sol dangereux (sol vaseux acide...). Scanné en continu à ~10 Hz
     // par TileReaderSystem : carré 5×5 via TileAccessor + PugDatabase.TryGetTileItemInfo
     // pour identifier le tileset sans hardcoder sa valeur numérique. FireProximity lit
@@ -454,6 +471,23 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
+            // Detecteur de collision directionnel : DDA a la demande (independant du curseur).
+            if (CollisionScan.Requested)
+            {
+                CollisionScan.Requested = false;
+                try
+                {
+                    var taCol = new TileAccessor(ref CheckedStateRef, true);
+                    ScanCollision(ref taCol);
+                }
+                catch (System.Exception ex)
+                {
+                    CollisionScan.Found = false;
+                    CollisionScan.ResultValid = true;
+                    Diag.Error("A11yCollisionDiag", ex);
+                }
+            }
+
             // Sol dangereux : scan continu ~20 Hz du carré 5×5 autour du joueur.
             if (UnityEngine.Time.unscaledTime >= _nextHazardScan)
             {
@@ -561,9 +595,12 @@ namespace CoreKeeperAccess.Gameplay
                 float2 center = ObjectIndex.Center;
                 float r2 = IndexRadius * IndexRadius;
 
-                // Repere de centre : on capte au passage la SummonArea (sigil
-                // d'invocation = centre de l'arene de boss) la plus proche, sans
-                // scan dedie (ce balayage d'objets tourne deja a ~4 Hz).
+                // Repere de centre : on capte au passage la SummonArea ET tout
+                // BossSpawnLocationCD (sigil d'invocation = centre de l'arene de boss)
+                // les plus proches, sans scan dedie (ce balayage d'objets tourne deja
+                // a ~4 Hz). Les Titans (Azeos...) utilisent BossSpawnLocationCD, une
+                // entite normale repliquee client - contrairement a SummonArea (sol de
+                // salle, lu via ServerWorld plus bas), donc capturee ICI directement.
                 bool caFound = false; float caBest = float.MaxValue; float2 caPos = default;
                 var ents = _objQuery.ToEntityArray(Allocator.Temp);
                 foreach (var e in ents)
@@ -593,6 +630,22 @@ namespace CoreKeeperAccess.Gameplay
 
                     if (od.objectID == ObjectID.SummonArea)
                         continue; // sol de la salle : position via ServerWorld uniquement
+
+                    // Titans (Azeos...) : BossSpawnLocationCD remplace SummonArea. Meme
+                    // traitement que la rune classique - centre de drone + annonce "Rune
+                    // d'invocation" injectee plus bas, PAS le nom brut (SplitEnumName sur
+                    // "BirdBossSpawnLocation" etc. - invisible pour un voyant, marqueur
+                    // technique de spawn uniquement).
+                    if (EntityUtility.HasComponentData<BossSpawnLocationCD>(e, World))
+                    {
+                        var bsl = EntityUtility.GetComponentData<BossSpawnLocationCD>(e, World);
+                        if (bsl.bossID != ObjectID.None)
+                        {
+                            float bd2 = math.lengthsq(p - center);
+                            if (bd2 < caBest) { caBest = bd2; caPos = p; caFound = true; }
+                        }
+                        continue;
+                    }
 
                     int2 size;
                     int2 corner;
@@ -897,6 +950,45 @@ namespace CoreKeeperAccess.Gameplay
             SonarScan.ResultValid = true;
         }
 
+        // Detecteur de collision directionnel (stick gauche) : avance case par case (DDA, meme
+        // pas d'echantillonnage 0.34 que la canne laser) dans Direction, jusqu'a MaxRange.
+        // S'arrete au premier INFRANCHISSABLE (mur ou pit/eau - TryGetBlockingTile(...,true)
+        // couvre les deux, comme le sonar de proximite) : distance CONTINUE (pas arrondie a la
+        // case) pour un calcul de volume fin cote mod.
+        private const float CollisionStep = 0.34f;
+
+        private static void ScanCollision(ref TileAccessor ta)
+        {
+            int2 c = CollisionScan.Center;
+            float2 dir = CollisionScan.Direction;
+            float maxRange = CollisionScan.MaxRange;
+            float2 origin = new float2(c.x, c.y);
+
+            int2 last = c;
+            bool found = false;
+            float dist = 0f;
+
+            for (float dd = CollisionStep; dd <= maxRange + 0.001f; dd += CollisionStep)
+            {
+                int2 t = new int2(
+                    (int)math.round(origin.x + dir.x * dd),
+                    (int)math.round(origin.y + dir.y * dd));
+                if (t.Equals(last)) continue;
+                last = t;
+
+                if (ta.TryGetBlockingTile(t, out _, true))
+                {
+                    found = true;
+                    dist = dd;
+                    break;
+                }
+            }
+
+            CollisionScan.Found = found;
+            CollisionScan.Dist = dist;
+            CollisionScan.ResultValid = true;
+        }
+
         // Scanne le carré 5×5 autour du joueur pour détecter les sols dangereux
         // (TileType.groundSlime à tileset acide). PugDatabase.TryGetTileItemInfo résout
         // le tileset sans en hardcoder la valeur numérique, même chemin que le curseur.
@@ -1037,6 +1129,14 @@ namespace CoreKeeperAccess.Gameplay
         private void DumpAutomation()
         {
             int2 tile = AutomationDiag.Tile;
+            // Etat RESOLU de la case (ce que le joueur entend) : HasWall/WallType prime sur
+            // ObjectId dans SonifyTile/AnnounceCursorDetails - le voir ici permet de savoir SI
+            // la case est encore classee bloquante (pit/eau) au moment du dump, avant meme de
+            // regarder les entites brutes ci-dessous.
+            Diag.Log("A11yAutoDiag", "case " + tile.x + "," + tile.y
+                + " HasWall=" + TileQuery.HasWall + " WallType=" + TileQuery.WallType
+                + " ObjectId=" + TileQuery.ObjectId + " Interactable=" + TileQuery.ObjectInteractable
+                + " IsImmune=" + TileQuery.IsImmune);
             // On dumpe TOUTES les entites-objets dont la case-centre tombe sur la case visee
             // (pas seulement la gagnante de l'index) : c'est la seule facon de voir le cable
             // ET la machine posee dessus, le sens reel, l'orientation, le type d'automation.

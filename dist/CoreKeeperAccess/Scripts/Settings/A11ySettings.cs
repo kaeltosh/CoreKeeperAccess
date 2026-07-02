@@ -96,11 +96,22 @@ namespace CoreKeeperAccess.Gameplay
             // 0.40, critique <= 0.35) -> le critique reste toujours sous l'alerte, sans clamp croise.
             public float healthAlertThreshold = 0.60f;  // 0.40..0.90
             public float healthCritThreshold = 0.25f;   // 0.10..0.35 (defaut d'usine 0.25)
+            // Detecteur de collision directionnel (etage 3 sonar) : sonde 360 degres dans
+            // l'axe ou l'on pousse le stick gauche, alerte (bruit aigu, volume exponentiel)
+            // avant un infranchissable (mur/pit/eau). Defaut d'usine ETEINT (aide
+            // supplementaire, comme le sonar de proximite a son lancement).
+            public bool collisionRadar = false;
+            public float collisionRadarVolume = 1f;   // 0..2
+            public float collisionRadarRange = 4f;    // cases, 2..6
             // Nomenclature des boutons dans le menu d'aide : false = PlayStation
             // (Croix/Triangle/L2...), true = Xbox (A/Y/LT...). Defaut PlayStation.
             public bool xboxButtons = false;
             // Mode decouverte de la manette deja vu : force UNE fois a la 1re entree en jeu.
             public bool controllerTutorialSeen = false;
+            // Roue de saut direct dans la barre rapide active (R1/L1 tenu, stick miroir,
+            // cf. HotbarJumpWheel). Actif par defaut (feature demandee explicitement) ;
+            // desactivable si R1/L1 pas-a-pas natif est prefere.
+            public bool hotbarWheelEnabled = true;
         }
 
         private static Data _d = new Data();
@@ -144,6 +155,10 @@ namespace CoreKeeperAccess.Gameplay
         public static float HealthCritThreshold => _d.healthCritThreshold;
         public static bool XboxButtons => _d.xboxButtons;
         public static bool ControllerTutorialSeen => _d.controllerTutorialSeen;
+        public static bool CollisionRadar => _d.collisionRadar;
+        public static float CollisionRadarVolume => _d.collisionRadarVolume;
+        public static float CollisionRadarRange => _d.collisionRadarRange;
+        public static bool HotbarWheelEnabled => _d.hotbarWheelEnabled;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -177,6 +192,10 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetHealthCritThreshold(float v) { _d.healthCritThreshold = Mathf.Clamp(v, 0.1f, 0.35f); Save(); }
         public static void SetXboxButtons(bool v) { _d.xboxButtons = v; Save(); }
         public static void SetControllerTutorialSeen(bool v) { _d.controllerTutorialSeen = v; Save(); }
+        public static void SetCollisionRadar(bool v) { _d.collisionRadar = v; Save(); }
+        public static void SetCollisionRadarVolume(float v) { _d.collisionRadarVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetCollisionRadarRange(float v) { _d.collisionRadarRange = Mathf.Clamp(Mathf.Round(v), 2f, 6f); Save(); }
+        public static void SetHotbarWheelEnabled(bool v) { _d.hotbarWheelEnabled = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et
@@ -234,6 +253,8 @@ namespace CoreKeeperAccess.Gameplay
             d.healthBeatVolume = Mathf.Clamp(d.healthBeatVolume, 0f, 2f);
             d.healthAlertThreshold = Mathf.Clamp(d.healthAlertThreshold, 0.4f, 0.9f);
             d.healthCritThreshold = Mathf.Clamp(d.healthCritThreshold, 0.1f, 0.35f);
+            d.collisionRadarVolume = Mathf.Clamp(d.collisionRadarVolume, 0f, 2f);
+            d.collisionRadarRange = Mathf.Clamp(Mathf.Round(d.collisionRadarRange), 2f, 6f);
             _d = d;
         }
 

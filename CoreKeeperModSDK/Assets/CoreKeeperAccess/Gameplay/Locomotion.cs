@@ -152,7 +152,10 @@ namespace CoreKeeperAccess.Gameplay
 
         protected override void OnUpdate()
         {
-            if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+            // Aussi gele en mode R1 de la roue de saut barre rapide (stick gauche vole a
+            // la roue, cf. HotbarJumpWheel) : meme geste que la touche access elle-meme.
+            if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld
+                && !CoreKeeperAccess.Controls.InfoKey.HotbarWheelRight) return;
             var entities = _query.ToEntityArray(Allocator.Temp);
             try
             {

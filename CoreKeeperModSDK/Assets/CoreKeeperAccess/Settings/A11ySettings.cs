@@ -108,6 +108,10 @@ namespace CoreKeeperAccess.Gameplay
             public bool xboxButtons = false;
             // Mode decouverte de la manette deja vu : force UNE fois a la 1re entree en jeu.
             public bool controllerTutorialSeen = false;
+            // Roue de saut direct dans la barre rapide active (R1/L1 tenu, stick miroir,
+            // cf. HotbarJumpWheel). Actif par defaut (feature demandee explicitement) ;
+            // desactivable si R1/L1 pas-a-pas natif est prefere.
+            public bool hotbarWheelEnabled = true;
         }
 
         private static Data _d = new Data();
@@ -154,6 +158,7 @@ namespace CoreKeeperAccess.Gameplay
         public static bool CollisionRadar => _d.collisionRadar;
         public static float CollisionRadarVolume => _d.collisionRadarVolume;
         public static float CollisionRadarRange => _d.collisionRadarRange;
+        public static bool HotbarWheelEnabled => _d.hotbarWheelEnabled;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -190,6 +195,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetCollisionRadar(bool v) { _d.collisionRadar = v; Save(); }
         public static void SetCollisionRadarVolume(float v) { _d.collisionRadarVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetCollisionRadarRange(float v) { _d.collisionRadarRange = Mathf.Clamp(Mathf.Round(v), 2f, 6f); Save(); }
+        public static void SetHotbarWheelEnabled(bool v) { _d.hotbarWheelEnabled = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

@@ -73,6 +73,11 @@ namespace CoreKeeperAccess.Gameplay
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
             if (!InputContext.InGameFree) { Reset(); return; }
 
+            // Roue de saut barre rapide en mode L1 (stick droit vole a la roue, cf.
+            // HotbarJumpWheel) : la canne se tait le temps de la tenue, sinon elle
+            // continuerait a scanner/biper des ennemis pendant qu'on vise un slot.
+            if (InfoKey.HotbarWheelLeft) { Reset(); return; }
+
             var input = player.inputModule;
             if (input == null) { Reset(); return; }
 

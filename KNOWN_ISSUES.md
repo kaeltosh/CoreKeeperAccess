@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.6 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.7 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 

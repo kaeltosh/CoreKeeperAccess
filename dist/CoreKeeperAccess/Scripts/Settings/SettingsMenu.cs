@@ -24,7 +24,7 @@ namespace CoreKeeperAccess.Settings
         private static readonly TreeMenu _menu = new TreeMenu(
             closedKey: "settings.closed",
             onTick: SonarPreviewTick,
-            onClose: StopSonarPreview);
+            onClose: StopPreviews);
 
         public static bool Active => _menu.Active;
 
@@ -59,6 +59,9 @@ namespace CoreKeeperAccess.Settings
                 () => A11ySettings.MasterVolume, A11ySettings.SetMasterVolume,
                 () => GameplayAudio.PlayTone(0f, 1f, 0.6f)));
 
+            _root.Children.Add(Tg("settings.hotbarwheel", "settings.desc.hotbarwheel",
+                () => A11ySettings.HotbarWheelEnabled, A11ySettings.SetHotbarWheelEnabled));
+
             _root.Children.Add(Cat("settings.cat.navigation", "settings.desc.cat.navigation",
                 Tg("settings.stepbeep", "settings.desc.stepbeep", () => A11ySettings.StepBeep, A11ySettings.SetStepBeep,
                     () => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume)),
@@ -80,7 +83,18 @@ namespace CoreKeeperAccess.Settings
                 Vol("settings.sonargrave", "settings.desc.sonargrave", () => A11ySettings.SonarVolGrave, A11ySettings.SetSonarVolGrave,
                     () => StartSonarPreview(1)),
                 Tg("settings.objectding", "settings.desc.objectding", () => A11ySettings.ObjectDing, A11ySettings.SetObjectDing,
-                    ProximitySonar.PreviewDing)));
+                    ProximitySonar.PreviewDing),
+                Tg("settings.collisionradar", "settings.desc.collisionradar", () => A11ySettings.CollisionRadar, A11ySettings.SetCollisionRadar,
+                    StartRadarPreview),
+                Vol("settings.collisionradarvolume", "settings.desc.collisionradarvolume", () => A11ySettings.CollisionRadarVolume, A11ySettings.SetCollisionRadarVolume,
+                    StartRadarPreview),
+                new TreeMenu.Slider
+                {
+                    LabelKey = "settings.collisionradarrange", DescKey = "settings.desc.collisionradarrange",
+                    Get = () => A11ySettings.CollisionRadarRange, Set = A11ySettings.SetCollisionRadarRange,
+                    Step = 1f, Min = 2f, Max = 6f, Raw = true,
+                    Preview = StartRadarPreview,
+                }));
 
             _root.Children.Add(Cat("settings.cat.combat", "settings.desc.cat.combat",
                 Tg("settings.slowmo", "settings.desc.slowmo", () => A11ySettings.CombatSlowMo, A11ySettings.SetCombatSlowMo),
@@ -159,6 +173,7 @@ namespace CoreKeeperAccess.Settings
         // ponctuels et passent directement par leur lambda Preview.
         private const float SonarPreviewDur = 0.9f;
         private static float _sonarStopAt;
+        private static float _radarStopAt;
 
         private static void StartSonarPreview(int which)
         {
@@ -173,11 +188,33 @@ namespace CoreKeeperAccess.Settings
             _sonarStopAt = 0f;
         }
 
-        // Coupe l'apercu sonar au bout de sa fenetre, meme si aucun bouton. Branche en onTick
-        // du moteur -> tickee tant que le panneau est ouvert.
+        // Apercu du DETECTEUR DE COLLISION, meme grammaire fenetree que le sonar (nappe
+        // continue -> armee pour une courte duree puis coupee).
+        private static void StartRadarPreview()
+        {
+            CollisionRadar.StartPreview();
+            _radarStopAt = Time.unscaledTime + SonarPreviewDur;
+        }
+
+        private static void StopRadarPreview()
+        {
+            if (_radarStopAt <= 0f) return;
+            CollisionRadar.StopPreview();
+            _radarStopAt = 0f;
+        }
+
+        // Coupe les apercus a nappe continue au bout de leur fenetre, meme si aucun bouton.
+        // Branche en onTick du moteur -> tickee tant que le panneau est ouvert.
         private static void SonarPreviewTick()
         {
             if (_sonarStopAt > 0f && Time.unscaledTime >= _sonarStopAt) StopSonarPreview();
+            if (_radarStopAt > 0f && Time.unscaledTime >= _radarStopAt) StopRadarPreview();
+        }
+
+        private static void StopPreviews()
+        {
+            StopSonarPreview();
+            StopRadarPreview();
         }
     }
 }

@@ -59,6 +59,9 @@ namespace CoreKeeperAccess.Settings
                 () => A11ySettings.MasterVolume, A11ySettings.SetMasterVolume,
                 () => GameplayAudio.PlayTone(0f, 1f, 0.6f)));
 
+            _root.Children.Add(Tg("settings.hotbarwheel", "settings.desc.hotbarwheel",
+                () => A11ySettings.HotbarWheelEnabled, A11ySettings.SetHotbarWheelEnabled));
+
             _root.Children.Add(Cat("settings.cat.navigation", "settings.desc.cat.navigation",
                 Tg("settings.stepbeep", "settings.desc.stepbeep", () => A11ySettings.StepBeep, A11ySettings.SetStepBeep,
                     () => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume)),

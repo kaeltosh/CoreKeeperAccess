@@ -1,3 +1,4 @@
+using CoreKeeperAccess.Gameplay;
 using Rewired;
 using UnityEngine;
 
@@ -15,6 +16,7 @@ namespace CoreKeeperAccess.Controls
         private const int BumperRight = 11;    // RB / R1 (id physique template Rewired Gamepad)
         private const int LeftStickClick = 14; // L3 (id physique template Rewired Gamepad)
         private const int BackButton = 12;     // Back / Select (id physique template Rewired Gamepad)
+        private const int CircleButton = 7;    // Rond / B (id physique template Rewired Gamepad)
 
         public static bool ModifierHeld;    // Triangle physiquement tenu
         public static bool DetailRequested; // combo Triangle + haut declenche cette frame
@@ -25,8 +27,16 @@ namespace CoreKeeperAccess.Controls
         public static bool ComboR1;         // Triangle + R1 (pivoter / changer taille de zone)
         public static bool ComboL3;         // Triangle + L3 (toggle direction assistee)
         public static bool ComboBack;       // Triangle + Back (ouvrir le panneau de reglages)
+        public static bool ComboO;          // Triangle + Rond (saut direct barre 1 / slot 1)
         public static bool DoubleTapped;    // double-tap bref de Triangle (ouvrir la carte)
         public static bool RecallRequested; // double-tap D-pad haut sous Triangle (menu d'aide)
+
+        // Roue de saut barre rapide (miroir R1/L1), UNIQUEMENT quand Triangle est relache
+        // (sinon R1/L1 restent Triangle+R1=pivoter / Triangle+L1=sonar) et le reglage
+        // active. R1 = stick gauche pilote (marche gelee) ; L1 = stick droit pilote
+        // (canne laser coupee le temps de la tenue). Cf. HotbarJumpWheel.
+        public static bool HotbarWheelRight;
+        public static bool HotbarWheelLeft;
 
         // Pose par la roue de stats (stick droit pousse pendant la tenue de Triangle) :
         // empeche le relachement d'etre lu comme un tap -> pas de double-tap parasite quand
@@ -48,9 +58,11 @@ namespace CoreKeeperAccess.Controls
         {
             ModifierHeld = false;
             DetailRequested = false;
-            ComboRight = ComboDown = ComboLeft = ComboLB = ComboR1 = ComboL3 = ComboBack = false;
+            ComboRight = ComboDown = ComboLeft = ComboLB = ComboR1 = ComboL3 = ComboBack = ComboO = false;
             DoubleTapped = false;
             RecallRequested = false;
+            HotbarWheelRight = false;
+            HotbarWheelLeft = false;
             if (!ReInput.isReady) return;
             int tri = TriangleModifier.TriangleButtonId;
             if (tri < 0) return; // id Triangle pas encore capte
@@ -83,11 +95,19 @@ namespace CoreKeeperAccess.Controls
                 else if (GetButtonDownById(joy, BumperRight)) ComboR1 = true;
                 else if (GetButtonDownById(joy, LeftStickClick)) ComboL3 = true;
                 else if (GetButtonDownById(joy, BackButton)) ComboBack = true;
+                else if (GetButtonDownById(joy, CircleButton)) ComboO = true;
+            }
+            else if (A11ySettings.HotbarWheelEnabled)
+            {
+                // Roue de saut barre rapide, Triangle relache : R1 = stick gauche pilote,
+                // L1 = stick droit pilote (mode miroir, cf. HotbarJumpWheel).
+                HotbarWheelRight = GetButtonById(joy, BumperRight);
+                HotbarWheelLeft = GetButtonById(joy, BumperLeft);
             }
 
             // Suivi tap / double-tap (fronts montant et descendant de Triangle).
             if (ModifierHeld && !_wasHeld) { _holdStart = Time.unscaledTime; _comboDuringHold = false; StickEngagedDuringHold = false; _lastDpadUpTap = -10f; }
-            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3 || ComboBack || RecallRequested))
+            if (ModifierHeld && (DetailRequested || ComboRight || ComboDown || ComboLeft || ComboLB || ComboR1 || ComboL3 || ComboBack || ComboO || RecallRequested))
                 _comboDuringHold = true;
             // Stick droit pousse pendant la tenue (roue de stats) : ce n'est pas un tap.
             if (StickEngagedDuringHold) _comboDuringHold = true;

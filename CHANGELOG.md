@@ -2,6 +2,24 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.7 (open beta) — July 2026
+
+Hotbar jump wheel, directional collision detector, Azeos combat, and fixes.
+
+### Additions
+
+- **Hotbar jump wheel.** Hold R1 to open a 10-position wheel on the left stick (walking freezes while held) or L1 for the same wheel on the right stick (the laser cane goes quiet while held): point a direction to equip that slot of the active bar directly. Triangle+Circle jumps straight to the first slot of the first bar. Toggleable in settings.
+- **Directional collision detector.** Optional aid (off by default, enable it in settings): in the direction you push the left stick, an increasingly loud high-pitched sound warns you before an impassable wall, pit, or water, with adjustable range.
+- **Improved detection of Azeos's lightning pillars.** The fight against Azeos the Sky Titan now tracks each pillar's actual behavior more reliably, with an earlier warning.
+- **Arena drone for Titan fights.** During a Titan-type boss fight, a sound drone marks the center of the arena, with distinct behavior in and out of combat.
+
+### Fixes
+
+- **"Swap hotbar" arrows hidden by default.** The two visual buttons at the ends of the action bar no longer show up by default — they added nothing in audio and generated a stray announcement ("press to swap hotbar").
+- **Stalagmites silent again at the cursor and laser.** This scenery was never mineable or interactive; it no longer gets confused with other objects, without touching the rest of the object index.
+
+---
+
 ## 1.0.6 (open beta) — June 2026
 
 Familiar talent tree, relay beacon drone, and POI list improvements.

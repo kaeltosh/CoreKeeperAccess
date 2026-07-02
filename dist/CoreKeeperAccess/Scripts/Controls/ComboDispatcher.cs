@@ -25,6 +25,7 @@ namespace CoreKeeperAccess.Controls
             DoubleTap, // double-tap bref de Triangle
             LeftStick, // Triangle + L3 (toggle direction assistee)
             Back,      // Triangle + Back (ouvrir le panneau de reglages)
+            Circle,    // Triangle + Rond (saut direct barre 1 / slot 1)
         }
 
         private struct Entry
@@ -38,7 +39,7 @@ namespace CoreKeeperAccess.Controls
 
         private static List<Entry>[] BuildTable()
         {
-            var t = new List<Entry>[9];
+            var t = new List<Entry>[10];
             for (int i = 0; i < t.Length; i++) t[i] = new List<Entry>(4);
             return t;
         }
@@ -84,6 +85,7 @@ namespace CoreKeeperAccess.Controls
                 case Combo.BumperR: return Glyphs.Combo(Btn.FaceUp, Btn.R1);
                 case Combo.LeftStick: return Glyphs.Combo(Btn.FaceUp, Btn.L3);
                 case Combo.Back: return Glyphs.Combo(Btn.FaceUp, Btn.Back);
+                case Combo.Circle: return Glyphs.Combo(Btn.FaceUp, Btn.FaceRight);
                 case Combo.DoubleTap: return Strings.L("combo.doubletapprefix") + " " + Glyphs.Name(Btn.FaceUp);
                 default: return "";
             }
@@ -104,6 +106,7 @@ namespace CoreKeeperAccess.Controls
             if (InfoKey.ComboR1) Fire(Combo.BumperR);
             if (InfoKey.ComboL3) Fire(Combo.LeftStick);
             if (InfoKey.ComboBack) Fire(Combo.Back);
+            if (InfoKey.ComboO) Fire(Combo.Circle);
             if (InfoKey.DoubleTapped) Fire(Combo.DoubleTap);
             // Menu d'aide : double-tap du D-pad haut sous Triangle. Special (global,
             // s'auto-exclut de l'enumeration) -> appel direct, pas un binding de contexte.

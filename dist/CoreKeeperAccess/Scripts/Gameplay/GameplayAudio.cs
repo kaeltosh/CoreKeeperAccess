@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
+using PugMod;
 using UnityEngine;
 using UnityEngine.Audio;
 
@@ -409,6 +410,21 @@ namespace CoreKeeperAccess.Gameplay
             for (int i = 0; i < data.Length; i++) data[i] *= g;
         }
 
+        // Normalisation par ENERGIE (RMS) suivie d'un ecretage dur au plafond : contrairement a
+        // NormalizePeak (qui cale la CRETE, donc laisse une voix "molle" avec ses silences/consonnes
+        // breves tres en dessous du plafond), ici on cale le NIVEAU MOYEN sur targetRms - ce qui pousse
+        // le corps du signal bien plus fort - puis on ecrete les quelques pics qui depassent ceiling.
+        // Distortion assumee sur les pics (voix TTS, pas de la musique) : priorite = audible fort.
+        private static void NormalizeLoudness(float[] data, float targetRms, float ceiling)
+        {
+            double sumSq = 0;
+            for (int i = 0; i < data.Length; i++) sumSq += (double)data[i] * data[i];
+            float rms = (float)System.Math.Sqrt(sumSq / data.Length);
+            if (rms < 1e-9f) return;
+            float g = targetRms / rms;
+            for (int i = 0; i < data.Length; i++) data[i] = Mathf.Clamp(data[i] * g, -ceiling, ceiling);
+        }
+
         private static AudioClip MonoClip(string name, float[] data)
         {
             var clip = AudioClip.Create(name, data.Length, 1, 44100, false);
@@ -619,7 +635,7 @@ namespace CoreKeeperAccess.Gameplay
         // Clip STEREO a pan DUR : le signal sur UN canal, zero sur l'autre. Deux de ces
         // clips (gauche + droit) joues en boucle sur deux sources -> pan par balance de
         // leurs volumes (un canal a zero ne peut pas fuir, comme BakePan).
-        private static AudioClip BakeHardPan(float[] mono, bool left)
+        private static AudioClip BakeHardPan(float[] mono, bool left, string baseName = "A11yCenterDrone", int sampleRate = 44100)
         {
             var data = new float[mono.Length * 2];
             for (int i = 0; i < mono.Length; i++)
@@ -627,7 +643,7 @@ namespace CoreKeeperAccess.Gameplay
                 data[2 * i] = left ? mono[i] : 0f;
                 data[2 * i + 1] = left ? 0f : mono[i];
             }
-            var clip = AudioClip.Create("A11yCenterDrone" + (left ? "L" : "R"), mono.Length, 2, 44100, false);
+            var clip = AudioClip.Create(baseName + (left ? "L" : "R"), mono.Length, 2, sampleRate, false);
             clip.SetData(data, 0);
             return clip;
         }
@@ -675,6 +691,217 @@ namespace CoreKeeperAccess.Gameplay
             _droneR.volume = v * gr;
             _droneL.pitch = p;
             _droneR.pitch = p;
+        }
+
+        // --- Sons Azeos charges a la volee (WAV du mod, aucun asset Unity) ---
+        // Les 3 sons livres durent ~4s chacun (pas de courts bips) : on les fait BOUCLER en
+        // continu tant que le danger est present, on pilote juste pan/volume en direct
+        // pendant la boucle - meme mecanique que SetCenterDrone/SetRelayDrone, pas de
+        // PlayOneShot repete (empilerait des dizaines de copies d'un son de 4s).
+
+        private const string ModNameForFiles = "CoreKeeperAccess";
+
+        private static byte[] ReadModFile(string relativePath)
+        {
+            var loader = API.ModLoader;
+            if (loader == null) return null;
+            foreach (var m in loader.LoadedMods)
+                if (m?.Metadata != null && m.Metadata.name == ModNameForFiles)
+                    return m.GetFile(relativePath);
+            return null;
+        }
+
+        // Colonne verticale (pattern "rangee V") : pan est-ouest en direct -> deux sources
+        // hard-pannees comme le repere de centre (une seule ne pourrait pas suivre un pan
+        // qui glisse sans couper/redemarrer le clip a chaque pas).
+        private static AudioSource _azeosColL, _azeosColR;
+        private static bool _azeosColOn;
+        private static float[] _azeosColMono;
+        private static int _azeosColRate;
+        private static bool _azeosColLoadAttempted;
+
+        private static void EnsureAzeosColonneLoaded()
+        {
+            if (_azeosColLoadAttempted) return;
+            _azeosColLoadAttempted = true;
+            var bytes = ReadModFile("Sounds/azeos_colonne.wav");
+            if (bytes == null) { Diag.Log("A11yWav", "Sounds/azeos_colonne.wav introuvable dans l'install du mod"); return; }
+            if (!WavLoader.TryParse(bytes, "azeos_colonne.wav", out var r)) return;
+            if (r.Channels != 1)
+            {
+                Diag.Log("A11yWav", "azeos_colonne.wav : attendu mono, recu " + r.Channels + " canaux - ignore");
+                return;
+            }
+            NormalizePeak(r.Samples, TargetPeak);
+            _azeosColMono = r.Samples;
+            _azeosColRate = r.SampleRate;
+            // PROVISOIRE (diagnostic verif sons colonne/ligne)
+            Diag.Log("A11yWav", "azeos_colonne.wav charge (rate=" + r.SampleRate + ", " + r.Samples.Length + " echantillons)");
+        }
+
+        // active=false coupe. pan -1..+1 est-ouest, volume pilote par l'appelant (distance).
+        public static void SetAzeosColonne(bool active, float pan, float volume)
+        {
+            EnsureInit();
+            EnsureAzeosColonneLoaded();
+            if (_azeosColMono == null || _azeosColL == null || _azeosColR == null)
+            {
+                if (_azeosColOn && _azeosColL != null && _azeosColR != null) { _azeosColL.Stop(); _azeosColR.Stop(); _azeosColOn = false; }
+                return;
+            }
+            if (!active)
+            {
+                if (_azeosColOn)
+                {
+                    _azeosColL.Stop(); _azeosColR.Stop(); _azeosColOn = false;
+                    Diag.Log("A11yAzeosWave", "colonne : source arretee"); // PROVISOIRE
+                }
+                return;
+            }
+            if (!_azeosColOn)
+            {
+                if (_azeosColL.clip == null)
+                {
+                    _azeosColL.clip = BakeHardPan(_azeosColMono, true, "A11yAzeosColonne", _azeosColRate);
+                    _azeosColR.clip = BakeHardPan(_azeosColMono, false, "A11yAzeosColonne", _azeosColRate);
+                }
+                _azeosColL.Play(); _azeosColR.Play(); _azeosColOn = true;
+                Diag.Log("A11yAzeosWave", "colonne : source demarree"); // PROVISOIRE
+            }
+            float ang = (Mathf.Clamp(pan, -1f, 1f) + 1f) * Mathf.PI * 0.25f;
+            float gl = Mathf.Cos(ang), gr = Mathf.Sin(ang);
+            float v = volume * A11ySettings.MasterVolume;
+            _azeosColL.volume = v * gl;
+            _azeosColR.volume = v * gr;
+        }
+
+        // Lignes horizontales (pattern "rangee H", au-dessus/en-dessous du joueur) : volume
+        // seul (pas de pan) -> une source en boucle chacune suffit, le fichier stereo garde
+        // son image d'origine (pas besoin de le replier en mono, rien a y cuire).
+        private static AudioSource _azeosLigneHautSource, _azeosLigneBasSource;
+        private static bool _azeosLigneHautOn, _azeosLigneBasOn;
+        private static AudioClip _azeosLigneHautClip, _azeosLigneBasClip;
+        private static bool _azeosLigneHautLoadAttempted, _azeosLigneBasLoadAttempted;
+
+        private static AudioClip LoadAzeosLigneClip(string relPath, string clipName)
+        {
+            var bytes = ReadModFile(relPath);
+            if (bytes == null) { Diag.Log("A11yWav", relPath + " introuvable dans l'install du mod"); return null; }
+            if (!WavLoader.TryParse(bytes, relPath, out var r)) return null;
+            NormalizePeak(r.Samples, TargetPeak);
+            var clip = AudioClip.Create(clipName, r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
+            clip.SetData(r.Samples, 0);
+            // PROVISOIRE (diagnostic verif sons colonne/ligne)
+            Diag.Log("A11yWav", relPath + " charge (rate=" + r.SampleRate + ", canaux=" + r.Channels + ")");
+            return clip;
+        }
+
+        public static void SetAzeosLigneHaut(bool active, float volume) =>
+            SetAzeosLigne(ref _azeosLigneHautSource, ref _azeosLigneHautOn, ref _azeosLigneHautClip,
+                ref _azeosLigneHautLoadAttempted, "Sounds/azeos_ligne_haut.wav", "A11yAzeosLigneHaut", active, volume);
+
+        public static void SetAzeosLigneBas(bool active, float volume) =>
+            SetAzeosLigne(ref _azeosLigneBasSource, ref _azeosLigneBasOn, ref _azeosLigneBasClip,
+                ref _azeosLigneBasLoadAttempted, "Sounds/azeos_ligne_bas.wav", "A11yAzeosLigneBas", active, volume);
+
+        private static void SetAzeosLigne(ref AudioSource src, ref bool on, ref AudioClip clip,
+            ref bool loadAttempted, string relPath, string clipName, bool active, float volume)
+        {
+            EnsureInit();
+            if (!loadAttempted) { loadAttempted = true; clip = LoadAzeosLigneClip(relPath, clipName); }
+            if (src == null || clip == null)
+            {
+                if (on && src != null) { src.Stop(); on = false; }
+                return;
+            }
+            if (!active)
+            {
+                if (on)
+                {
+                    src.Stop(); on = false;
+                    Diag.Log("A11yAzeosWave", clipName + " : source arretee"); // PROVISOIRE
+                }
+                return;
+            }
+            if (!on)
+            {
+                if (src.clip == null) src.clip = clip;
+                src.Play();
+                Diag.Log("A11yAzeosWave", clipName + " : source demarree"); // PROVISOIRE
+                on = true;
+            }
+            src.volume = volume * A11ySettings.MasterVolume;
+        }
+
+        // PROVISOIRE (detecteur de forme, 1er juillet 2026) : annonce parlee (TTS Windows
+        // pre-rendu en WAV, debit rapide) de la forme detectee pour CHAQUE vague classee -
+        // sert a verifier a l'oreille si le detecteur (AzeosScanSystem.ClassifyWave) retrouve
+        // bien le motif reellement tire par le jeu, avant d'aller plus loin sur le design.
+        // Source non spatialisee dediee (pas de conflit avec le reste), PlayOneShot (peut se
+        // chevaucher si deux vagues tombent tres pres l'une de l'autre, assume pour un test).
+        private static AudioSource _shapeSource;
+        private static readonly Dictionary<AzeosBeamChannel, AudioClip> _shapeClips = new Dictionary<AzeosBeamChannel, AudioClip>();
+        private static readonly Dictionary<AzeosBeamChannel, bool> _shapeLoadAttempted = new Dictionary<AzeosBeamChannel, bool>();
+
+        private static string ShapeRelPath(AzeosBeamChannel ch) => ch switch
+        {
+            AzeosBeamChannel.ColonneV => "Sounds/shape_colonne.wav",
+            AzeosBeamChannel.LigneHaut => "Sounds/shape_ligne_haut.wav",
+            AzeosBeamChannel.LigneBas => "Sounds/shape_ligne_bas.wav",
+            AzeosBeamChannel.None => "Sounds/shape_anneau.wav",
+            _ => "Sounds/shape_aleatoire.wav",
+        };
+
+        public static void PlayAzeosShapeCallout(AzeosBeamChannel channel)
+        {
+            EnsureInit();
+            if (_shapeSource == null) return;
+            if (!_shapeLoadAttempted.TryGetValue(channel, out var attempted) || !attempted)
+            {
+                _shapeLoadAttempted[channel] = true;
+                var bytes = ReadModFile(ShapeRelPath(channel));
+                if (bytes == null) { Diag.Log("A11yWav", ShapeRelPath(channel) + " introuvable"); return; }
+                if (!WavLoader.TryParse(bytes, ShapeRelPath(channel), out var r)) return;
+                // Voix TTS = crete peak trop molle (consonnes bréves, silences) : on cale l'ENERGIE
+                // moyenne tres haut (RMS 0.35 ~ -9 dBFS) avec ecretage dur a 0.98, pas juste la crete.
+                NormalizeLoudness(r.Samples, 0.35f, 0.98f);
+                var clip = AudioClip.Create(ShapeRelPath(channel), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
+                clip.SetData(r.Samples, 0);
+                _shapeClips[channel] = clip;
+            }
+            if (_shapeClips.TryGetValue(channel, out var c) && c != null)
+                _shapeSource.PlayOneShot(c, A11ySettings.MasterVolume); // deja au plafond numerique via NormalizeLoudness
+        }
+
+        // Balise de guidage vers le cristal (BirdBossStone) le plus pertinent : GENEREE (pas
+        // de son fourni pour celui-la), meme mecanique que SetCenterDrone/SetRelayDrone -
+        // deux sources hard-pannees, timbre 330 Hz distinct du repere (220) et des relais
+        // (440). urgent=true (cristal deja actif, soigne le boss) -> pulsation LFO deux fois
+        // plus rapide, signal plus pressant, sans changer de timbre (le carillon reste
+        // reconnaissable, seule l'urgence change).
+        private static AudioSource _cristalL, _cristalR;
+        private static bool _cristalOn;
+
+        public static void SetCristalGuide(bool active, float pan, float pitch, float volume, bool urgent)
+        {
+            EnsureInit();
+            if (_cristalL == null || _cristalR == null) return;
+            if (!active)
+            {
+                if (_cristalOn) { _cristalL.Stop(); _cristalR.Stop(); _cristalOn = false; }
+                return;
+            }
+            if (!_cristalOn) { _cristalL.Play(); _cristalR.Play(); _cristalOn = true; }
+            float ang = (Mathf.Clamp(pan, -1f, 1f) + 1f) * Mathf.PI * 0.25f;
+            float gl = Mathf.Cos(ang), gr = Mathf.Sin(ang);
+            float p = Mathf.Clamp(pitch, 0.05f, 4f);
+            float lfoHz = urgent ? 8f : 4f;
+            float lfo = 0.5f + 0.5f * Mathf.Sin(Time.time * 2f * Mathf.PI * lfoHz);
+            float v = volume * lfo * A11ySettings.MasterVolume;
+            _cristalL.volume = v * gl;
+            _cristalR.volume = v * gr;
+            _cristalL.pitch = p;
+            _cristalR.pitch = p;
         }
 
         private static MethodInfo _getNextSounds;
@@ -795,6 +1022,10 @@ namespace CoreKeeperAccess.Gameplay
             _healthSource = go.AddComponent<AudioSource>();
             ConfigureSource(_healthSource);
 
+            // Source dediee du detecteur de forme Azeos (PROVISOIRE, cf. PlayAzeosShapeCallout).
+            _shapeSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_shapeSource);
+
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.
             _droneL = go.AddComponent<AudioSource>();
@@ -816,6 +1047,32 @@ namespace CoreKeeperAccess.Gameplay
             var relaySine = BuildLoopSine(440.0);
             _relayL.clip = BakeHardPan(relaySine, true);
             _relayR.clip = BakeHardPan(relaySine, false);
+
+            // Sons Azeos (colonne + 2 lignes) : clips charges paresseusement au premier
+            // Set*, sources creees ici (vides pour l'instant) et mises en boucle.
+            _azeosColL = go.AddComponent<AudioSource>();
+            _azeosColR = go.AddComponent<AudioSource>();
+            ConfigureSource(_azeosColL);
+            ConfigureSource(_azeosColR);
+            _azeosColL.loop = true;
+            _azeosColR.loop = true;
+
+            _azeosLigneHautSource = go.AddComponent<AudioSource>();
+            _azeosLigneBasSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_azeosLigneHautSource);
+            ConfigureSource(_azeosLigneBasSource);
+            _azeosLigneHautSource.loop = true;
+            _azeosLigneBasSource.loop = true;
+
+            _cristalL = go.AddComponent<AudioSource>();
+            _cristalR = go.AddComponent<AudioSource>();
+            ConfigureSource(_cristalL);
+            ConfigureSource(_cristalR);
+            _cristalL.loop = true;
+            _cristalR.loop = true;
+            var cristalSine = BuildLoopSine(330.0);
+            _cristalL.clip = BakeHardPan(cristalSine, true);
+            _cristalR.clip = BakeHardPan(cristalSine, false);
         }
     }
 }

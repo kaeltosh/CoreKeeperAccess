@@ -73,6 +73,11 @@ namespace CoreKeeperAccess.Gameplay
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
             if (!InputContext.InGameFree) { Reset(); return; }
 
+            // Roue de saut barre rapide en mode L1 (stick droit vole a la roue, cf.
+            // HotbarJumpWheel) : la canne se tait le temps de la tenue, sinon elle
+            // continuerait a scanner/biper des ennemis pendant qu'on vise un slot.
+            if (InfoKey.HotbarWheelLeft) { Reset(); return; }
+
             var input = player.inputModule;
             if (input == null) { Reset(); return; }
 
@@ -426,7 +431,18 @@ namespace CoreKeeperAccess.Gameplay
                     // (gratuit, couvre aussi les objets sans collider ; rayon d'index 24 >
                     // portee 12, tout le faisceau est couvert). Une creature deja accrochee
                     // garde la main (plus saillante qu'un objet immobile).
-                    if (!foundPassive && ObjectIndex.TryGet(c, out var entry))
+                    // Stalagmite / OasisStalagmite : decor de terrain pur, jamais interactif
+                    // ni minable (confirme en jeu) - exclues ICI seulement (le faisceau les
+                    // ignore) pour ne pas accrocher/biper en rafale dans les zones ou elles
+                    // s'entassent (ex. arene d'Azeos). BirdBossBeam (pilier de foudre) : deja
+                    // sonorise en dedie (colonne/lignes, AzeosBoss.TickRangees) + filet
+                    // FireProximity - le laser n'a rien a y ajouter, exclu pour ne pas biper
+                    // en double/rafale au passage du faisceau dans une vague. L'index partage
+                    // n'est pas touche : le sonar de proximite et les autres consommateurs les
+                    // voient toujours.
+                    if (!foundPassive && ObjectIndex.TryGet(c, out var entry)
+                        && entry.Id != ObjectID.Stalagmite && entry.Id != ObjectID.OasisStalagmite
+                        && entry.Id != ObjectID.BirdBossBeam)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);

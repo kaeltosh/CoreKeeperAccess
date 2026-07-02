@@ -2,6 +2,24 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.7 (bêta ouverte) — juillet 2026
+
+Roue de saut dans la barre rapide, détecteur de collision, combat d'Azeos et corrections.
+
+### Ajouts
+
+- **Roue de saut dans la barre rapide.** Maintiens R1 pour ouvrir une roue à 10 positions au stick gauche (la marche se gèle le temps de la tenue) ou L1 pour la même roue au stick droit (la canne laser se tait le temps de la tenue) : pointe une direction pour équiper directement le slot correspondant de la barre active. Triangle+Rond saute directement au premier slot de la première barre. Activable/désactivable dans les réglages.
+- **Détecteur de collision directionnel.** Aide optionnelle (désactivée par défaut, à activer dans les réglages) : dans l'axe où tu pousses le stick gauche, un bruit aigu de plus en plus fort t'avertit avant un mur, un trou ou de l'eau infranchissable, à portée réglable.
+- **Détection améliorée des piliers de foudre d'Azeos.** Le combat contre Azeos le Titan du Ciel repère plus fiablement le comportement de chaque pilier de foudre, avec une alerte plus précoce.
+- **Drone d'arène pour les combats de Titans.** Pendant un combat de boss de type Titan, un drone sonore indique la position du centre de l'arène, avec un comportement distinct en combat et hors combat.
+
+### Corrections
+
+- **Flèches "changer de barre" masquées par défaut.** Les deux boutons visuels aux extrémités de la barre d'action n'apparaissent plus par défaut — ils n'apportaient rien en audio et généraient une annonce parasite ("appuie pour changer de barre").
+- **Stalagmites de nouveau silencieuses au curseur et au laser.** Ce décor n'a jamais été minable ni interactif ; il ne se confond plus avec d'autres objets, sans toucher au reste de l'index.
+
+---
+
 ## 1.0.6 (bêta ouverte) — juin 2026
 
 Arbre de talents du familier, drone de détection des relais, et améliorations de la liste des POI.

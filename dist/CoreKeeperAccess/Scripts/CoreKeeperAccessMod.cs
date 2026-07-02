@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.6 beta";
+    private const string ReleaseTag = "1.0.7 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -56,6 +56,9 @@ public class CoreKeeperAccessMod : IMod
         Tolk.Load();
         Strings.Load();
         CoreKeeperAccess.Gameplay.A11ySettings.Load(); // reglages utilisateur (volume maitre des sons du mod)
+        // Les fleches "appuie pour changer de barre" (slots 11/12) sont un pur repere visuel
+        // sans valeur en TTS -> coupees d'office, tout utilisateur du mod part sans.
+        if (Manager.prefs != null) Manager.prefs.ShowHotbarArrows = false;
         DiagnosePatches();
         ComboBindings.RegisterAll(); // table combo x contexte de la touche access
         if (_devMode) TtsText.SelfTest(); // auto-verifs du composeur, cote dev seulement
@@ -157,6 +160,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.RelayBeacon.Tick();      // drone battement vers le relais non active le plus proche
         CoreKeeperAccess.Gameplay.FireProximity.Tick();    // alerte de proximite des zones de feu
         CoreKeeperAccess.Gameplay.BossAnimAlert.Tick();   // actions du boss de la ruche (tir acide, enrage, oeufs)
+        CoreKeeperAccess.Gameplay.AzeosBoss.Tick();       // combat d'Azeos (piliers/rangees/cristaux/etats)
         // Apres le tick de tous les modules : les gardes de contexte lisent des etats
         // frais (curseur detache, nav inventaire...) au moment de router les combos.
         ComboDispatcher.Tick();

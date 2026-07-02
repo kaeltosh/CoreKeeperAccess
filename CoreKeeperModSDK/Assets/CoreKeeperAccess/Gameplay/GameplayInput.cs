@@ -71,6 +71,7 @@ namespace CoreKeeperAccess.Gameplay
             CollisionRadar.Tick(player);
             PlacementReader.Tick(player);
             StatsWheel.Tick(player);
+            HotbarJumpWheel.Tick(player);
 
             // Etalement de l'emprise : declenche par un DEPLACEMENT delibere du curseur
             // (BuildModeNavigator pose FootprintDueAt), annonce apres un petit delai - le

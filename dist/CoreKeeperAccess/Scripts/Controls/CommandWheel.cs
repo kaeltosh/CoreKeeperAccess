@@ -33,7 +33,8 @@ namespace CoreKeeperAccess.Controls
         private readonly int _axisXId, _axisYId, _confirmId;
         private readonly bool _runOnHover;
         private readonly bool _tickSound;
-        private readonly Entry?[] _bySector = new Entry?[8];
+        private readonly int _sectorCount;
+        private readonly Entry?[] _bySector;
         private int _autoIndex;
         private int _lastSector = -1;
 
@@ -44,13 +45,18 @@ namespace CoreKeeperAccess.Controls
         // tickSound (defaut true) : clic de cran a chaque changement de secteur. Le couper
         // (roue de LECTURE qui annonce deja la valeur en TTS au survol, ex. roue de stats) :
         // le clic y serait redondant et indesirable.
-        public CommandWheel(int axisXId, int axisYId, int confirmButtonId, bool runOnHover = false, bool tickSound = true)
+        // sectorCount (defaut 8, positions cardinales/diagonales classiques) : au-dela, plus
+        // de reperes cardinaux propres, chaque secteur fait 360/sectorCount degres (roue de
+        // saut barre rapide : 10 positions, une par slot, decision utilisateur).
+        public CommandWheel(int axisXId, int axisYId, int confirmButtonId, bool runOnHover = false, bool tickSound = true, int sectorCount = 8)
         {
             _axisXId = axisXId;
             _axisYId = axisYId;
             _confirmId = confirmButtonId;
             _runOnHover = runOnHover;
             _tickSound = tickSound;
+            _sectorCount = sectorCount;
+            _bySector = new Entry?[sectorCount];
         }
 
         // Remplissage par priorite : le 1er Add prend le nord, le 2e l'est, etc.
@@ -123,13 +129,15 @@ namespace CoreKeeperAccess.Controls
             }
         }
 
-        // Secteur 0=N,1=NE,2=E,3=SE,4=S,5=SO,6=O,7=NO ; -1 = centre (deadzone).
-        private static int SectorOf(float x, float y)
+        // A 8 secteurs : 0=N,1=NE,2=E,3=SE,4=S,5=SO,6=O,7=NO ; -1 = centre (deadzone).
+        // A un autre sectorCount, meme logique horaire depuis le nord, pas de 360/sectorCount.
+        private int SectorOf(float x, float y)
         {
             if (x * x + y * y < Deadzone * Deadzone) return -1;
             float ang = Mathf.Atan2(x, y) * Mathf.Rad2Deg; // 0 = haut (Nord), 90 = droite (Est)
             if (ang < 0f) ang += 360f;
-            return ((int)Mathf.Round(ang / 45f)) % 8;
+            float sectorSize = 360f / _sectorCount;
+            return ((int)Mathf.Round(ang / sectorSize)) % _sectorCount;
         }
 
         private static float AxisById(Joystick joy, int id)

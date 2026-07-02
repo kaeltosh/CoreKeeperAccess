@@ -93,6 +93,14 @@
                       "guid":  "eab5c7b1c34755341887562210cb3998"
                   },
                   {
+                      "path":  "Scripts/Gameplay/AzeosBoss.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/AzeosScan.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Gameplay/BeaconGuide.cs",
                       "guid":  "dde5a22b9ba46ba4386ee74a616e9ffe"
                   },
@@ -107,6 +115,10 @@
                   {
                       "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
                       "guid":  "a4f909a49da822d428713da67ca23293"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/CollisionRadar.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/CombatSlowMotion.cs",
@@ -131,6 +143,10 @@
                   {
                       "path":  "Scripts/Gameplay/GameplayInput.cs",
                       "guid":  "f892b3429ca7f444e9f155311e8caaab"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/HotbarJumpWheel.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/LaserCane.cs",
@@ -183,6 +199,10 @@
                   {
                       "path":  "Scripts/Gameplay/VitalsReadout.cs",
                       "guid":  "454c097378c412242847af7cdeda5c61"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/WavLoader.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/WorldProgress.cs",
@@ -311,6 +331,38 @@
                   {
                       "path":  "Conf/Localization/fr.json",
                       "guid":  "8b8ca4d740e17ae4fb9cd997c5c7e1dc"
+                  },
+                  {
+                      "path":  "Sounds/azeos_colonne.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_ligne_bas.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_ligne_haut.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/shape_aleatoire.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/shape_anneau.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/shape_colonne.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/shape_ligne_bas.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/shape_ligne_haut.wav",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Generated/AggroSentinel__System_6326761670.g.cs",

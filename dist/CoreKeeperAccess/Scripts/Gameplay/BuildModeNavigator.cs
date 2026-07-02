@@ -332,7 +332,7 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     // SummonArea non-interactible = sol physique de la salle de boss -> muet.
                     // SummonArea interactible = case injectee synthetiquement (vraie rune) -> annonce.
-                    string objName = (info.ObjectId == ObjectID.SummonArea && !info.ObjectInteractable)
+                    string objName = (info.ObjectId == ObjectID.SummonArea && !info.ObjectInteractable) || IsSilentDecor(info.ObjectId)
                         ? null
                         : InGameTtsCore.ResolveObjectName(info.ObjectId);
                     text = AppendIndustry(AppendPlant(objName, in info), in info, false);
@@ -505,7 +505,8 @@ namespace CoreKeeperAccess.Gameplay
             else if (TileQuery.ObjectId != ObjectID.None)
             {
                 var snap = TileQuery.Snapshot();
-                text = AppendIndustry(AppendPlant(InGameTtsCore.ResolveObjectName(TileQuery.ObjectId), in snap), in snap, true);
+                string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+                text = AppendIndustry(AppendPlant(objName, in snap), in snap, true);
             }
             else
                 text = GroundLabel(TileQuery.Ground, TileQuery.GroundTileset);
@@ -517,10 +518,12 @@ namespace CoreKeeperAccess.Gameplay
 
             TtsText.Say(text, true);
 
-            // Dev : sur une machine industrielle, dumper ses composants reels dans le log
-            // (le contenu d'automation n'est atteignable qu'avec l'ecarlate -> seul moyen
-            // de finaliser l'a11y industrie sur du concret). Silencieux pour les testeurs.
-            if (CoreKeeperAccessMod.DevMode && TileQuery.ObjectId != ObjectID.None)
+            // Dev : dumper dans le log l'etat resolu de la case (HasWall/WallType/ObjectId...)
+            // ET toutes les entites-objets brutes alentour, meme si la case est classee
+            // bloquante (pit/eau) - sert a diagnostiquer les cas ou un decor naturel se
+            // dispute une case avec un objet pose par le joueur (ex. pont sur trou/lac).
+            // Silencieux pour les testeurs.
+            if (CoreKeeperAccessMod.DevMode)
             {
                 AutomationDiag.Tile = _cursor;
                 AutomationDiag.Requested = true;
@@ -542,6 +545,15 @@ namespace CoreKeeperAccess.Gameplay
             catch { }
             return null;
         }
+
+        // Decor de terrain pur, jamais interactif ni minable (confirme en jeu et par le
+        // decompil : ni HealthCD/OnTakeDamage exploitable, contrairement p.ex. au corail).
+        // Le nom en est tu au curseur (son/tick garde, cf. appelants) : sinon il peut gagner
+        // l'annonce sur une case de bordure de trou/lac au lieu du bloc que le joueur y a pose.
+        // Reste dans l'ObjectIndex partage (sonar de proximite, alerte feu, etc. non touches) -
+        // ce filtre ne s'applique qu'a la resolution du NOM, ici et dans AnnounceCursorDetails.
+        private static bool IsSilentDecor(ObjectID id)
+            => id == ObjectID.Stalagmite || id == ObjectID.OasisStalagmite;
 
         // Libelle d'un sol notable. Priorites : cles cursor.* JSON > TryGetTileItemInfo
         // (revele le contenu reel du sol, varie par biome/tileset, ex. chrysalis) > nom brut.

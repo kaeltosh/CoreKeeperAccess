@@ -63,6 +63,10 @@ namespace CoreKeeperAccess.Patches
             if (InfoKey.ModifierHeld && t == PlayerInput.InputType.NEXT_SLOT) return true;
             // Triangle tenu : L3 = bascule direction assistee -> ne pas changer de torche.
             if (InfoKey.ModifierHeld && t == PlayerInput.InputType.QUICK_SWAP_TORCH) return true;
+            // Triangle tenu : Rond (id physique 7) = saut direct barre 1/slot 1 -> bloque
+            // TOUT ce qui est natif sur ce bouton, quelle que soit l'action liee (capturee
+            // dynamiquement par TriangleModifier, pas de nom code en dur).
+            if (InfoKey.ModifierHeld && TriangleModifier.CircleActionIds.Contains((int)t)) return true;
             return false;
         }
     }

@@ -31,6 +31,14 @@ namespace CoreKeeperAccess.Gameplay
         private static Vector3 _lastPos;
         private static bool _hasLast;
 
+        // Intention BRUTE de deplacement (targetMovementVelocity), sans filtre bloque/glisse :
+        // c'est la MEME source que le bip de pas, deja calculee APRES DirectionSnapSystem (le
+        // snap directionnel reecrit movementDirection AVANT que le jeu en deduise cette
+        // vitesse cible) -> tout consommateur qui la lit respecte donc automatiquement le
+        // verrouillage cardinal quand il est actif. Utilisee par CollisionRadar.
+        public static Vector3 RawIntent(PlayerController player)
+            => player == null ? Vector3.zero : TargetVel(player);
+
         // slide01 (0..1) = ampleur du glissement, pour doser l'espacement des pas.
         public static MoveState Evaluate(PlayerController player, out float slide01)
         {
