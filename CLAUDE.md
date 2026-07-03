@@ -6,21 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mod d'accessibilité pour **Core Keeper**, nommé **`CoreKeeperAccess`**.
 
-- **Jalon 1 atteint** (mai 2026) : mod squelette qui se charge et annonce "Mod accessibilité chargé" via NVDA au démarrage.
-- **Jalon 2 atteint** (mai 2026) : TTS complet des menus du jeu (titres, options, sliders, descriptions, boutons icone-only). Patch unique sur `RadicalMenuOption.OnSelected` + `OnSkimLeft/Right` + `RadicalMenu.Activate`. Couvre menu principal, options, sélection monde, création monde, sélection perso, création perso, choix de classe, profession.
-- **Système d'i18n du mod en place** : JSON dans `Assets/CoreKeeperAccess/Conf/Localization/<lang>.json`, chargé via `LoadedMod.GetFile(...)` au boot, helper `Strings.L(key)` côté mod. Détection de langue via `I2.Loc.LocalizationManager.CurrentLanguageCode`, rechargement automatique au changement de langue.
+- **Jalon 1 atteint** (mai 2026) : mod squelette, charge + annonce "Mod accessibilité chargé" via NVDA au démarrage.
+- **Jalon 2 atteint** (mai 2026) : TTS complet menus du jeu (titres, options, sliders, descriptions, boutons icone-only). Patch unique → `RadicalMenuOption.OnSelected` + `OnSkimLeft/Right` + `RadicalMenu.Activate`. Couvre menu principal, options, sélection monde, création monde, sélection perso, création perso, choix classe, profession.
+- **Système i18n du mod en place** : JSON dans `Assets/CoreKeeperAccess/Conf/Localization/<lang>.json`, chargé via `LoadedMod.GetFile(...)` au boot, helper `Strings.L(key)` côté mod. Langue détectée via `I2.Loc.LocalizationManager.CurrentLanguageCode`, rechargement auto au changement de langue.
 
 État du repo :
-- `05_findings_recherche_web.md` — recherche initiale Claude Web. Plusieurs claims **vérifiés** au fil de la session, d'autres restent à vérifier.
-- `CoreKeeperModSDK/` — SDK officiel Pugstorm cloné. Projet Unity 6. Contient le mod `Assets/CoreKeeperAccess/` et notre outillage d'automatisation `Assets/Editor/A11yAutomation.cs`.
-- `_Examples_extracted/` — 10 exemples de mods extraits depuis `CoreKeeperModSDK/Assets/Examples.zip`, hors `Assets/` pour ne pas polluer Unity.
-- `third_party/Tolk/` — binaires Tolk + wrapper C# + licences (source). Le wrapper Tolk.cs est copié dans `Assets/CoreKeeperAccess/`, les natives copiées dans `Assets/CoreKeeperAccess/Plugins/x86_64/`.
-- `decompiled/` — décompilation dnSpyEx ciblée des DLL du jeu (Pug.Other, Pug.Base, Pug.ControlMapping, Pug.Mods, PugMod.SDK.Runtime, Assembly-CSharp). Utiliser pour grep avant de patcher.
-- `tools/fast-build.ps1` — script de déploiement express du mod **sans passer par Unity** (voir section dédiée).
+- `05_findings_recherche_web.md` — recherche initiale Claude Web. Plusieurs claims **vérifiés** en session, d'autres restent à vérifier.
+- `CoreKeeperModSDK/` — SDK officiel Pugstorm cloné, projet Unity 6. Contient le mod `Assets/CoreKeeperAccess/` + outillage auto `Assets/Editor/A11yAutomation.cs`.
+- `_Examples_extracted/` — 10 exemples de mods extraits de `CoreKeeperModSDK/Assets/Examples.zip`, hors `Assets/` pour ne pas polluer Unity.
+- `third_party/Tolk/` — binaires Tolk + wrapper C# + licences (source). Wrapper `Tolk.cs` copié dans `Assets/CoreKeeperAccess/`, natives copiées dans `Assets/CoreKeeperAccess/Plugins/x86_64/`.
+- `decompiled/` — décompilation dnSpyEx ciblée des DLL du jeu (Pug.Other, Pug.Base, Pug.ControlMapping, Pug.Mods, PugMod.SDK.Runtime, Assembly-CSharp). Grep ici avant de patcher.
+- `tools/fast-build.ps1` — déploiement express du mod **sans passer par Unity** (section dédiée).
 
 ## Workflow fast-build (PowerShell, par défaut)
 
-**Workflow standard pour itérer sur le code du mod.** `tools/fast-build.ps1` copie en direct les `.cs` (vers `Scripts/`) et les `.json` de `Conf/` (vers `Conf/`) du dossier source du mod vers son install Steam, **sans rien demander à Unity**. Le ModLoader du jeu recompile le code source via Roslyn au démarrage du jeu (CLAUDE Pattern confirmé : `Successfully compiled CoreKeeperAccess` dans Player.log). Beep `SystemSounds.Asterisk` succès, `Hand` échec. **Lance le jeu par défaut** (ferme proprement l'instance en cours d'abord, car le ModLoader recompile au démarrage) ; `-NoLaunch` pour déployer sans lancer.
+**Workflow standard pour itérer sur le code du mod.** `tools/fast-build.ps1` copie en direct les `.cs` (→ `Scripts/`) et les `.json` de `Conf/` (→ `Conf/`) vers l'install Steam, **sans rien demander à Unity**. ModLoader recompile le code via Roslyn au démarrage (pattern confirmé : `Successfully compiled CoreKeeperAccess` dans Player.log). Beep `SystemSounds.Asterisk` succès, `Hand` échec. **Lance le jeu par défaut** (ferme d'abord l'instance en cours, car ModLoader recompile au démarrage) ; `-NoLaunch` pour déployer sans lancer.
 
 Usage :
 ```
@@ -29,13 +29,13 @@ Usage :
 
 Cycle de dev typique : edit code → fast-build (lance le jeu par défaut) → naviguer en jeu → quitter → inspecter `%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log` si erreur. Temps : 1-2 s vs 30+ s avec Unity.
 
-**Pré-requis** : un build Unity complet doit avoir eu lieu **au moins une fois** (pour générer `Bundles/`, `ModManifest.json` et les natives dans le dossier d'install). Après ça, fast-build suffit pour toute modif code/JSON, **y compris l'ajout/suppression de fichiers source**.
+**Pré-requis** : build Unity complet **au moins une fois** (génère `Bundles/`, `ModManifest.json`, natives dans le dossier d'install). Après ça, fast-build suffit pour toute modif code/JSON, **y compris ajout/suppression de fichiers source**.
 
-**Validation compile en amont (depuis le 16 juin 2026)** : le script lance `check-compile.ps1` avant de déployer. Une syntax error C# annule le déploiement (exit 3) et est signalée **tout de suite** — plus besoin d'attendre Player.log. `-NoCheck` pour forcer.
+**Validation compile en amont (depuis 16 juin 2026)** : script lance `check-compile.ps1` avant déploiement. Syntax error C# → annule déploiement (exit 3), signalée **tout de suite** — plus besoin d'attendre Player.log. `-NoCheck` pour forcer.
 
-**Mode MIROIR (par défaut, depuis le 16 juin 2026)** : l'install est mise en miroir exact des sources de la branche courante — copie tout, **supprime les orphelins** (résidus d'une autre branche) et **resynchronise le `ModManifest.json`** (backup `.bak` avant). Conséquence : ajouter ou supprimer un `.cs`/`.json` **ne réclame plus de build Unity**, et on peut alterner entre branches sans rebuild. `-NoMirror` revient au comportement historique (avertit + stoppe sur fichier non déclaré, sans rien supprimer). Le script **auto-localise** son `ModSource` depuis son propre emplacement → dans chaque worktree il déploie sa propre feature sans `-ModSource`.
+**Mode MIROIR (par défaut, depuis 16 juin 2026)** : install mise en miroir exact des sources de la branche courante — copie tout, **supprime orphelins** (résidus autre branche), **resynchronise `ModManifest.json`** (backup `.bak` avant). Conséquence : ajouter/supprimer un `.cs`/`.json` **ne réclame plus de build Unity**, alternance entre branches sans rebuild. `-NoMirror` → comportement historique (avertit + stoppe sur fichier non déclaré, sans rien supprimer). Script **auto-localise** son `ModSource` depuis son propre emplacement → chaque worktree déploie sa propre feature sans `-ModSource`.
 
-**`dev.flag`** : posé d'office à chaque déploiement (auto-load monde 1/perso 1 + skip logos studio) ; `-NoDev` le retire pour tester le comportement release. Jamais présent dans l'artefact distribué.
+**`dev.flag`** : posé d'office à chaque déploiement (auto-load monde 1/perso 1 + skip logos studio) ; `-NoDev` le retire pour tester comportement release. Jamais présent dans l'artefact distribué.
 
 **Build Unity nécessaire uniquement pour** :
 - un **nouveau système ECS** (`SystemBase`/`[WorldSystemFilter]`) → fast-build ne produit pas les `.g.cs` générés. On évite donc l'ECS quand c'est possible.
@@ -45,7 +45,7 @@ Cycle de dev typique : edit code → fast-build (lance le jeu par défaut) → n
 
 ## Workflow d'automatisation Unity (Editor inaccessible NVDA, fallback)
 
-L'éditeur Unity n'est pas accessible NVDA. Contournement : `Assets/Editor/A11yAutomation.cs`, un script editor avec `[InitializeOnLoad]` + `AssetPostprocessor`, piloté par `Assets/A11yAutomation.flag.json`. Trois actions :
+Éditeur Unity pas accessible NVDA. Contournement : `Assets/Editor/A11yAutomation.cs`, script editor `[InitializeOnLoad]` + `AssetPostprocessor`, piloté par `Assets/A11yAutomation.flag.json`. Trois actions :
 
 - `update_sdk` : `PugMod.ImporterWindow.UpdateFromGamePath(...)` pour importer les ~200 DLL du jeu depuis l'install Steam.
 - `create_mod` : `PugMod.ModBuilderWindow.CreateNewMod(modName)` pour créer la structure d'un nouveau mod.
@@ -55,16 +55,16 @@ L'éditeur Unity n'est pas accessible NVDA. Contournement : `Assets/Editor/A11yA
 
 **Pattern d'utilisation** : dépose le flag JSON, donne le focus à Unity (Alt+Tab), Unity recompile / détecte le flag, exécute l'action, supprime le flag. Loggé dans `%LOCALAPPDATA%\Unity\Editor\Editor.log` (chercher `[A11yAutomation]`).
 
-**Important** : avant de citer un fait, vérifier qu'il est **confirmé** (les sections ci-dessous le précisent). Les claims du fichier 05 non encore vérifiés restent suspects par défaut. Vérification via : décompilation des DLL du jeu, lecture des exemples livrés, doc officielle Pugstorm.
+**Important** : avant de citer un fait, vérifier qu'il est **confirmé** (sections ci-dessous précisent). Claims du fichier 05 non vérifiés restent suspects par défaut. Vérification via : décompilation DLL du jeu, lecture exemples livrés, doc officielle Pugstorm.
 
 ## Stack technique (confirmé)
 
-- **Unity Editor 6000.0.59f2** — c'est la version que Hub installe via `Add project from disk` sur le SDK. Le README du SDK indique 6000.0.58f2 mais c'est obsolète, le `ProjectSettings/ProjectVersion.txt` fait foi.
+- **Unity Editor 6000.0.59f2** — version que Hub installe via `Add project from disk` sur le SDK. README SDK indique 6000.0.58f2 mais obsolète, `ProjectSettings/ProjectVersion.txt` fait foi.
 - Scripting backend Mono.
 - Module Unity additionnel obligatoire : **Linux Build Support (Mono)** (sans ça, build impossible).
-- **Harmony embarqué** dans le SDK : `CoreKeeperModSDK/Assets/Plugins/CoreKeeperModSDK/Harmony/` contient `0Harmony.dll`, `MonoMod.RuntimeDetour.dll`, `MonoMod.Utils.dll`. Harmony aussi présent dans le jeu lui-même.
-- Gameplay en DOTS/ECS, rendu et UI en GameObject classique (claim hérité du fichier 05, cohérent avec ce qu'on voit dans les exemples mais pas encore validé sur le code).
-- DLL du jeu préfixées `Pug.*` — **confirmé** par l'inventaire du dossier `CoreKeeper_Data/Managed/` (voir section Cartographie ci-dessous).
+- **Harmony embarqué** dans le SDK : `CoreKeeperModSDK/Assets/Plugins/CoreKeeperModSDK/Harmony/` contient `0Harmony.dll`, `MonoMod.RuntimeDetour.dll`, `MonoMod.Utils.dll`. Harmony aussi présent dans le jeu.
+- Gameplay en DOTS/ECS, rendu + UI en GameObject classique (claim hérité fichier 05, cohérent avec exemples, pas encore validé sur le code).
+- DLL du jeu préfixées `Pug.*` — **confirmé** par inventaire de `CoreKeeper_Data/Managed/` (→ section Cartographie ci-dessous).
 
 ## Lifecycle d'un mod (confirmé)
 
@@ -75,22 +75,22 @@ Interface `PugMod.IMod` avec **5 méthodes** :
 - `ModObjectLoaded(UnityEngine.Object obj)` — callback quand un asset du mod est chargé
 - `Update()` — appelée chaque frame
 
-**Patches Harmony auto-appliqués** : il suffit de mettre `[HarmonyPatch(...)]` sur une classe, le SDK les applique automatiquement. Pas besoin d'instancier `Harmony` manuellement dans `EarlyInit()`. Désactivable via le champ `disableHarmonyPatching` du manifest (voir ci-dessous).
+**Patches Harmony auto-appliqués** : `[HarmonyPatch(...)]` sur une classe suffit, SDK les applique automatiquement. Pas besoin d'instancier `Harmony` manuellement dans `EarlyInit()`. Désactivable via `disableHarmonyPatching` du manifest (ci-dessous).
 
 ## Format du manifest mod (confirmé)
 
-Pas un `ModManifest.json` éditable à la main côté source — c'est un **ScriptableObject Unity sérialisé en YAML** (fichier `Assets/<modName>.asset`). Un `ModManifest.json` est généré par le ModBuilder au moment du build, dans le mod installé. Champs clés :
+Pas un `ModManifest.json` éditable à la main côté source — **ScriptableObject Unity sérialisé en YAML** (`Assets/<modName>.asset`). `ModManifest.json` généré par le ModBuilder au build, dans le mod installé. Champs clés :
 
 - `guid` — identifiant unique du mod (auto-généré par le SDK).
 - `name` — nom du mod.
-- `requiredOn` — tag client/server **confirmé**. Enum `ModMetadata.ModExistsOn` avec au moins `None` (= 0, client only, ce qu'on veut pour nous) et `ClientAndServer` (= 2). **Pour un mod a11y client-side, garder à `0`**.
-- `accessesExtraAssemblies` — `1` pour pouvoir référencer les DLL du jeu (Pug.*, Assembly-CSharp, etc.). Obligatoire.
+- `requiredOn` — tag client/server **confirmé**. Enum `ModMetadata.ModExistsOn`, au moins `None` (= 0, client only, ce qu'on veut) et `ClientAndServer` (= 2). **Mod a11y client-side → garder à `0`**.
+- `accessesExtraAssemblies` — `1` pour référencer les DLL du jeu (Pug.*, Assembly-CSharp, etc.). Obligatoire.
 - `disableHarmonyPatching` — `0` par défaut (auto-apply) ; `1` désactive.
-- **`skipSafetyChecks`** — **CRITIQUE**. À `0` par défaut, le ModLoader refuse toute `[DllImport]`, tout `System.Runtime.InteropServices`, et tout `Marshal.*` à la compile du script. À `1`, ces vérifications sont désactivées. **Obligatoire pour tout mod qui utilise Tolk ou toute autre DLL native**. Côté mod.io, correspond probablement au tag "Script (Elevated Access)".
+- **`skipSafetyChecks`** — **CRITIQUE**. `0` par défaut : ModLoader refuse tout `[DllImport]`, tout `System.Runtime.InteropServices`, tout `Marshal.*` à la compile. `1` : vérifications désactivées. **Obligatoire pour tout mod utilisant Tolk ou toute autre DLL native**. Côté mod.io, correspond probablement au tag "Script (Elevated Access)".
 - `files` — liste des fichiers du mod (généré automatiquement au build).
 - `buildBundles`, `buildLinux` — flags de build (cible Linux nécessaire pour publier).
 
-**Sandbox runtime du ModLoader** : Core Keeper compile le C# du mod à l'exécution via RoslynCSharp, avec un mode de sécurité activé par défaut. L'erreur typique sans `skipSafetyChecks: 1` ressemble à :
+**Sandbox runtime du ModLoader** : Core Keeper compile le C# du mod à l'exécution via RoslynCSharp, mode de sécurité activé par défaut. Erreur typique sans `skipSafetyChecks: 1` :
 
 ```
 Assembly 'X' has failed code security verification.
@@ -100,32 +100,32 @@ Illegal usage of disallowed convention PInvoke targeting call site: ...
 
 ## Workflow build (confirmé via doc gitbook + exemples + bypass automation)
 
-Le workflow officiel passe par l'éditeur Unity (PugMod → Open Mod SDK Window → Mod Settings → Install Mod). **Inaccessible NVDA**, donc on l'a remplacé par notre script `A11yAutomation.cs` qui appelle directement `ModBuilder.BuildMod`.
+Workflow officiel passe par l'éditeur Unity (PugMod → Open Mod SDK Window → Mod Settings → Install Mod). **Inaccessible NVDA**, remplacé par `A11yAutomation.cs` qui appelle directement `ModBuilder.BuildMod`.
 
-**Bug connu du ModBuilder pour les natives**. Dans `Packages/dev.pugstorm.mod/SDK/Editor/ModBuilder.cs:BuildLibraries()`, le builder copie **toutes les `*.dll`** du mod (managed ET natives) dans le dossier `Libraries/` du mod installé. Le ModLoader essaie ensuite de charger chaque DLL de `Libraries/` comme assembly managed C# → `BadImageFormatException` pour les natives.
+**Bug connu du ModBuilder pour les natives**. Dans `Packages/dev.pugstorm.mod/SDK/Editor/ModBuilder.cs:BuildLibraries()`, le builder copie **toutes les `*.dll`** (managed ET natives) dans `Libraries/` du mod installé. ModLoader essaie ensuite de charger chaque DLL de `Libraries/` comme assembly managed C# → `BadImageFormatException` pour les natives.
 
-**Notre workaround** dans `A11yAutomation.PostBuildRelocateNatives` : après chaque build, on déplace `Tolk.dll` et `nvdaControllerClient64.dll` de `<mod>/Libraries/` vers la racine de l'install Core Keeper (où le P/Invoke .NET les trouve naturellement par la convention de recherche de DLL Windows), et on retire les entrées correspondantes du `ModManifest.json`.
+**Workaround** dans `A11yAutomation.PostBuildRelocateNatives` : après chaque build, déplace `Tolk.dll` + `nvdaControllerClient64.dll` de `<mod>/Libraries/` vers la racine de l'install Core Keeper (où le P/Invoke .NET les trouve par convention de recherche DLL Windows), retire les entrées correspondantes du `ModManifest.json`.
 
-À terme, soit on propose une PR au SDK Pugstorm pour qu'il distingue native/managed via le PluginImporter, soit on charge les natives manuellement via `LoadLibrary` avec un chemin résolu.
+À terme : PR au SDK Pugstorm pour distinguer native/managed via PluginImporter, ou charger les natives manuellement via `LoadLibrary` avec chemin résolu.
 
 ## Contraintes architecturales
 
-**Minimiser la surface de hook.** Le SDK casse régulièrement entre patches Core Keeper. Chaque méthode patchée est de la dette de maintenance.
+**Minimiser la surface de hook.** SDK casse régulièrement entre patches Core Keeper. Chaque méthode patchée = dette de maintenance.
 
-**Multi : un seul artefact toggleable.** Le matching multi compare les listes de mods chargés. Stratégie : un mod publié unique, lit un flag local au démarrage. Si "off", `EarlyInit()` ne charge rien et n'installe aucun patch. Le champ `requiredOn` du manifest est probablement notre point d'ancrage côté SDK (à vérifier).
+**Multi : un seul artefact toggleable.** Matching multi compare les listes de mods chargés. Stratégie : mod publié unique, lit un flag local au démarrage. Si "off" → `EarlyInit()` ne charge rien, aucun patch installé. `requiredOn` du manifest probablement notre point d'ancrage côté SDK (à vérifier).
 
-**Server-authoritative** (confirmé par le code de `TeleportAfterEating`) : pour modifier le gameplay (déplacement, etc.), il faut passer par `QueueInputAction()` au serveur, pas directement modifier l'état. Pour de l'UI / TTS / lecture de données côté client uniquement (cas principal pour un mod a11y), pas de contrainte.
+**Server-authoritative** (confirmé par `TeleportAfterEating`) : modifier le gameplay (déplacement, etc.) → passer par `QueueInputAction()` au serveur, jamais modifier l'état directement. UI / TTS / lecture de données côté client uniquement (cas principal mod a11y) : **pas de contrainte**.
 
-**Tolk déclenche Elevated Access.** Toute DLL native (dont Tolk pour le TTS) impose le tag `Script (Elevated Access)` sur mod.io. L'utilisateur final verra un warning à la souscription. À documenter clairement côté utilisateur.
+**Tolk déclenche Elevated Access.** Toute DLL native (dont Tolk) impose le tag `Script (Elevated Access)` sur mod.io. Utilisateur final verra un warning à la souscription. À documenter clairement côté utilisateur.
 
 **CoreLib : à manier avec prudence.** Si on l'utilise, certains modules forcent du matching multi via `CoreLib.ModEntityID.cfg` / `CoreLib.TilesetID.cfg`. Préférer s'en passer.
 
 ## Cartographie des DLL critiques (confirmée par décompilation)
 
-Toutes les DLL du jeu sont dans `C:\Program Files (x86)\Steam\steamapps\common\Core Keeper\CoreKeeper_Data\Managed\`. Pointer dnSpy là pour décompiler. Le repo a déjà la décompil de plusieurs DLL clés dans `decompiled/` (Pug.Other, Pug.Base, Pug.ControlMapping, Pug.Mods, PugMod.SDK.Runtime, Assembly-CSharp).
+Toutes les DLL du jeu sont dans `C:\Program Files (x86)\Steam\steamapps\common\Core Keeper\CoreKeeper_Data\Managed\`. Pointer dnSpy là pour décompiler. Repo a déjà la décompil de plusieurs DLL clés dans `decompiled/` (Pug.Other, Pug.Base, Pug.ControlMapping, Pug.Mods, PugMod.SDK.Runtime, Assembly-CSharp).
 
 **Découvertes majeures (jalon 2)** :
-- **`Assembly-CSharp.dll` n'est PAS le main assembly** — c'est un mini stub de 11 KB, juste du post-processing graphique. Le code gameplay et UI est ailleurs.
+- **`Assembly-CSharp.dll` n'est PAS le main assembly** — mini stub de 11 KB, juste post-processing graphique. Code gameplay et UI ailleurs.
 - **`Pug.UI.dll` n'existe pas**. L'UI menu est dans `Pug.Other.dll`.
 - **`Pug.Other.dll` (6 MB) est le main assembly réel** : gameplay, UI, menus, character customization, world generation hooks, etc. 1520+ fichiers décompilés.
 
@@ -141,7 +141,7 @@ Mapping par rôle :
 
 ## Architecture des menus (confirmée jalon 2)
 
-**Toute l'UI menu du jeu** repose sur la classe `RadicalMenu` (abstract base) et ses options `RadicalMenuOption`. **27 types de menus** énumérés dans `RadicalMenu.MenuType` (PAUSE, OPTIONS, SELECT_WORLD, CHARACTER_CUSTOMIZATION, etc.). Tous les sous-menus du jeu héritent de `RadicalMenu`.
+**Toute l'UI menu du jeu** repose sur `RadicalMenu` (abstract base) et ses options `RadicalMenuOption`. **27 types de menus** énumérés dans `RadicalMenu.MenuType` (PAUSE, OPTIONS, SELECT_WORLD, CHARACTER_CUSTOMIZATION, etc.). Tous les sous-menus héritent de `RadicalMenu`.
 
 **Points d'accroche du TTS (notre patch)** :
 - `RadicalMenuOption.OnSelected` (postfix) → annonce de l'option focalisée. Méthode terminal de toutes les voies de sélection (nav clavier/manette + appels directs comme `SetupSaveSlots`).
@@ -149,8 +149,8 @@ Mapping par rôle :
 - `RadicalMenu.Activate` (prefix + postfix) → reset du déduplicateur et annonce "Titre. Option courante" en un seul appel Tolk. Le prefix met `SuppressDuringActivate=true` pour étouffer le OnSelected appelé pendant l'init du menu.
 
 **Filtrage critique** :
-- `IsSelected()` check dans le patch OnSelected — sans ça, les menus appellent OnSelected en cascade sur plusieurs options à l'init (init de visuels) et l'annonce est inaudible (interrupt=true écrase tout). Le check ne laisse passer que la "vraie" sélection courante.
-- Déduplication par `GetInstanceID()` (et pas par texte) — sinon des slots multiples avec le même label se chevauchent silencieusement.
+- `IsSelected()` check dans le patch OnSelected — sans ça, menus appellent OnSelected en cascade sur plusieurs options à l'init (init visuels), annonce inaudible (interrupt=true écrase tout). Check ne laisse passer que la "vraie" sélection courante.
+- Déduplication par `GetInstanceID()` (pas par texte) — sinon slots multiples avec même label se chevauchent silencieusement.
 
 **Construction du label TTS** :
 - `labelText` + `valueText` (champs publics standards de `RadicalMenuOption`)
@@ -169,7 +169,7 @@ Mapping par rôle :
 
 ## Tolk (TTS / screen reader) — décision et conformité licence
 
-**Décision** : on utilise Tolk complet (l'abstraction screen reader standard). Le code du mod reste sous une licence permissive (MIT prévu). Tolk est intégré en **DLL séparée non statiquement liée**, ce qui respecte LGPL sans contaminer le code du mod.
+**Décision** : Tolk complet (abstraction screen reader standard). Code du mod reste sous licence permissive (MIT prévu). Tolk intégré en **DLL séparée non statiquement liée** → respecte LGPL sans contaminer le code du mod.
 
 **Fichiers présents dans `third_party/Tolk/`** :
 - `Tolk.dll` (v1.0.0.0, ~120 KB) — la DLL native principale
