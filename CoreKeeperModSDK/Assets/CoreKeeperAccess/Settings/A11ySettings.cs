@@ -79,6 +79,11 @@ namespace CoreKeeperAccess.Gameplay
             // Detecteur de zones de feu (AoE/pieges). Coupe-circuit + volume dedie (0..2).
             public bool fireEnabled = true;
             public float fireVolume = 1f;
+            // Annonce vocale (TTS pre-rendu) de la vie du boss tous les 10 %, dans les deux
+            // sens (descend ET remonte, pour ne jamais masquer un soin). PROVISOIRE,
+            // generique (BossCD), cf. BossHealthAnnounce. Actif par defaut.
+            public bool bossHealthCallouts = true;
+            public float bossHealthVolume = 1f;   // 0..2
             // Vitesse du jeu pendant le ralenti de combat (Time.timeScale applique quand des
             // ennemis chassent). 0.30..0.70 (defaut 0.50 = mi-vitesse) : plus bas = plus lent.
             // Bornee a 0.30 mini pour ne jamais figer le jeu.
@@ -145,6 +150,8 @@ namespace CoreKeeperAccess.Gameplay
         public static float SentinelBossVolume => _d.sentinelBossVolume;
         public static bool FireEnabled => _d.fireEnabled;
         public static float FireVolume => _d.fireVolume;
+        public static bool BossHealthCallouts => _d.bossHealthCallouts;
+        public static float BossHealthVolume => _d.bossHealthVolume;
         public static float SlowMoSpeed => _d.slowMoSpeed;
         public static bool ConditionEarcons => _d.conditionEarcons;
         public static float ConditionEarconsVolume => _d.conditionEarconsVolume;
@@ -182,6 +189,8 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetSentinelBossVolume(float v) { _d.sentinelBossVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetFireEnabled(bool v) { _d.fireEnabled = v; Save(); }
         public static void SetFireVolume(float v) { _d.fireVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetBossHealthCallouts(bool v) { _d.bossHealthCallouts = v; Save(); }
+        public static void SetBossHealthVolume(float v) { _d.bossHealthVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetSlowMoSpeed(float v) { _d.slowMoSpeed = Mathf.Clamp(v, 0.3f, 0.7f); Save(); }
         public static void SetConditionEarcons(bool v) { _d.conditionEarcons = v; Save(); }
         public static void SetConditionEarconsVolume(float v) { _d.conditionEarconsVolume = Mathf.Clamp(v, 0f, 2f); Save(); }

@@ -873,6 +873,38 @@ namespace CoreKeeperAccess.Gameplay
                 _shapeSource.PlayOneShot(c, A11ySettings.MasterVolume); // deja au plafond numerique via NormalizeLoudness
         }
 
+        // PROVISOIRE (barre de vie boss, 3 juillet 2026) : meme principe que
+        // PlayAzeosShapeCallout - TTS Windows pre-rendu en WAV, un fichier par palier de
+        // 10%. Generique (n'importe quel boss marque BossCD, cf. BossHealthAnnounce), pas
+        // specifique a Azeos.
+        private static AudioSource _bossHealthSource;
+        private static readonly Dictionary<int, AudioClip> _bossHealthClips = new Dictionary<int, AudioClip>();
+        private static readonly Dictionary<int, bool> _bossHealthLoadAttempted = new Dictionary<int, bool>();
+
+        private static string BossHealthRelPath(int percent) => "Sounds/hp_" + percent + ".wav";
+
+        public static void PlayBossHealthCallout(int percent)
+        {
+            EnsureInit();
+            if (_bossHealthSource == null) return;
+            if (!_bossHealthLoadAttempted.TryGetValue(percent, out var attempted) || !attempted)
+            {
+                _bossHealthLoadAttempted[percent] = true;
+                var bytes = ReadModFile(BossHealthRelPath(percent));
+                if (bytes == null) { Diag.Log("A11yWav", BossHealthRelPath(percent) + " introuvable"); return; }
+                if (!WavLoader.TryParse(bytes, BossHealthRelPath(percent), out var r)) return;
+                // Gain PUR (pas d'ecretage) : cale la CRETE a 0,9, zero distorsion possible.
+                // Volume final regle par le parametre de PlayOneShot ci-dessous (independant,
+                // ajustable sans re-traiter le sample ni toucher aux autres sons du mod).
+                NormalizePeak(r.Samples, 0.9f);
+                var clip = AudioClip.Create(BossHealthRelPath(percent), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
+                clip.SetData(r.Samples, 0);
+                _bossHealthClips[percent] = clip;
+            }
+            if (_bossHealthClips.TryGetValue(percent, out var c) && c != null)
+                _bossHealthSource.PlayOneShot(c, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
+        }
+
         // Balise de guidage vers le cristal (BirdBossStone) le plus pertinent : GENEREE (pas
         // de son fourni pour celui-la), meme mecanique que SetCenterDrone/SetRelayDrone -
         // deux sources hard-pannees, timbre 330 Hz distinct du repere (220) et des relais
@@ -1025,6 +1057,10 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee du detecteur de forme Azeos (PROVISOIRE, cf. PlayAzeosShapeCallout).
             _shapeSource = go.AddComponent<AudioSource>();
             ConfigureSource(_shapeSource);
+
+            // Source dediee de l'annonce de vie boss (PROVISOIRE, cf. PlayBossHealthCallout).
+            _bossHealthSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_bossHealthSource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.

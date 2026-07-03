@@ -113,7 +113,11 @@ namespace CoreKeeperAccess.Settings
                 Tg("settings.fire", "settings.desc.fire", () => A11ySettings.FireEnabled, A11ySettings.SetFireEnabled,
                     FireProximity.Preview),
                 Vol("settings.firevolume", "settings.desc.firevolume", () => A11ySettings.FireVolume, A11ySettings.SetFireVolume,
-                    FireProximity.Preview)));
+                    FireProximity.Preview),
+                Tg("settings.bosshealth", "settings.desc.bosshealth", () => A11ySettings.BossHealthCallouts, A11ySettings.SetBossHealthCallouts,
+                    () => GameplayAudio.PlayBossHealthCallout(50)),
+                Vol("settings.bosshealthvolume", "settings.desc.bosshealthvolume", () => A11ySettings.BossHealthVolume, A11ySettings.SetBossHealthVolume,
+                    () => GameplayAudio.PlayBossHealthCallout(50))));
 
             _root.Children.Add(Cat("settings.cat.alerts", "settings.desc.cat.alerts",
                 Tg("settings.conditionearcons", "settings.desc.conditionearcons", () => A11ySettings.ConditionEarcons, A11ySettings.SetConditionEarcons,
