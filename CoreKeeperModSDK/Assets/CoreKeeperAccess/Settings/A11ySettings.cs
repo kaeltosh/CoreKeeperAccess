@@ -117,6 +117,11 @@ namespace CoreKeeperAccess.Gameplay
             // cf. HotbarJumpWheel). Actif par defaut (feature demandee explicitement) ;
             // desactivable si R1/L1 pas-a-pas natif est prefere.
             public bool hotbarWheelEnabled = true;
+            // Coupe l'annonce "X, interaction disponible" (WatchInteractable) UNIQUEMENT
+            // pendant que le curseur de tuile est detache (BuildModeNavigator.CursorDetached) :
+            // evite le doublon avec le TTS du curseur lui-meme. Hors curseur, comportement
+            // inchange. Defaut d'usine ETEINT (comportement historique garde).
+            public bool muteInteractInCursor = false;
         }
 
         private static Data _d = new Data();
@@ -166,6 +171,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float CollisionRadarVolume => _d.collisionRadarVolume;
         public static float CollisionRadarRange => _d.collisionRadarRange;
         public static bool HotbarWheelEnabled => _d.hotbarWheelEnabled;
+        public static bool MuteInteractInCursor => _d.muteInteractInCursor;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -205,6 +211,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetCollisionRadarVolume(float v) { _d.collisionRadarVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetCollisionRadarRange(float v) { _d.collisionRadarRange = Mathf.Clamp(Mathf.Round(v), 2f, 6f); Save(); }
         public static void SetHotbarWheelEnabled(bool v) { _d.hotbarWheelEnabled = v; Save(); }
+        public static void SetMuteInteractInCursor(bool v) { _d.muteInteractInCursor = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et
