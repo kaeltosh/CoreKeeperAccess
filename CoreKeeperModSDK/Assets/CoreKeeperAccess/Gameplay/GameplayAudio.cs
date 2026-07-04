@@ -873,10 +873,10 @@ namespace CoreKeeperAccess.Gameplay
                 _shapeSource.PlayOneShot(c, A11ySettings.MasterVolume); // deja au plafond numerique via NormalizeLoudness
         }
 
-        // PROVISOIRE (barre de vie boss, 3 juillet 2026) : meme principe que
-        // PlayAzeosShapeCallout - TTS Windows pre-rendu en WAV, un fichier par palier de
-        // 10%. Generique (n'importe quel boss marque BossCD, cf. BossHealthAnnounce), pas
-        // specifique a Azeos.
+        // Annonce de vie du boss tous les 10% (3 juillet 2026, VALIDEE en combat reel) :
+        // meme principe que PlayAzeosShapeCallout - TTS Windows pre-rendu en WAV, un fichier
+        // par palier de 10%. Generique (n'importe quel boss marque BossCD, cf.
+        // BossHealthAnnounce), pas specifique a Azeos.
         private static AudioSource _bossHealthSource;
         private static readonly Dictionary<int, AudioClip> _bossHealthClips = new Dictionary<int, AudioClip>();
         private static readonly Dictionary<int, bool> _bossHealthLoadAttempted = new Dictionary<int, bool>();
@@ -903,6 +903,35 @@ namespace CoreKeeperAccess.Gameplay
             }
             if (_bossHealthClips.TryGetValue(percent, out var c) && c != null)
                 _bossHealthSource.PlayOneShot(c, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
+        }
+
+        // Indice du cote majoritaire d'une vague rangee (3 juillet 2026) : meme voix
+        // pre-rendue que PlayAzeosShapeCallout/PlayBossHealthCallout - PAS du TTS Tolk/NVDA
+        // (canal different, mauvais choix initial corrige ici). Gain pur (NormalizePeak),
+        // pas d'ecretage. "side" in {"north","south","east","west"}.
+        private static AudioSource _azeosMajoritySource;
+        private static readonly Dictionary<string, AudioClip> _azeosMajorityClips = new Dictionary<string, AudioClip>();
+        private static readonly Dictionary<string, bool> _azeosMajorityLoadAttempted = new Dictionary<string, bool>();
+
+        private static string AzeosMajorityRelPath(string side) => "Sounds/azeos_more_" + side + ".wav";
+
+        public static void PlayAzeosMajorityCallout(string side)
+        {
+            EnsureInit();
+            if (_azeosMajoritySource == null) return;
+            if (!_azeosMajorityLoadAttempted.TryGetValue(side, out var attempted) || !attempted)
+            {
+                _azeosMajorityLoadAttempted[side] = true;
+                var bytes = ReadModFile(AzeosMajorityRelPath(side));
+                if (bytes == null) { Diag.Log("A11yWav", AzeosMajorityRelPath(side) + " introuvable"); return; }
+                if (!WavLoader.TryParse(bytes, AzeosMajorityRelPath(side), out var r)) return;
+                NormalizePeak(r.Samples, 0.9f);
+                var clip = AudioClip.Create(AzeosMajorityRelPath(side), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
+                clip.SetData(r.Samples, 0);
+                _azeosMajorityClips[side] = clip;
+            }
+            if (_azeosMajorityClips.TryGetValue(side, out var c) && c != null)
+                _azeosMajoritySource.PlayOneShot(c, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
         }
 
         // Balise de guidage vers le cristal (BirdBossStone) le plus pertinent : GENEREE (pas
@@ -1061,6 +1090,10 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee de l'annonce de vie boss (PROVISOIRE, cf. PlayBossHealthCallout).
             _bossHealthSource = go.AddComponent<AudioSource>();
             ConfigureSource(_bossHealthSource);
+
+            // Source dediee de l'indice de cote majoritaire Azeos (cf. PlayAzeosMajorityCallout).
+            _azeosMajoritySource = go.AddComponent<AudioSource>();
+            ConfigureSource(_azeosMajoritySource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.
