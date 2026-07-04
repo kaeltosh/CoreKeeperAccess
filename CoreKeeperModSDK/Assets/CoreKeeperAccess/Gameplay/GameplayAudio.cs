@@ -1087,7 +1087,7 @@ namespace CoreKeeperAccess.Gameplay
             _shapeSource = go.AddComponent<AudioSource>();
             ConfigureSource(_shapeSource);
 
-            // Source dediee de l'annonce de vie boss (PROVISOIRE, cf. PlayBossHealthCallout).
+            // Source dediee de l'annonce de vie boss (VALIDEE en combat, cf. PlayBossHealthCallout).
             _bossHealthSource = go.AddComponent<AudioSource>();
             ConfigureSource(_bossHealthSource);
 
