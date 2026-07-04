@@ -1,5 +1,6 @@
 using CoreKeeperAccess.Controls;
 using Rewired;
+using UnityEngine;
 
 namespace CoreKeeperAccess.Navigation
 {
@@ -30,6 +31,13 @@ namespace CoreKeeperAccess.Navigation
             // Le drop natif est un geste a deux boutons (maintien L2 + Croix) lu en continu,
             // donc PAS armable : appel direct du canal serveur officiel (comme le transfert).
             w.AddAtSector(6, "wheel.drop", DropSelected);
+            // Secteur 7 = Nord-Ouest (dernier cardinal libre). Trier le COFFRE ouvert :
+            // InputType.SORT arme (secteur 0) ne trie QUE le sac du joueur en dur
+            // (PlayerController.cs, Create.Sort(playerInventoryHandler...)) - aucun geste
+            // manette natif ne trie un coffre, seul un bouton souris sur son panneau
+            // (ItemSlotsUIContainer.Sort(), pas relogeable comme entree native). Muet si
+            // aucun coffre ouvert (meme logique que les combos contextuels).
+            w.AddAtSector(7, "wheel.sortchest", SortChest);
             return w;
         }
 
@@ -45,6 +53,22 @@ namespace CoreKeeperAccess.Navigation
             if (handler == null || handler.objectsGetLockedInPlace || handler.isBuyInventory) return;
             handler.DropItem(player, slot.inventorySlotIndex,
                 EntityMonoBehaviour.ToWorldFromRender(player.transform.position), player.entity);
+        }
+
+        // Trie le coffre actuellement ouvert : cherche le conteneur ChestInventory affiche
+        // et appelle directement sa methode Sort() publique (meme canal/son que le bouton
+        // souris natif optionalSortButton). Muet si aucun coffre ouvert.
+        internal static void SortChest()
+        {
+            var containers = Object.FindObjectsByType<ItemSlotsUIContainer>(FindObjectsSortMode.None);
+            foreach (var c in containers)
+            {
+                if (c != null && c.isShowing && c.containerType == ItemSlotsUIContainerType.ChestInventory)
+                {
+                    c.Sort();
+                    return;
+                }
+            }
         }
 
         public static void Tick()
