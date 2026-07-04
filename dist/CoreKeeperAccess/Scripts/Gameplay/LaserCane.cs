@@ -380,6 +380,13 @@ namespace CoreKeeperAccess.Gameplay
                 ObjectID passiveObj = ObjectID.None;
                 bool passiveCreature = false;
                 bool passiveInteractable = false;
+                // Compagnon (familier/serviteur) : candidat BASSE PRIORITE, promu en cible
+                // passive seulement si rien de mieux (creature paisible/objet) sur tout le
+                // trajet - cf. commentaire ScanCreatures.
+                bool foundCompanion = false;
+                float2 companionPos = default;
+                long companionKey = 0;
+                ObjectID companionObj = ObjectID.None;
                 bool foundSpecial = false;
                 int2 specialTile = default;
                 TileInfo specialInfo = default;
@@ -424,7 +431,8 @@ namespace CoreKeeperAccess.Gameplay
                         ScanCreatures(c, World,
                             ref foundEnemy, ref enemyPos, ref enemyKey, ref enemyObj,
                             ref foundPassive, ref passivePos, ref passiveKey, ref passiveObj,
-                            ref passiveCreature, ref passiveInteractable);
+                            ref passiveCreature, ref passiveInteractable,
+                            ref foundCompanion, ref companionPos, ref companionKey, ref companionObj);
                     }
 
                     // Objet pose (champignon, drop, meuble...) : via l'INDEX case->objet
@@ -453,6 +461,18 @@ namespace CoreKeeperAccess.Gameplay
                     }
                 }
 
+                // Compagnon promu SEULEMENT si aucune vraie cible passive (creature paisible
+                // ou objet pose) n'a ete trouvee sur tout le trajet - basse priorite demandee.
+                if (!foundPassive && foundCompanion)
+                {
+                    foundPassive = true;
+                    passivePos = companionPos;
+                    passiveKey = companionKey;
+                    passiveObj = companionObj;
+                    passiveCreature = true;
+                    passiveInteractable = false;
+                }
+
                 LaserScan.Impact = TileScan.Read(ref ta, impact, World);
                 LaserScan.ImpactTile = impact;
                 LaserScan.HasSpecial = foundSpecial;
@@ -473,18 +493,24 @@ namespace CoreKeeperAccess.Gameplay
             catch (System.Exception ex) { Diag.Error("A11yLaserDiag", ex); }
         }
 
-        // Creatures sur la case, classees en deux bords. HOSTILE : entite a FactionCD non
-        // exclue, hors CritterCD et hors slime dormant (l'existant). PAISIBLE : tout le
-        // reste du regne animal - CritterCD (lucioles, insectes...), EnemyCD a faction
-        // non hostile (chevres, betail), slime dormant (plante dans sa flaque, le jeu
-        // lui-meme l'exclut de "ennemis a proximite" via ClaimBedSystem ; reveille = en
-        // combat -> sentinelle d'aggro, pas de perte de securite). Les entites sans
-        // EnemyCD ni CritterCD ni FactionCD hostile (PNJ, meubles a collider) ne sont
+        // Creatures sur la case, classees en TROIS bords. HOSTILE : entite a FactionCD non
+        // exclue, hors CritterCD et hors slime dormant (l'existant). PAISIBLE : le reste du
+        // regne animal - CritterCD (lucioles, insectes...), EnemyCD a faction non hostile
+        // (chevres, betail), slime dormant (plante dans sa flaque, le jeu lui-meme l'exclut
+        // de "ennemis a proximite" via ClaimBedSystem ; reveille = en combat -> sentinelle
+        // d'aggro, pas de perte de securite). COMPAGNON (familier/serviteur, FactionID.
+        // PlayerMinion) : BASSE PRIORITE dediee (demande utilisateur, 4 juillet) - colle au
+        // joueur, quasi toujours la creature la plus proche du faisceau, masquait sans ca
+        // une vraie plante/un coffre plus loin. Ne revendique PAS foundPassive ici ; simple
+        // candidat retenu (le plus proche), promu par l'appelant SEULEMENT si rien d'autre
+        // (creature paisible ou objet pose) n'a ete trouve sur tout le trajet. Les entites
+        // sans EnemyCD ni CritterCD ni FactionCD hostile (PNJ, meubles a collider) ne sont
         // pas des creatures : elles passent par l'index d'objets.
         private void ScanCreatures(int2 c, World world,
             ref bool foundEnemy, ref float2 enemyPos, ref long enemyKey, ref ObjectID enemyObj,
             ref bool foundPassive, ref float2 passivePos, ref long passiveKey,
-            ref ObjectID passiveObj, ref bool passiveCreature, ref bool passiveInteractable)
+            ref ObjectID passiveObj, ref bool passiveCreature, ref bool passiveInteractable,
+            ref bool foundCompanion, ref float2 companionPos, ref long companionKey, ref ObjectID companionObj)
         {
             var cw = PhysicsManager.GetCollisionWorld();
             var hits = new NativeList<DistanceHit>(8, Allocator.Temp);
@@ -508,10 +534,12 @@ namespace CoreKeeperAccess.Gameplay
                         && EntityUtility.GetComponentData<HealthCD>(h.Entity, world).health <= 0)
                         continue;
 
-                    bool hostile = !critter
-                        && EntityUtility.HasComponentData<FactionCD>(h.Entity, world)
-                        && IsEnemy(EntityUtility.GetComponentData<FactionCD>(h.Entity, world).faction)
-                        && !IsDormantSlime(oid);
+                    bool hasFaction = EntityUtility.HasComponentData<FactionCD>(h.Entity, world);
+                    FactionID faction = hasFaction
+                        ? EntityUtility.GetComponentData<FactionCD>(h.Entity, world).faction
+                        : FactionID.None;
+                    bool hostile = !critter && hasFaction && IsEnemy(faction) && !IsDormantSlime(oid);
+                    bool companion = !hostile && hasFaction && faction == FactionID.PlayerMinion;
 
                     if (hostile && !foundEnemy)
                     {
@@ -520,7 +548,14 @@ namespace CoreKeeperAccess.Gameplay
                         enemyKey = EntityKey.Of(h.Entity);
                         enemyObj = oid;
                     }
-                    else if (!hostile && !foundPassive)
+                    else if (companion && !foundCompanion)
+                    {
+                        foundCompanion = true;
+                        companionPos = new float2(c.x, c.y);
+                        companionKey = EntityKey.Of(h.Entity);
+                        companionObj = oid;
+                    }
+                    else if (!hostile && !companion && !foundPassive)
                     {
                         foundPassive = true;
                         passivePos = new float2(c.x, c.y);

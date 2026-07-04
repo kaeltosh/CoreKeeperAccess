@@ -2,7 +2,7 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à la 1.0.7 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0.8 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
 
 > **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
 

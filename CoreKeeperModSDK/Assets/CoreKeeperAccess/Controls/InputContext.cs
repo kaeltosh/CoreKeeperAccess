@@ -33,6 +33,7 @@ namespace CoreKeeperAccess.Controls
         public static bool CharacterWindowOpen { get; private set; }
         public static bool StationOpen { get; private set; }         // station de reparation/recyclage
         public static bool ForgeOpen { get; private set; }           // forge d'amelioration (1 slot)
+        public static bool CraftingUIOpen { get; private set; }      // etabli/station de craft classique (categories de tier)
         public static bool InventoryNavActive { get; private set; }  // notre nav inventaire tient la main
         public static bool SettingsOpen { get; private set; }        // panneau de reglages a11y ouvert
         public static bool ActionMenuOpen { get; private set; }      // menu contextuel / menu d'aide ouvert
@@ -49,6 +50,8 @@ namespace CoreKeeperAccess.Controls
         // frame a l'ouverture). UiBusy ne suffit pas en inventaire : il y est deja vrai.
         public static bool ModalA11yOpen => Settings.SettingsMenu.Active || ActionMenu.Active || TextEntry.Active || PadLearn.Active || SoundGuide.Active;
 
+        private static bool _prevStationOpen;
+
         public static void Refresh()
         {
             var ui = Manager.ui;
@@ -59,6 +62,11 @@ namespace CoreKeeperAccess.Controls
             CharacterWindowOpen = InWorld && ui.characterWindow != null && ui.characterWindow.isShowing;
             StationOpen = InWorld && ui.isSalvageAndRepairUIShowing;
             ForgeOpen = InWorld && ui.isUpgradeForgeUIShowing;
+            CraftingUIOpen = InWorld && ui.isCraftingUIShowing;
+            // Remise a zero du mode reparation/renforcement a chaque (re)ouverture de la
+            // station : jamais de renforcement laisse arme d'une visite precedente.
+            if (StationOpen && !_prevStationOpen) Gameplay.StationCommands.ResetRepairMode();
+            _prevStationOpen = StationOpen;
             InventoryNavActive = Navigation.InventoryNavState.SuppressNativeInput;
             SettingsOpen = Settings.SettingsMenu.Active;
             ActionMenuOpen = ActionMenu.Active;

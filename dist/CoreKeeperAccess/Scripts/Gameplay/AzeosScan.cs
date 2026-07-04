@@ -193,15 +193,15 @@ namespace CoreKeeperAccess.Gameplay
             return count;
         }
 
-        // Coeur de la classification (ServerWorld uniquement) :
-        //  - moveSideWays == true sur un pilier => motif 1 (anneau), decide par le jeu lui-meme,
-        //    aucune ambiguite possible.
-        //  - sinon, l'axe DOMINANT du moveDirection (X ou Z, chaque pilier tire un cardinal exact,
-        //    cf. BirdBossSpawnBeamsJob) tranche colonne/ligne. Un motif structure (2 ou 3) a TOUS
-        //    ses piliers sur le MEME axe ; l'aleatoire (motif 0) pioche parmi les 4 cardinaux
-        //    independamment par pilier (GetRandomBeamMoveDirection) => environ moitie X, moitie Z,
-        //    jamais une majorite nette.
-        private AzeosBeamChannel ClassifyShapeFromBeamData(List<(long key, float2 pos, float3 dir, bool sideways)> beams)
+        // Categorie de forme de la vague (moveSideWays / axe dominant du moveDirection,
+        // cf. BirdBossSpawnBeamsJob) - toujours un verdict de VAGUE (fiable, le jeu tire un
+        // seul motif pour les 30 piliers). Un motif structure (2 ou 3) a TOUS ses piliers sur
+        // le MEME axe ; l'aleatoire (motif 0) pioche parmi les 4 cardinaux independamment par
+        // pilier (GetRandomBeamMoveDirection) => environ moitie X, moitie Z, jamais une
+        // majorite nette.
+        private enum WaveShape { Ring, ColonneV, Ligne, Aleatoire }
+
+        private WaveShape ClassifyWaveShape(List<(long key, float2 pos, float3 dir, bool sideways)> beams)
         {
             int n = beams.Count;
             int ringN = 0, xN = 0, zN = 0;
@@ -211,17 +211,10 @@ namespace CoreKeeperAccess.Gameplay
                 if (math.abs(b.dir.x) > math.abs(b.dir.z)) xN++; else zN++;
             }
 
-            if (ringN >= n * BeamMajority) return AzeosBeamChannel.None;
-            if (xN >= n * BeamMajority) return AzeosBeamChannel.ColonneV;
-            if (zN >= n * BeamMajority)
-            {
-                float2 centroid = float2.zero;
-                foreach (var b in beams) centroid += b.pos;
-                centroid /= n;
-                float2 player = ObjectIndex.Center;
-                return (centroid.y > player.y) ? AzeosBeamChannel.LigneHaut : AzeosBeamChannel.LigneBas;
-            }
-            return AzeosBeamChannel.Aleatoire;
+            if (ringN >= n * BeamMajority) return WaveShape.Ring;
+            if (xN >= n * BeamMajority) return WaveShape.ColonneV;
+            if (zN >= n * BeamMajority) return WaveShape.Ligne;
+            return WaveShape.Aleatoire;
         }
 
         // Lit le ServerWorld A CHAQUE poll (non-nul UNIQUEMENT si on heberge, cf. ECSManager.
@@ -318,10 +311,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 if (_pendingBatch.Count >= MinWaveForShape)
                 {
-                    var channel = ClassifyShapeFromBeamData(_pendingBatch);
-                    foreach (var b in _pendingBatch) _serverBeamChannel[b.key] = channel;
-                    Diag.Log("A11yAzeosWave", "vague de " + _pendingBatch.Count + " pilier(s) -> canal " + channel);
-                    GameplayAudio.PlayAzeosShapeCallout(channel);
+                    CloseWave(_pendingBatch);
                     _awaitingServerWave = false;
                     _pendingBatch.Clear();
                     _pendingKeys.Clear();
@@ -336,6 +326,76 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             return count;
+        }
+
+        // Classe la vague et fixe le canal de CHAQUE pilier. Point critique (constat
+        // utilisateur, 3 juillet) : un motif rangee spawn presque toujours les DEUX cotes
+        // mixes (chaque pilier tire nord/sud - ou est/ouest - independamment, cf. memoire
+        // "double peigne") - un verdict UNIQUE pour toute la vague (ancien code, moyenne des
+        // positions) rendait donc un cote entier muet par tirage au sort alors qu'il portait
+        // de vrais piliers actifs. Fix : chaque pilier lit SA PROPRE position, les deux
+        // canaux (LigneHaut/LigneBas) peuvent etre actifs en meme temps - c'etait deja le
+        // design sonore vise (design 25 juin : "deux murs simultanes, un par mur").
+        // Bonus (idee utilisateur) : le decompte nord/sud (ou est/ouest) sert aussi a
+        // annoncer de quel cote il y a LE PLUS de piliers - indice pour fuir vers le cote le
+        // moins charge, sans devoiler le detail pilier par pilier.
+        private void CloseWave(List<(long key, float2 pos, float3 dir, bool sideways)> beams)
+        {
+            var shape = ClassifyWaveShape(beams);
+            float2 player = ObjectIndex.Center;
+            AzeosBeamChannel calloutChannel;
+
+            switch (shape)
+            {
+                case WaveShape.Ring:
+                    calloutChannel = AzeosBeamChannel.None;
+                    foreach (var b in beams) _serverBeamChannel[b.key] = AzeosBeamChannel.None;
+                    break;
+
+                case WaveShape.ColonneV:
+                {
+                    calloutChannel = AzeosBeamChannel.ColonneV;
+                    int eastN = 0, westN = 0;
+                    foreach (var b in beams)
+                    {
+                        _serverBeamChannel[b.key] = AzeosBeamChannel.ColonneV;
+                        if (b.pos.x > player.x) eastN++; else westN++;
+                    }
+                    AnnounceMajoritySide(eastN, westN, "east", "west");
+                    break;
+                }
+
+                case WaveShape.Ligne:
+                {
+                    int northN = 0, southN = 0;
+                    foreach (var b in beams)
+                    {
+                        var ch = (b.pos.y > player.y) ? AzeosBeamChannel.LigneHaut : AzeosBeamChannel.LigneBas;
+                        _serverBeamChannel[b.key] = ch;
+                        if (ch == AzeosBeamChannel.LigneHaut) northN++; else southN++;
+                    }
+                    calloutChannel = northN >= southN ? AzeosBeamChannel.LigneHaut : AzeosBeamChannel.LigneBas;
+                    AnnounceMajoritySide(northN, southN, "north", "south");
+                    break;
+                }
+
+                default:
+                    calloutChannel = AzeosBeamChannel.Aleatoire;
+                    foreach (var b in beams) _serverBeamChannel[b.key] = AzeosBeamChannel.Aleatoire;
+                    break;
+            }
+
+            Diag.Log("A11yAzeosWave", "vague de " + beams.Count + " pilier(s) -> forme " + shape);
+            GameplayAudio.PlayAzeosShapeCallout(calloutChannel);
+        }
+
+        // Egalite (rare, meme decompte des deux cotes) : aucun indice fiable, on se tait
+        // plutot que d'annoncer un cote au hasard. Voix pre-rendue (meme canal que
+        // PlayAzeosShapeCallout), PAS TtsText.Say/Tolk (mauvais canal, corrige le 3 juillet).
+        private static void AnnounceMajoritySide(int countA, int countB, string sideIfAMore, string sideIfBMore)
+        {
+            if (countA == countB) return;
+            GameplayAudio.PlayAzeosMajorityCallout(countA > countB ? sideIfAMore : sideIfBMore);
         }
     }
 }

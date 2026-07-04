@@ -2,6 +2,24 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.8 (bêta ouverte) — juillet 2026
+
+Renforcement d'objet, annonce de vie du boss, bascule de catégories de recettes, et corrections.
+
+### Ajouts
+
+- **Renforcement d'objet à la station de réparation.** Triangle+Bas bascule entre les modes réparation et renforcement (annoncé) ; Triangle+Droite applique le mode courant, et le coût affiché (Triangle+Haut) suit le mode choisi. Le renforcement booste la durabilité maximale d'un objet au-delà de son plafond normal.
+- **Annonce de vie des boss tous les 10 %.** Pendant un combat de boss, la vie restante est annoncée par palier de 10 %, à la baisse comme à la remontée (ne masque jamais un soin en cours).
+- **Bascule entre catégories de recettes sur un établi/station qui en regroupe plusieurs.** Certaines stations conservent aussi les recettes d'un modèle antérieur (par exemple une enclume améliorée qui garde les recettes de l'enclume précédente) : Triangle+Droite/Gauche passe d'une catégorie à l'autre, avec annonce du nom du modèle affiché. Muet si la station n'a qu'une seule catégorie.
+- **Réglage "Silence interaction en curseur".** Dans le panneau d'accessibilité, catégorie Navigation : coupe l'annonce redondante "interaction disponible" pendant l'usage du curseur de tuile détaché (qui annonce déjà l'objet survolé). Désactivé par défaut.
+
+### Corrections
+
+- **Forge d'amélioration : entrée et sortie correctement annoncées.** Le slot où déposer l'objet et celui qui prévisualise le résultat tombaient auparavant dans une catégorie générique incorrecte ; ils sont maintenant rattachés à la section artisanat avec leurs rôles clairs, et le résultat prévisualisé (gain de statistiques) est désormais lisible.
+- **Le compagnon (canne laser) ne masque plus un objet plus loin.** Un familier ou un serviteur posé entre vous et une plante ou un coffre plus éloigné ne bloque plus sa détection.
+
+---
+
 ## 1.0.7 (bêta ouverte) — juillet 2026
 
 Roue de saut dans la barre rapide, détecteur de collision, combat d'Azeos et corrections.

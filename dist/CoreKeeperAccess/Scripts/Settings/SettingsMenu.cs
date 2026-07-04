@@ -71,7 +71,8 @@ namespace CoreKeeperAccess.Settings
                 Vol("settings.navvolume", "settings.desc.navvolume", () => A11ySettings.NavigationVolume, A11ySettings.SetNavigationVolume,
                     () => { GameplayAudio.PlaySpatial(SfxID.inventory_select, 0f, 1f, A11ySettings.NavigationVolume); LaserCane.Preview(); }),
                 Vol("settings.guidevolume", "settings.desc.guidevolume", () => A11ySettings.GuideVolume, A11ySettings.SetGuideVolume,
-                    BeaconGuide.Preview)));
+                    BeaconGuide.Preview),
+                Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor)));
 
             _root.Children.Add(Cat("settings.cat.sonar", "settings.desc.cat.sonar",
                 Tg("settings.sonar", "settings.desc.sonar", () => A11ySettings.ProximitySonar, A11ySettings.SetProximitySonar,
@@ -113,7 +114,11 @@ namespace CoreKeeperAccess.Settings
                 Tg("settings.fire", "settings.desc.fire", () => A11ySettings.FireEnabled, A11ySettings.SetFireEnabled,
                     FireProximity.Preview),
                 Vol("settings.firevolume", "settings.desc.firevolume", () => A11ySettings.FireVolume, A11ySettings.SetFireVolume,
-                    FireProximity.Preview)));
+                    FireProximity.Preview),
+                Tg("settings.bosshealth", "settings.desc.bosshealth", () => A11ySettings.BossHealthCallouts, A11ySettings.SetBossHealthCallouts,
+                    () => GameplayAudio.PlayBossHealthCallout(50)),
+                Vol("settings.bosshealthvolume", "settings.desc.bosshealthvolume", () => A11ySettings.BossHealthVolume, A11ySettings.SetBossHealthVolume,
+                    () => GameplayAudio.PlayBossHealthCallout(50))));
 
             _root.Children.Add(Cat("settings.cat.alerts", "settings.desc.cat.alerts",
                 Tg("settings.conditionearcons", "settings.desc.conditionearcons", () => A11ySettings.ConditionEarcons, A11ySettings.SetConditionEarcons,

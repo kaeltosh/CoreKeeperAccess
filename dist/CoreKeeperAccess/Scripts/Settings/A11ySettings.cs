@@ -79,6 +79,11 @@ namespace CoreKeeperAccess.Gameplay
             // Detecteur de zones de feu (AoE/pieges). Coupe-circuit + volume dedie (0..2).
             public bool fireEnabled = true;
             public float fireVolume = 1f;
+            // Annonce vocale (TTS pre-rendu) de la vie du boss tous les 10 %, dans les deux
+            // sens (descend ET remonte, pour ne jamais masquer un soin). PROVISOIRE,
+            // generique (BossCD), cf. BossHealthAnnounce. Actif par defaut.
+            public bool bossHealthCallouts = true;
+            public float bossHealthVolume = 1f;   // 0..2
             // Vitesse du jeu pendant le ralenti de combat (Time.timeScale applique quand des
             // ennemis chassent). 0.30..0.70 (defaut 0.50 = mi-vitesse) : plus bas = plus lent.
             // Bornee a 0.30 mini pour ne jamais figer le jeu.
@@ -112,6 +117,11 @@ namespace CoreKeeperAccess.Gameplay
             // cf. HotbarJumpWheel). Actif par defaut (feature demandee explicitement) ;
             // desactivable si R1/L1 pas-a-pas natif est prefere.
             public bool hotbarWheelEnabled = true;
+            // Coupe l'annonce "X, interaction disponible" (WatchInteractable) UNIQUEMENT
+            // pendant que le curseur de tuile est detache (BuildModeNavigator.CursorDetached) :
+            // evite le doublon avec le TTS du curseur lui-meme. Hors curseur, comportement
+            // inchange. Defaut d'usine ETEINT (comportement historique garde).
+            public bool muteInteractInCursor = false;
         }
 
         private static Data _d = new Data();
@@ -145,6 +155,8 @@ namespace CoreKeeperAccess.Gameplay
         public static float SentinelBossVolume => _d.sentinelBossVolume;
         public static bool FireEnabled => _d.fireEnabled;
         public static float FireVolume => _d.fireVolume;
+        public static bool BossHealthCallouts => _d.bossHealthCallouts;
+        public static float BossHealthVolume => _d.bossHealthVolume;
         public static float SlowMoSpeed => _d.slowMoSpeed;
         public static bool ConditionEarcons => _d.conditionEarcons;
         public static float ConditionEarconsVolume => _d.conditionEarconsVolume;
@@ -159,6 +171,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float CollisionRadarVolume => _d.collisionRadarVolume;
         public static float CollisionRadarRange => _d.collisionRadarRange;
         public static bool HotbarWheelEnabled => _d.hotbarWheelEnabled;
+        public static bool MuteInteractInCursor => _d.muteInteractInCursor;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -182,6 +195,8 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetSentinelBossVolume(float v) { _d.sentinelBossVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetFireEnabled(bool v) { _d.fireEnabled = v; Save(); }
         public static void SetFireVolume(float v) { _d.fireVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetBossHealthCallouts(bool v) { _d.bossHealthCallouts = v; Save(); }
+        public static void SetBossHealthVolume(float v) { _d.bossHealthVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetSlowMoSpeed(float v) { _d.slowMoSpeed = Mathf.Clamp(v, 0.3f, 0.7f); Save(); }
         public static void SetConditionEarcons(bool v) { _d.conditionEarcons = v; Save(); }
         public static void SetConditionEarconsVolume(float v) { _d.conditionEarconsVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -196,6 +211,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetCollisionRadarVolume(float v) { _d.collisionRadarVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetCollisionRadarRange(float v) { _d.collisionRadarRange = Mathf.Clamp(Mathf.Round(v), 2f, 6f); Save(); }
         public static void SetHotbarWheelEnabled(bool v) { _d.hotbarWheelEnabled = v; Save(); }
+        public static void SetMuteInteractInCursor(bool v) { _d.muteInteractInCursor = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

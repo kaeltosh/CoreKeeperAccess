@@ -113,6 +113,10 @@
                       "guid":  ""
                   },
                   {
+                      "path":  "Scripts/Gameplay/BossHealthAnnounce.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Gameplay/BuildModeNavigator.cs",
                       "guid":  "a4f909a49da822d428713da67ca23293"
                   },
@@ -342,6 +346,58 @@
                   },
                   {
                       "path":  "Sounds/azeos_ligne_haut.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_more_east.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_more_north.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_more_south.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/azeos_more_west.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_10.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_20.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_30.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_40.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_50.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_60.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_70.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_80.wav",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Sounds/hp_90.wav",
                       "guid":  ""
                   },
                   {

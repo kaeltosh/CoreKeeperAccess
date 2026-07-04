@@ -100,6 +100,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private static void WatchInteractable(PlayerController player)
         {
+            if (A11ySettings.MuteInteractInCursor && BuildModeNavigator.CursorDetached) return;
             if (Time.unscaledTime < _nextInteractPoll) return;
             _nextInteractPoll = Time.unscaledTime + InteractPollInterval;
 

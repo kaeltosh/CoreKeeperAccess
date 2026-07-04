@@ -15,16 +15,19 @@ namespace CoreKeeperAccess.Gameplay
 {
     // Commandes de combo de la touche access agissant sur une UI d'atelier/marchand
     // OUVERTE (extraites de GameplayInput le 21 juin pour rendre le decoupage cohesif).
-    //  - Triangle + bas    = transferer l'objet selectionne vers l'autre inventaire
-    //                        (reloge depuis la roue d'actions, secteur libere).
-    //  - Triangle + droite = reparer l'objet selectionne (station de reparation ouverte).
+    //  - Triangle + bas    = bascule mode reparation/renforcement (station de
+    //                        reparation/recyclage ouverte). Le transfert d'objet est
+    //                        retire de ce combo (deja couvert par la gachette RT, cf.
+    //                        InventoryNavigator.HandleInput), donc libre pour ce role.
+    //  - Triangle + droite = agit selon le mode courant : repare OU renforce l'objet
+    //                        selectionne (station de reparation ouverte).
     //  - Triangle + gauche = tout recycler (contenu des slots de la station) OU tout
     //                        vendre (marchand ouvert), selon le contexte.
     // Les combos station/forge sont CONTEXTUELS : sans la bonne UI ouverte ils sont muets
     // (pas d'annonce d'erreur), comme s'ils n'existaient pas. Et Triangle + haut (details)
-    // s'enrichit, station/forge ouverte, du COUT DE REPARATION et du GAIN DE RECYCLAGE
-    // estime (BuildStationDetail) ou du cout d'amelioration (BuildForgeDetail), appeles
-    // par AnnounceDetail (InventoryNavigator).
+    // s'enrichit, station/forge ouverte, du COUT DE REPARATION/RENFORCEMENT et du GAIN DE
+    // RECYCLAGE estime (BuildStationDetail) ou du cout d'amelioration (BuildForgeDetail),
+    // appeles par AnnounceDetail (InventoryNavigator).
     // La reparation/le recyclage/la forge n'utilisent PAS les boutons/modes souris des UI :
     // on appelle directement les methodes publiques du jeu (CraftingHandler.RepairOrReinforce
     // / SalvageAndRepairUI.Salvage / UpgradeForgeUI.Upgrade), qui passent par la file
@@ -33,6 +36,20 @@ namespace CoreKeeperAccess.Gameplay
     {
         private static bool StationOpen => InputContext.StationOpen;
         private static bool ForgeOpen => InputContext.ForgeOpen;
+
+        // Mode courant du combo Triangle+droite dans la station de reparation/recyclage.
+        // Remis a Repair a chaque (re)ouverture de la station (cf. InputContext.Refresh)
+        // pour ne jamais surprendre avec un renforcement laisse arme d'une session precedente.
+        private static bool _reinforceMode;
+
+        public static void ResetRepairMode() => _reinforceMode = false;
+
+        public static void ToggleRepairMode()
+        {
+            if (!StationOpen) return; // contextuel : muet sans station
+            _reinforceMode = !_reinforceMode;
+            TtsText.Say(Strings.L(_reinforceMode ? "repair.mode.reinforce" : "repair.mode.repair"), true);
+        }
 
         // Transfert = meme appel direct que faisait la roue (le geste natif est
         // maintien + A, pas simulable par armement d'input).
@@ -44,6 +61,9 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(Strings.L("wheel.transfer") + ", " + Strings.L("wheel.done"), true);
         }
 
+        // Applique le mode courant (repare par defaut, renforce si bascule via
+        // Triangle+bas). Renforcer booste la durabilite max au-dela du plafond normal
+        // (jusqu'a x2, cf. InventoryUtility.CanBeRepaired) au lieu de juste reparer.
         public static void RepairSelected()
         {
             if (!StationOpen) return; // contextuel : muet sans station
@@ -52,15 +72,16 @@ namespace CoreKeeperAccess.Gameplay
 
             var slot = Manager.ui.currentSelectedUIElement as InventorySlotUI;
             var handler = slot != null ? slot.GetInventoryHandler() : null;
+            bool reinforce = _reinforceMode;
             if (handler == null
-                || !player.activeCraftingHandler.CanBeRepaired(slot.inventorySlotIndex, handler, false))
+                || !player.activeCraftingHandler.CanBeRepaired(slot.inventorySlotIndex, handler, reinforce))
             {
-                TtsText.Say(Strings.L("repair.none"), true);
+                TtsText.Say(Strings.L(reinforce ? "reinforce.none" : "repair.none"), true);
                 return;
             }
 
-            player.activeCraftingHandler.RepairOrReinforce(player, slot.inventorySlotIndex, handler, false);
-            TtsText.Say(Strings.L("repair.done"), true);
+            player.activeCraftingHandler.RepairOrReinforce(player, slot.inventorySlotIndex, handler, reinforce);
+            TtsText.Say(Strings.L(reinforce ? "reinforce.done" : "repair.done"), true);
         }
 
         // Recycle le contenu des slots de la station (l'equivalent du gros bouton
@@ -81,6 +102,49 @@ namespace CoreKeeperAccess.Gameplay
 
             station.Salvage();
             TtsText.Say(Strings.L("salvage.done"), true);
+        }
+
+        // Bascule la "categorie" de recettes affichee sur un etabli/station classique qui
+        // en embarque plusieurs (ex. enclume fer = ses propres recettes + celles de
+        // l'enclume cuivre qu'elle remplace, plus besoin de la garder). Le jeu decoupe le
+        // buffer complet de recettes en "fenetres" (une par batiment inclus,
+        // IncludedCraftingBuildingsBuffer) et n'en montre qu'une a la fois ; les fleches
+        // natives (CraftingCategoryNavigationUI, haut/bas souris) ne sont jamais atteintes
+        // par notre nav -> on appelle directement le canal officiel
+        // Manager.ui.ChangeCraftingCategoryWindowInfo. Muet si une seule fenetre (rien a
+        // basculer, comme les autres combos contextuels).
+        public static void SwitchCraftingCategory(bool forward)
+        {
+            if (!InputContext.CraftingUIOpen) return;
+            var windows = Manager.ui.GetCraftingCategoryWindowInfos();
+            if (windows == null || windows.Count <= 1) return;
+
+            Manager.ui.ChangeCraftingCategoryWindowInfo(forward);
+            string name = CurrentCraftingCategoryName();
+            TtsText.Say(!string.IsNullOrEmpty(name) ? name : Strings.L("craft.category.switched"), true);
+        }
+
+        // Nom du batiment "inclus" dont on affiche actuellement les recettes. Le
+        // CraftingCategoryWindowInfo natif ne garde que l'icone (pas l'ObjectID) -> on
+        // relit nous-memes IncludedCraftingBuildingsBuffer (meme donnee que celle qui a
+        // construit les fenetres, CraftingBuilding.OnOccupied), aligne par index de fenetre.
+        private static string CurrentCraftingCategoryName()
+        {
+            try
+            {
+                var building = UIManager.GetCraftingBuilding();
+                if (building == null) return null;
+                var windows = Manager.ui.GetCraftingCategoryWindowInfos();
+                var current = Manager.ui.GetCraftingCategoryWindowInfo();
+                if (windows == null || current == null) return null;
+                int idx = windows.IndexOf(current);
+                if (idx < 0) return null;
+
+                var buf = EntityUtility.GetBuffer<IncludedCraftingBuildingsBuffer>(building.entity, building.world);
+                if (idx >= buf.Length) return null;
+                return InGameTtsCore.ResolveObjectName(buf[idx].objectID);
+            }
+            catch { return null; }
         }
 
         // Forge d'amelioration (1 slot) : on depose un objet, ce combo l'ameliore d'un
@@ -169,8 +233,8 @@ namespace CoreKeeperAccess.Gameplay
             TtsText.Say(Strings.L("merchant.sold") + " " + total + " " + Strings.L("merchant.coins"), true);
         }
 
-        // Volet "station" du combo details (Triangle + haut) : cout de reparation de
-        // l'objet selectionne (meme source que l'infobulle native du mode reparation)
+        // Volet "station" du combo details (Triangle + haut) : cout de reparation OU
+        // renforcement (selon le mode courant, meme source que l'infobulle native)
         // + gain de recyclage estime. Null si pas de station ouverte / pas d'objet.
         public static string BuildStationDetail(UIelement element)
         {
@@ -186,11 +250,14 @@ namespace CoreKeeperAccess.Gameplay
 
             var parts = new List<string>();
 
-            // Cout de reparation, seulement si l'objet est effectivement reparable.
-            if (player.activeCraftingHandler.CanBeRepaired(slot.inventorySlotIndex, handler, false))
+            // Cout de reparation/renforcement, seulement si l'objet est eligible au mode
+            // courant. GetRequiredMaterials(isRepairing, isReinforcing) : le jeu appelle
+            // (true,false) pour reparer, (false,true) pour renforcer (UIMouse.cs).
+            bool reinforce = _reinforceMode;
+            if (player.activeCraftingHandler.CanBeRepaired(slot.inventorySlotIndex, handler, reinforce))
             {
                 List<PugDatabase.MaterialInfo> mats = null;
-                try { mats = slot.GetRequiredMaterials(true, false); }
+                try { mats = slot.GetRequiredMaterials(!reinforce, reinforce); }
                 catch { }
                 if (mats != null && mats.Count > 0)
                 {
@@ -202,7 +269,7 @@ namespace CoreKeeperAccess.Gameplay
                         if (!string.IsNullOrEmpty(nom)) items.Add(m.amountNeeded + " " + nom);
                     }
                     if (items.Count > 0)
-                        parts.Add(Strings.L("repair.cost") + " " + string.Join(", ", items));
+                        parts.Add(Strings.L(reinforce ? "reinforce.cost" : "repair.cost") + " " + string.Join(", ", items));
                 }
             }
 

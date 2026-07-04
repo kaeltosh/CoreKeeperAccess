@@ -401,6 +401,15 @@ namespace CoreKeeperAccess.Navigation
 
         private static string KindOf(SlotUIBase s)
         {
+            // Forge d'amelioration : le slot d'entree (UpgradeSlot) est lu via un handler
+            // A PART (player.upgradeSlotHandler), jamais celui du CraftingHandler actif ->
+            // absent du switch generique. Le slot d'apercu du resultat (UpgradePreviewSlotUI)
+            // n'est pas un InventorySlotUI -> echappe aussi a la detection habituelle. Les deux
+            // tombaient donc hors de la section artisanat (observe : "Autre" / "Coffre").
+            // Rattaches ici explicitement.
+            if (s.slotType == ItemSlotsUIType.UpgradeSlot || s is UpgradePreviewSlotUI)
+                return "crafting";
+
             switch (s.slotType)
             {
                 case ItemSlotsUIType.PlayerInventorySlot:
@@ -484,6 +493,14 @@ namespace CoreKeeperAccess.Navigation
         // doit casser l'annonce d'un slot ordinaire.
         private static string CraftStationRole(UIelement element)
         {
+            // Forge d'amelioration : slot d'entree (UpgradeSlot, handler a part - cf. KindOf)
+            // et slot d'apercu du resultat (UpgradePreviewSlotUI, pas un InventorySlotUI) ->
+            // traites AVANT la detection generique ci-dessous, qui ne les voit pas.
+            if (element is UpgradePreviewSlotUI) return Strings.L("craft.output");
+            var baseSlot = element as SlotUIBase;
+            if (baseSlot != null && baseSlot.slotType == ItemSlotsUIType.UpgradeSlot)
+                return Strings.L("craft.input");
+
             var slot = element as InventorySlotUI;
             if (slot == null) return null;
             var player = Manager.main != null ? Manager.main.player : null;

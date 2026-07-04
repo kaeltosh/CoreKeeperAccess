@@ -32,11 +32,12 @@ namespace CoreKeeperAccess.Controls
             // (Croix sur une balise -> liste d'actions, cf. TeleportNavigator). Les combos
             // Triangle+bas/droite de l'onglet balises ont donc ete retires : keymaps liberes.
 
-            // Triangle + bas = transferer (nav inventaire). En jeu, vitals est passe sur la
-            // roue de stats (stick gauche) - le D-pad bas n'a plus de role gameplay. Sur la
-            // carte : supprime une balise (onglet balises), sinon rien.
+            // Triangle + bas = bascule mode reparation/renforcement (station recyclage/
+            // reparation uniquement). Le transfert est retire de ce combo : deja couvert
+            // par RT (gachette, InventoryNavigator.HandleInput) partout ailleurs, y compris
+            // dans cette station - rien perdu en liberant Triangle+bas ici.
             ComboDispatcher.Register(ComboDispatcher.Combo.Down,
-                () => InventoryNavState.SuppressNativeInput, StationCommands.TransferSelected, "cmd.transfer");
+                () => InputContext.StationOpen, StationCommands.ToggleRepairMode, "cmd.repairmode.toggle");
 
             // Triangle + droite = ameliorer (forge ouverte) / reparer (autre station) /
             // position (jeu normal). La forge prime sur la reparation : les deux stations
@@ -46,6 +47,11 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.ForgeOpen, StationCommands.UpgradeForgeAction, "cmd.upgrade");
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InputContext.StationOpen, StationCommands.RepairSelected, "cmd.repair");
+            // Etabli/station de craft classique (pas station reparation/forge) : categorie
+            // de recettes suivante, si plusieurs batiments sont inclus (ex. enclume fer qui
+            // embarque aussi les recettes cuivre). Muet si une seule categorie.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
+                () => InputContext.CraftingUIOpen, () => StationCommands.SwitchCraftingCategory(true), "cmd.craftcategory.next");
             // En jeu pur : barre rapide suivante. Le D-pad droite vanilla (qui portait SORT,
             // inutile hors inventaire) est confisque par le curseur de tuile -> on remet le
             // swap de barre rapide ici. On arme l'action native, le jeu change la barre et
@@ -68,6 +74,10 @@ namespace CoreKeeperAccess.Controls
                 StationCommands.SellAllToMerchant, "cmd.sellall");
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InputContext.StationOpen, StationCommands.SalvageStation, "cmd.salvageall");
+            // Etabli/station de craft classique : categorie de recettes precedente
+            // (symetrique du Triangle+droite ci-dessus).
+            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
+                () => InputContext.CraftingUIOpen, () => StationCommands.SwitchCraftingCategory(false), "cmd.craftcategory.prev");
             // En jeu pur : barre rapide precedente (symetrique du Triangle+droite ci-dessus).
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>

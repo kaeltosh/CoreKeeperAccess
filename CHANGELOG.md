@@ -2,6 +2,24 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.8 (open beta) — July 2026
+
+Item reinforcement, boss health callouts, recipe category switching, and fixes.
+
+### Additions
+
+- **Item reinforcement at the repair station.** Triangle+Down toggles between repair and reinforce mode (announced); Triangle+Right applies the current mode, and the cost shown (Triangle+Up) follows the chosen mode. Reinforcing boosts an item's maximum durability beyond its normal cap.
+- **Boss health callouts every 10%.** During a boss fight, remaining health is announced in 10% steps, both dropping and recovering (never masking a heal in progress).
+- **Switch between recipe categories on a crafting station that bundles several.** Some stations also keep the recipes of an earlier model (for example, an upgraded anvil that keeps the previous anvil's recipes): Triangle+Right/Left moves between categories, announcing the name of the model currently shown. Silent if the station only has one category.
+- **"Silence cursor interaction" setting.** In the accessibility panel, Navigation category: mutes the redundant "interaction available" announcement while using the detached tile cursor (which already announces the hovered object). Off by default.
+
+### Fixes
+
+- **Upgrade forge: input and output now correctly announced.** The slot where you drop the item and the one previewing the result used to fall into the wrong generic category; they're now attached to the crafting section with clear roles, and the previewed result (stat gain) is now readable.
+- **The companion (laser cane) no longer blocks a farther object.** A placed familiar or servant standing between you and a farther plant or chest no longer blocks its detection.
+
+---
+
 ## 1.0.7 (open beta) — July 2026
 
 Hotbar jump wheel, directional collision detector, Azeos combat, and fixes.
