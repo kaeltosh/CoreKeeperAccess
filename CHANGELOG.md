@@ -12,6 +12,7 @@ Item reinforcement, boss health callouts, recipe category switching, and fixes.
 - **Boss health callouts every 10%.** During a boss fight, remaining health is announced in 10% steps, both dropping and recovering (never masking a heal in progress).
 - **Switch between recipe categories on a crafting station that bundles several.** Some stations also keep the recipes of an earlier model (for example, an upgraded anvil that keeps the previous anvil's recipes): Triangle+Right/Left moves between categories, announcing the name of the model currently shown. Silent if the station only has one category.
 - **"Silence cursor interaction" setting.** In the accessibility panel, Navigation category: mutes the redundant "interaction available" announcement while using the detached tile cursor (which already announces the hovered object). Off by default.
+- **State announcements for doors, gates, and levers.** Hovering the cursor or approaching ("interaction available") announces whether a door or gate is open/closed, or a lever on/off, alongside its name. The state change is also called out as soon as it happens, whether the cursor is detached or docked.
 
 ### Fixes
 

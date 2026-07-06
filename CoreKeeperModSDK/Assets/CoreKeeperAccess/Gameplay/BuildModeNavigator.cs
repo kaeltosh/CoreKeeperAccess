@@ -335,7 +335,7 @@ namespace CoreKeeperAccess.Gameplay
                     string objName = (info.ObjectId == ObjectID.SummonArea && !info.ObjectInteractable) || IsSilentDecor(info.ObjectId)
                         ? null
                         : InGameTtsCore.ResolveObjectName(info.ObjectId);
-                    text = AppendIndustry(AppendPlant(objName, in info), in info, false);
+                    text = AppendToggle(AppendIndustry(AppendPlant(objName, in info), in info, false), in info);
                 }
             }
             else
@@ -506,7 +506,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 var snap = TileQuery.Snapshot();
                 string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
-                text = AppendIndustry(AppendPlant(objName, in snap), in snap, true);
+                text = AppendToggle(AppendIndustry(AppendPlant(objName, in snap), in snap, true), in snap);
             }
             else
                 text = GroundLabel(TileQuery.Ground, TileQuery.GroundTileset);
@@ -632,6 +632,29 @@ namespace CoreKeeperAccess.Gameplay
                     ? Strings.L("cursor.storage_empty")
                     : info.StorageCount + " " + Strings.L("cursor.items"));
             return name;
+        }
+
+        // Ajoute l'etat d'une porte/portail (ouvert/ferme) ou d'un levier (active/desactive)
+        // au libelle de l'objet survole.
+        private static string AppendToggle(string name, in TileInfo info)
+        {
+            string label = ToggleLabel(info.ObjectId, info.Toggle);
+            return string.IsNullOrEmpty(label) ? name : Join(name, label);
+        }
+
+        // Libelle seul de l'etat a bascule (sans le nom de l'objet), reutilise par la
+        // surveillance du changement d'etat au Croix (GameplayInput.WatchCursorToggle).
+        // Le levier a son propre couple de mots (interrupteur, pas un battant) ; toutes
+        // les autres bascules connues (portes/portails bois et electriques) partagent
+        // "ouvert(e)/ferme(e)".
+        internal static string ToggleLabel(ObjectID objectId, ToggleState toggle)
+        {
+            if (toggle == ToggleState.None) return null;
+            bool on = toggle == ToggleState.On;
+            string key = objectId == ObjectID.Lever
+                ? (on ? "cursor.lever_on" : "cursor.lever_off")
+                : (on ? "cursor.open" : "cursor.closed");
+            return Strings.L(key);
         }
 
         private static string Join(string a, string b)

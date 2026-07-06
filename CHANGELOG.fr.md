@@ -12,6 +12,7 @@ Renforcement d'objet, annonce de vie du boss, bascule de catégories de recettes
 - **Annonce de vie des boss tous les 10 %.** Pendant un combat de boss, la vie restante est annoncée par palier de 10 %, à la baisse comme à la remontée (ne masque jamais un soin en cours).
 - **Bascule entre catégories de recettes sur un établi/station qui en regroupe plusieurs.** Certaines stations conservent aussi les recettes d'un modèle antérieur (par exemple une enclume améliorée qui garde les recettes de l'enclume précédente) : Triangle+Droite/Gauche passe d'une catégorie à l'autre, avec annonce du nom du modèle affiché. Muet si la station n'a qu'une seule catégorie.
 - **Réglage "Silence interaction en curseur".** Dans le panneau d'accessibilité, catégorie Navigation : coupe l'annonce redondante "interaction disponible" pendant l'usage du curseur de tuile détaché (qui annonce déjà l'objet survolé). Désactivé par défaut.
+- **Annonce d'état pour portes, portails et leviers.** Au survol du curseur ou en approchant ("interaction disponible"), l'état ouvert/fermé d'une porte ou d'un portail, ou activé/désactivé d'un levier, est annoncé avec son nom. Le changement d'état est aussi signalé dès qu'il se produit, curseur détaché ou collé.
 
 ### Corrections
 
