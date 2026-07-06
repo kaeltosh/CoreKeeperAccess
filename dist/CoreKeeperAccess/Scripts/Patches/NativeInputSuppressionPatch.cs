@@ -67,6 +67,8 @@ namespace CoreKeeperAccess.Patches
             // TOUT ce qui est natif sur ce bouton, quelle que soit l'action liee (capturee
             // dynamiquement par TriangleModifier, pas de nom code en dur).
             if (InfoKey.ModifierHeld && TriangleModifier.CircleActionIds.Contains((int)t)) return true;
+            // R3 tenu (scanner de proximite) : ne pas courir pendant qu'on navigue au D-pad.
+            if (ScannerModifier.Held && t == PlayerInput.InputType.MOVE_FASTER) return true;
             return false;
         }
     }

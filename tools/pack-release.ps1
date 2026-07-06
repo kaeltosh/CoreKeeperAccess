@@ -16,6 +16,12 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+# --- Refresh the standalone HTML copies of README/GUIDE (both languages) ---
+# For players who grab the zip and missed them on GitHub. Not versioned in
+# git (regenerated fresh from the current .md every time, see the script).
+python (Join-Path $repoRoot "tools\gen_doc_html.py")
+if ($LASTEXITCODE -ne 0) { throw "gen_doc_html.py failed (exit $LASTEXITCODE) - is 'markdown' installed for this Python?" }
+
 # --- What goes in the release (allow-list) ---------------------------------
 # Files at the zip root, plus whole folders. Anything not listed is excluded.
 $includeFiles = @(
@@ -23,6 +29,12 @@ $includeFiles = @(
     "Installer.cmd",
     "README.md",
     "README.fr.md",
+    "README.html",
+    "README.fr.html",
+    "GUIDE.md",
+    "GUIDE.fr.md",
+    "GUIDE.html",
+    "GUIDE.fr.html",
     "CHANGELOG.md",
     "CHANGELOG.fr.md",
     "KNOWN_ISSUES.md",

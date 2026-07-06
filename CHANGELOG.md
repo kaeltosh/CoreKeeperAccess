@@ -2,6 +2,24 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.9 (open beta) — July 2026
+
+Proximity scanner categories, door/gate/lever states, chest sort, hotbar wheel tuning, and fixes.
+
+### Additions
+
+- **Proximity scanner, held R3: category-by-category navigation.** D-pad cycles through what's currently on screen by category (enemies, peaceful creatures, merchant NPCs, plants, resources, chests), then through individual entries within a category (positional earcon + spoken name). R3+L3 sends a continuous beacon toward the current target: it pauses on arrival, resumes if you wander off, and jumps to the nearest match if the target disappears. Permanent feature (no on/off toggle), replacing the old sonar ping (Triangle+L1).
+- **State announcements for doors, gates, and levers.** Hovering the cursor or approaching ("interaction available") announces whether a door or gate is open/closed, or a lever on/off, alongside its name. The state change is also called out as soon as it happens, whether the cursor is detached or docked.
+- **Sort the open chest from the inventory action wheel.** The native controller "sort" only ever sorted your own bag; a new wheel entry (last free slot) calls the chest's own sort button directly.
+- **Hotbar jump wheel: adjustable trigger delay.** New "wheel trigger delay" setting (0–300 ms, default 120 ms) in the accessibility panel: a quick tap under that delay steps to the next/previous slot the classic way (no added latency), a longer hold opens the jump wheel. Lets both selection styles coexist on R1/L1.
+
+### Fixes
+
+- **Fixed the hotbar sometimes reporting two phantom slots past its real 10.** The game's own persistent hotbar bar stays active behind the full inventory screen and was being read as extra entries; navigation is now bounded to the real 10 slots.
+- **Proximity scanner no longer lists your own character or your placed companion under "creatures".**
+
+---
+
 ## 1.0.8 (open beta) — July 2026
 
 Item reinforcement, boss health callouts, recipe category switching, and fixes.
@@ -12,7 +30,6 @@ Item reinforcement, boss health callouts, recipe category switching, and fixes.
 - **Boss health callouts every 10%.** During a boss fight, remaining health is announced in 10% steps, both dropping and recovering (never masking a heal in progress).
 - **Switch between recipe categories on a crafting station that bundles several.** Some stations also keep the recipes of an earlier model (for example, an upgraded anvil that keeps the previous anvil's recipes): Triangle+Right/Left moves between categories, announcing the name of the model currently shown. Silent if the station only has one category.
 - **"Silence cursor interaction" setting.** In the accessibility panel, Navigation category: mutes the redundant "interaction available" announcement while using the detached tile cursor (which already announces the hovered object). Off by default.
-- **State announcements for doors, gates, and levers.** Hovering the cursor or approaching ("interaction available") announces whether a door or gate is open/closed, or a lever on/off, alongside its name. The state change is also called out as soon as it happens, whether the cursor is detached or docked.
 
 ### Fixes
 

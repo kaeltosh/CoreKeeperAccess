@@ -63,9 +63,9 @@ namespace CoreKeeperAccess.Gameplay
                 TtsText.Say(msg, true);
             }
 
-            // Les combos (prospection, ping sonar, double-tap carte) sont routes par
-            // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
-            PingSonar.Tick(player);
+            // Les combos (prospection, double-tap carte) sont routes par ComboDispatcher
+            // (cf. ComboBindings). Ici ne restent que les ticks.
+            ProximityScanner.Tick(player);
             StepEngine.Tick(player);
             ProximitySonar.Tick(player);
             CollisionRadar.Tick(player);
@@ -86,6 +86,7 @@ namespace CoreKeeperAccess.Gameplay
 
             TickProspect(player);
             WatchInteractable(player);
+            WatchCursorToggle();
         }
 
         // Annonce d'INTERACTION A PORTEE : le jeu maintient sur le joueur l'interactible
@@ -94,8 +95,14 @@ namespace CoreKeeperAccess.Gameplay
         // ("Statue du boss slime, interaction disponible") -> on sait toujours si A va
         // faire quelque chose et sur quoi. Regle le "il faut etre au bon endroit" des
         // objets multi-cases (statues, Core...). Sortie de portee : silence.
+        // Meme entite reconnue -> on surveille EN PLUS son etat a bascule (porte, portail,
+        // levier) : un appui Croix qui l'active/desactive change l'etat SANS changer
+        // l'identite de l'interactible -> sans ce 2e check, le nouvel etat ne serait jamais
+        // annonce. Fonctionne curseur detache OU colle (currentClosestInteractable est la
+        // donnee native de portee du joueur, independante du curseur).
         private const float InteractPollInterval = 0.2f;
         private static long _lastInteractable;
+        private static ToggleState _lastInteractToggle = ToggleState.None;
         private static float _nextInteractPoll;
 
         private static void WatchInteractable(PlayerController player)
@@ -106,6 +113,7 @@ namespace CoreKeeperAccess.Gameplay
 
             long key = 0;
             ObjectID id = ObjectID.None;
+            ToggleState toggle = ToggleState.None;
             try
             {
                 if (!EntityUtility.HasComponentData<InteractorCD>(player.entity, player.world)) return;
@@ -113,21 +121,87 @@ namespace CoreKeeperAccess.Gameplay
                     .currentClosestInteractable;
                 if (e != Entity.Null && EntityUtility.HasComponentData<ObjectDataCD>(e, player.world))
                 {
-                    id = EntityUtility.GetComponentData<ObjectDataCD>(e, player.world).objectID;
+                    var od = EntityUtility.GetComponentData<ObjectDataCD>(e, player.world);
+                    id = od.objectID;
                     key = EntityKey.Of(e);
+                    toggle = ToggleLogic.Compute(e, player.world, od.objectID, od.variation);
                 }
             }
             catch (System.Exception ex) { Diag.Error("A11yInteractDiag", ex); return; }
 
-            if (key == _lastInteractable) return;
-            _lastInteractable = key;
-            if (key == 0 || id == ObjectID.None) return;
+            if (key != _lastInteractable)
+            {
+                _lastInteractable = key;
+                _lastInteractToggle = toggle;
+                if (key == 0 || id == ObjectID.None) return;
 
-            string name = InGameTtsCore.ResolveObjectName(id);
-            if (string.IsNullOrEmpty(name)) return;
-            // interrupt=true (demande utilisateur) : info de POSITION, perimee si elle
-            // attend son tour dans la file - on marche, le point chaud c'est MAINTENANT.
-            TtsText.Say(name + ", " + Strings.L("interact.available"), true);
+                string name = InGameTtsCore.ResolveObjectName(id);
+                if (string.IsNullOrEmpty(name)) return;
+                // Etat a bascule (porte/portail ouvert-ferme, levier actif-inactif) dans la
+                // MEME annonce : en approchant, on veut savoir tout de suite si ca vaut le
+                // coup d'interagir ("Porte, ouverte, interaction disponible"), pas juste que
+                // l'action existe.
+                string stateLabel = BuildModeNavigator.ToggleLabel(id, toggle);
+                string text = string.IsNullOrEmpty(stateLabel) ? name : name + ", " + stateLabel;
+                // interrupt=true (demande utilisateur) : info de POSITION, perimee si elle
+                // attend son tour dans la file - on marche, le point chaud c'est MAINTENANT.
+                TtsText.Say(text + ", " + Strings.L("interact.available"), true);
+                return;
+            }
+
+            // Meme interactible : verifier un changement d'etat a bascule (typiquement juste
+            // apres un appui Croix qui vient de l'activer/desactiver - l'etat met un instant
+            // a revenir du serveur, replique via SwapColliderCD/variation).
+            if (key == 0 || toggle == ToggleState.None || toggle == _lastInteractToggle) return;
+            _lastInteractToggle = toggle;
+            // Curseur DETACHE : on peut viser une case differente de l'interactible natif le
+            // plus proche du joueur (deux objets cote a cote) -> WatchCursorToggle, qui suit
+            // la case REELLEMENT visee, s'en charge. Evite aussi le doublon quand les deux
+            // ciblent le meme objet.
+            if (BuildModeNavigator.CursorDetached) return;
+
+            string label = BuildModeNavigator.ToggleLabel(id, toggle);
+            if (string.IsNullOrEmpty(label)) return;
+            string objName = InGameTtsCore.ResolveObjectName(id);
+            TtsText.Say(string.IsNullOrEmpty(objName) ? label : objName + ", " + label, true);
+        }
+
+        // Surveillance de la MEME case a bascule (porte/portail/levier) pointee par le
+        // curseur DETACHE : annonce le changement d'etat des qu'il arrive. Complementaire a
+        // WatchInteractable (qui couvre le curseur COLLE / l'interaction native) : le curseur
+        // detache peut viser une case differente de "l'interactible le plus proche du joueur"
+        // que le jeu retient nativement (currentClosestInteractable), donc suit sa PROPRE
+        // cible (case + objet) plutot que de deriver de cette donnee native.
+        private static int2 _toggleTile = new int2(int.MinValue, int.MinValue);
+        private static ObjectID _toggleId = ObjectID.None;
+        private static ToggleState _toggleState = ToggleState.None;
+
+        private static void WatchCursorToggle()
+        {
+            if (!BuildModeNavigator.CursorDetached || !TileQuery.ResultValid
+                || TileQuery.Toggle == ToggleState.None || TileQuery.ObjectId == ObjectID.None)
+            {
+                _toggleId = ObjectID.None;
+                return;
+            }
+
+            bool sameTarget = TileQuery.ObjectId == _toggleId && TileQuery.ResultTile.Equals(_toggleTile);
+            if (!sameTarget)
+            {
+                // Nouvelle case/objet suivi : on memorise l'etat SANS annoncer (Announce(),
+                // au survol normal, l'a deja dit).
+                _toggleTile = TileQuery.ResultTile;
+                _toggleId = TileQuery.ObjectId;
+                _toggleState = TileQuery.Toggle;
+                return;
+            }
+            if (TileQuery.Toggle == _toggleState) return;
+            _toggleState = TileQuery.Toggle;
+
+            string label = BuildModeNavigator.ToggleLabel(TileQuery.ObjectId, TileQuery.Toggle);
+            if (string.IsNullOrEmpty(label)) return;
+            string name = InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+            TtsText.Say(string.IsNullOrEmpty(name) ? label : name + ", " + label, true);
         }
 
         // Pose la demande de scan : rayon = stat VisibleOreDistance du perso, la MEME

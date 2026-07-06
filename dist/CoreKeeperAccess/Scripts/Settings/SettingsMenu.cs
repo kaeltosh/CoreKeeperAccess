@@ -62,6 +62,13 @@ namespace CoreKeeperAccess.Settings
             _root.Children.Add(Tg("settings.hotbarwheel", "settings.desc.hotbarwheel",
                 () => A11ySettings.HotbarWheelEnabled, A11ySettings.SetHotbarWheelEnabled));
 
+            _root.Children.Add(new TreeMenu.Slider
+            {
+                LabelKey = "settings.hotbarwheelhold", DescKey = "settings.desc.hotbarwheelhold",
+                Get = () => A11ySettings.HotbarWheelHoldMs, Set = A11ySettings.SetHotbarWheelHoldMs,
+                Step = 10f, Min = 0f, Max = 300f, Raw = true, RawUnitKey = "settings.unit.ms",
+            });
+
             _root.Children.Add(Cat("settings.cat.navigation", "settings.desc.cat.navigation",
                 Tg("settings.stepbeep", "settings.desc.stepbeep", () => A11ySettings.StepBeep, A11ySettings.SetStepBeep,
                     () => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume)),
@@ -72,7 +79,9 @@ namespace CoreKeeperAccess.Settings
                     () => { GameplayAudio.PlaySpatial(SfxID.inventory_select, 0f, 1f, A11ySettings.NavigationVolume); LaserCane.Preview(); }),
                 Vol("settings.guidevolume", "settings.desc.guidevolume", () => A11ySettings.GuideVolume, A11ySettings.SetGuideVolume,
                     BeaconGuide.Preview),
-                Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor)));
+                Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor),
+                Vol("settings.scannervolume", "settings.desc.scannervolume", () => A11ySettings.ScannerVolume, A11ySettings.SetScannerVolume,
+                    () => GameplayAudio.PlaySpatial(SfxID.inventory_doot, 0f, 1f, A11ySettings.ScannerVolume))));
 
             _root.Children.Add(Cat("settings.cat.sonar", "settings.desc.cat.sonar",
                 Tg("settings.sonar", "settings.desc.sonar", () => A11ySettings.ProximitySonar, A11ySettings.SetProximitySonar,

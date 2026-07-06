@@ -48,7 +48,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.8 beta";
+    private const string ReleaseTag = "1.0.9 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -140,6 +140,7 @@ public class CoreKeeperAccessMod : IMod
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
+        ScannerModifier.Tick(); // second modificateur (R3) : scanner de proximite
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)

@@ -51,9 +51,12 @@ namespace CoreKeeperAccess.Controls
             public float Step;        // increment (0.05 = 5 %)
             public float Min = 0f;    // borne basse (defaut 0 ; > 0 pour un reglage qui ne doit pas s'annuler)
             public float Max = 1f;    // borne haute : 1 = volume normal ; > 1 = amplification (ex. 2 = +6 dB)
-            // Raw : annonce la valeur ENTIERE + unite "cases" au lieu d'un pourcentage (ex. une
+            // Raw : annonce la valeur ENTIERE + unite au lieu d'un pourcentage (ex. une
             // portee 2..6, pas un ratio de volume). Defaut false = comportement historique (%).
             public bool Raw;
+            // Cle i18n de l'unite pour un slider Raw (ex. "teleport.tiles" = "cases"). Null =
+            // retro-compatible avec l'ancien comportement fige sur "cases".
+            public string RawUnitKey;
         }
 
         // Feuille ACTION : execute Run a la Croix. Run null = entree INFORMATIVE (relit le
@@ -276,7 +279,7 @@ namespace CoreKeeperAccess.Controls
         {
             if (n is Toggle t) return Strings.L(t.Get() ? "settings.on" : "settings.off");
             if (n is Slider s) return s.Raw
-                ? Mathf.RoundToInt(s.Get()) + " " + Strings.L("teleport.tiles")
+                ? Mathf.RoundToInt(s.Get()) + " " + Strings.L(s.RawUnitKey ?? "teleport.tiles")
                 : Pct(s.Get()) + " " + Strings.L("settings.percent");
             return "";
         }

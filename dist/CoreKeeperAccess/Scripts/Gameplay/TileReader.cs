@@ -6,6 +6,7 @@ using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Physics;
 using Unity.Transforms;
 
@@ -21,6 +22,10 @@ namespace CoreKeeperAccess.Gameplay
     // Off/On = consommateur dont le jeu afficherait l'icone manque/assez de courant.
     // Source = generateur (sourceEnergy>0) : il PRODUIT, jamais "hors tension".
     public enum PowerState : byte { None = 0, Off = 1, On = 2, Source = 3 }
+
+    // Etat d'une porte/portail/levier a bascule. None = pas un objet a bascule connu.
+    // Off = ferme (porte/portail) ou desactive (levier) ; On = ouvert / active.
+    public enum ToggleState : byte { None = 0, Off = 1, On = 2 }
 
     // Contenu remarquable d'une case, decouple de tout systeme : se passe en parametre.
     // Rempli par TileScan.Read et consomme par la sonification partagee
@@ -44,6 +49,7 @@ namespace CoreKeeperAccess.Gameplay
         public bool HasStorage;        // l'objet est un stockage d'automation (StorageCD)
         public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
         public PowerState WirePower;   // tension d'un cable present sur la case (sous un objet non electrique), None sinon
+        public ToggleState Toggle;     // etat ouvert/ferme (porte, portail) ou active/desactive (levier), None sinon
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -75,6 +81,7 @@ namespace CoreKeeperAccess.Gameplay
         public static bool HasStorage;
         public static int StorageCount;
         public static PowerState WirePower;
+        public static ToggleState Toggle;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -96,6 +103,7 @@ namespace CoreKeeperAccess.Gameplay
             HasStorage = HasStorage,
             StorageCount = StorageCount,
             WirePower = WirePower,
+            Toggle = Toggle,
         };
     }
 
@@ -144,27 +152,31 @@ namespace CoreKeeperAccess.Gameplay
         public static float Radius;
     }
 
-    // Pont ping sonar (Triangle + L1). Le mod pose une demande (centre, rayon) ; le
-    // systeme balaye les CREATURES en query ECS (EnemyCD / CritterCD) et publie
-    // position + bord (hostile ou paisible). Les trouvailles (objets type zone de
-    // fouille) sont lues cote mod directement dans ObjectIndex - pas besoin d'ECS.
-    internal static class PingScan
+    // Pont du scanner de proximite (R3 tenu). PUBLICATION CONTINUE (pas de demande/reponse
+    // consommee comme PingScan) : le mod publie chaque frame le rectangle camera courant
+    // (meme convention que la sentinelle d'aggro, AggroScan.CamHal) et le systeme rafraichit
+    // Targets/Count a son propre rythme (VisInterval) - le mod lit "la derniere photo connue",
+    // acceptable pour une liste qui se reconstruit ~4 Hz. Creatures (ennemis / passifs / PNJ
+    // marchands) uniquement : les objets poses (coffres, plantes, ressources) sont lus cote
+    // mod directement dans ObjectIndex, pas besoin d'ECS pour eux.
+    internal static class VisibilityScan
     {
-        public struct Target
+        public struct Creature
         {
+            public long Key;   // identite d'entite (EntityKey.Of), suit une cible qui bouge
             public float2 Pos;
-            public bool Hostile;
+            public ObjectID Obj;
+            public ProximityScanner.Category Cat;
         }
 
-        public const int MaxTargets = 24;
+        public const int MaxTargets = 32;
 
-        public static bool Requested;   // demande posee par le mod (consommee par le systeme)
+        public static bool Active;      // le mod veut le scan (scanner active + jeu normal)
         public static float2 Center;    // position joueur
-        public static float Radius;     // rayon en cases
+        public static float2 CamHalf;   // demi-largeur/hauteur ecran en cases (+ marge), cf. AggroScan
 
-        public static bool ResultValid; // reponse publiee (consommee par le mod)
         public static int Count;
-        public static readonly Target[] Targets = new Target[MaxTargets];
+        public static readonly Creature[] Targets = new Creature[MaxTargets];
     }
 
     // Pont du sonar de proximite. Le mod pose une demande (case du joueur) ; le systeme lit
@@ -231,6 +243,7 @@ namespace CoreKeeperAccess.Gameplay
             public int StorageCount; // nombre d'objets dans le stockage
             public bool Infra;       // cable / conducteur electrique pur : cede la case a toute machine
             public bool Resource;    // gisement minable (PugAutomationCD.type Mineable) : priorite haute
+            public ToggleState Toggle; // porte/portail/levier a bascule : etat ouvert/ferme ou active/desactive
             public Entity Ent;       // entite source (pour le diagnostic automation dev)
         }
 
@@ -312,6 +325,7 @@ namespace CoreKeeperAccess.Gameplay
                 info.Connections = pe.Connections;
                 info.HasStorage = pe.HasStorage;
                 info.StorageCount = pe.StorageCount;
+                info.Toggle = pe.Toggle;
             }
             else
             {
@@ -390,6 +404,43 @@ namespace CoreKeeperAccess.Gameplay
         }
     }
 
+    // Calcul de l'etat ouvert/ferme (porte, portail) ou active/desactive (levier) d'une
+    // entite. Partage entre l'index d'objets (TileReaderSystem, autour du joueur) et la
+    // surveillance de l'interactible a portee (GameplayInput.WatchInteractable, qui lit
+    // directement l'entite currentClosestInteractable) - meme regle, deux points d'entree.
+    internal static class ToggleLogic
+    {
+        // Portes/portails en BOIS (et variantes pierre/ecarlate/corail/galaxite/bois lumineux) :
+        // pas de composant d'etat dedie, l'etat ouvert/ferme est lu via la parite de la
+        // variation (cf. Compute). N'inclut PAS les portes electriques (SwapColliderCD
+        // couvre celles-la) ni PuzzleDoor (verrou a cle, mecanique differente).
+        private static readonly HashSet<ObjectID> WoodGateDoorIds = new HashSet<ObjectID>
+        {
+            ObjectID.WoodFenceGate, ObjectID.StoneFenceGate, ObjectID.ScarletFenceGate,
+            ObjectID.CoralFenceGate, ObjectID.GalaxiteFenceGate, ObjectID.GleamWoodFenceGate,
+            ObjectID.WoodDoor, ObjectID.StoneDoor, ObjectID.ScarletDoor,
+            ObjectID.GleamWoodDoor, ObjectID.CoralDoor, ObjectID.GalaxiteDoor,
+        };
+
+        // Electrique (porte/portail elec) -> SwapColliderCD.swap (bool replique reseau,
+        // source fiable - c'est le champ que le jeu lui-meme utilise pour animer l'ouverture).
+        // Bois (porte/portail classique) + levier -> pas de composant d'etat dedie, encode
+        // dans la VARIATION de l'ObjectDataCD ; parite confirmee par decompil (Gate : case
+        // impaire = "Open" explicite dans le code jeu, Lever : 1 = allume) -> IMPAIR = ouvert/
+        // actif, PAIR = ferme/inactif. Mapping pas teste en jeu, a valider a l'oreille.
+        public static ToggleState Compute(Entity e, World world, ObjectID objectId, int variation)
+        {
+            if (EntityUtility.HasComponentData<SwapColliderCD>(e, world))
+            {
+                return EntityUtility.GetComponentData<SwapColliderCD>(e, world).swap
+                    ? ToggleState.On : ToggleState.Off;
+            }
+            if (objectId == ObjectID.Lever || WoodGateDoorIds.Contains(objectId))
+                return (variation % 2 != 0) ? ToggleState.On : ToggleState.Off;
+            return ToggleState.None;
+        }
+    }
+
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class TileReaderSystem : SystemBase
     {
@@ -398,9 +449,11 @@ namespace CoreKeeperAccess.Gameplay
 
         private EntityQuery _objQuery;
         private EntityQuery _dbQuery;
-        private EntityQuery _creatureQuery;
+        private EntityQuery _visQuery;
         private float _nextIndex;
         private float _nextHazardScan;
+        private float _nextVis;
+        private const float VisInterval = 0.25f; // ~4 Hz, meme cadence que l'index d'objets
 
         protected override void OnCreate()
         {
@@ -411,14 +464,16 @@ namespace CoreKeeperAccess.Gameplay
             // large et on lit la position composant par composant dans la boucle.
             _objQuery = GetEntityQuery(ComponentType.ReadOnly<ObjectDataCD>());
             _dbQuery = GetEntityQuery(ComponentType.ReadOnly<PugDatabase.DatabaseBankCD>());
-            // Creatures pour le ping sonar : tout ce qui porte EnemyCD OU CritterCD
-            // (exclusifs entre eux ; le joueur n'a ni l'un ni l'autre).
-            _creatureQuery = GetEntityQuery(new EntityQueryDesc
+            // Creatures pour le scanner de proximite : tout ce qui porte EnemyCD, CritterCD OU
+            // FactionCD (les deux premiers sont exclusifs entre eux ; FactionCD elargit aux PNJ
+            // marchands, qui ne portent ni l'un ni l'autre).
+            _visQuery = GetEntityQuery(new EntityQueryDesc
             {
                 Any = new[]
                 {
                     ComponentType.ReadOnly<EnemyCD>(),
                     ComponentType.ReadOnly<CritterCD>(),
+                    ComponentType.ReadOnly<FactionCD>(),
                 },
             });
         }
@@ -426,16 +481,16 @@ namespace CoreKeeperAccess.Gameplay
         protected override void OnUpdate()
         {
             RebuildObjectIndex();
-            // Ping sonar : scan des creatures a la demande (independant du curseur).
-            if (PingScan.Requested)
+            // Scanner de proximite : creatures visibles a l'ecran, rafraichi en continu tant
+            // que le mod le demande (pas de request/consume : le scanner lit la derniere photo).
+            if (VisibilityScan.Active && UnityEngine.Time.unscaledTime >= _nextVis)
             {
-                PingScan.Requested = false;
-                try { ScanCreaturesForPing(); }
+                _nextVis = UnityEngine.Time.unscaledTime + VisInterval;
+                try { ScanVisibility(); }
                 catch (System.Exception ex)
                 {
-                    PingScan.Count = 0;
-                    PingScan.ResultValid = true;
-                    Diag.Error("A11yPingDiag", ex);
+                    VisibilityScan.Count = 0;
+                    Diag.Error("A11yScannerDiag", ex);
                 }
             }
             // Prospection minerai : independante du curseur (TileQuery peut etre inactif).
@@ -569,6 +624,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.HasStorage = info.HasStorage;
                 TileQuery.StorageCount = info.StorageCount;
                 TileQuery.WirePower = info.WirePower;
+                TileQuery.Toggle = info.Toggle;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -767,6 +823,28 @@ namespace CoreKeeperAccess.Gameplay
                         }
                     }
 
+                    // Etat ouvert/ferme (porte, portail) ou active/desactive (levier) : deux
+                    // familles distinctes cote jeu. Electrique (porte/portail elec) -> lu via
+                    // SwapColliderCD.swap (bool replique reseau, source fiable - c'est le champ
+                    // que le jeu lui-meme utilise pour animer l'ouverture). Bois (porte/portail
+                    // classique) + levier -> pas de composant d'etat dedie, encode dans la
+                    // VARIATION de l'ObjectDataCD ; parite confirmee par decompil (Gate : case
+                    // impaire = "Open" explicite dans le code jeu, Lever : 1 = allume) -> IMPAIR
+                    // = ouvert/actif, PAIR = ferme/inactif. Mapping pas teste en jeu, a valider
+                    // a l'oreille (poser une porte/un portail, l'ouvrir/fermer, ecouter).
+                    ToggleState toggle = ToggleLogic.Compute(e, World, od.objectID, od.variation);
+                    // Le levier porte un ElectricityCD avec sourceEnergy fixe (capacite nominale,
+                    // constante en base) : sans ce garde-fou, "genere du courant" s'annoncait
+                    // MEME desactive (le blocage reel passe par blocksElectricityWhenVariationIsZero,
+                    // pas par une remise a zero de sourceEnergy) -> contradiction avec le Toggle
+                    // qui, lui, reflete l'etat REEL. Objet a bascule connu -> le Toggle prime,
+                    // on tait toute annonce electrique concurrente (sous tension / genere...).
+                    if (toggle != ToggleState.None)
+                    {
+                        power = PowerState.None;
+                        wirePower = PowerState.None;
+                    }
+
                     var entry = new ObjectIndex.Entry
                     {
                         Id = od.objectID,
@@ -780,6 +858,7 @@ namespace CoreKeeperAccess.Gameplay
                         StorageCount = storageCount,
                         Infra = infra,
                         Resource = isMineable,
+                        Toggle = toggle,
                         Ent = e,
                     };
                     // Priorite de la case : interactible (3) > gisement/ressource (2) >
@@ -1022,21 +1101,22 @@ namespace CoreKeeperAccess.Gameplay
             HazardGroundScan.Tile = bestTile;
         }
 
-        // Balaye les creatures dans le rayon du ping et publie position + bord.
-        // Memes regles que le laser : CritterCD = paisible ; EnemyCD a faction
-        // hostile = hostile, sauf slime dormant (paisible) ; EnemyCD a faction
-        // neutre (chevres, betail) = paisible. Cadavres ecartes (HealthCD a 0 :
-        // l'entite persiste quelques secondes apres la mort).
-        private void ScanCreaturesForPing()
+        // Balaye les creatures dans la fenetre camera et publie position + categorie, pour le
+        // scanner de proximite. Memes regles de classification que l'ancien ping sonar (retire) :
+        // CritterCD = paisible ; EnemyCD a faction hostile = ennemi, sauf slime dormant (paisible) ;
+        // EnemyCD a faction neutre (chevres, betail) = paisible. Faction Merchand (PNJ, ni EnemyCD
+        // ni CritterCD) = categorie PNJ marchands, testee AVANT le reste. Cadavres ecartes
+        // (HealthCD a 0 : l'entite persiste quelques secondes apres la mort).
+        private void ScanVisibility()
         {
             int count = 0;
-            float r2 = PingScan.Radius * PingScan.Radius;
-            float2 center = PingScan.Center;
+            float2 center = VisibilityScan.Center;
+            float2 half = VisibilityScan.CamHalf;
 
-            var ents = _creatureQuery.ToEntityArray(Allocator.Temp);
+            var ents = _visQuery.ToEntityArray(Allocator.Temp);
             foreach (var e in ents)
             {
-                if (count >= PingScan.MaxTargets) break;
+                if (count >= VisibilityScan.MaxTargets) break;
 
                 float3 pos;
                 if (EntityManager.HasComponent<LocalToWorld>(e))
@@ -1045,26 +1125,47 @@ namespace CoreKeeperAccess.Gameplay
                     pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
                 else continue;
                 float2 p = new float2(pos.x, pos.z);
-                if (math.lengthsq(p - center) > r2) continue;
+                float2 d = p - center;
+                if (math.abs(d.x) > half.x || math.abs(d.y) > half.y) continue;
 
                 if (EntityManager.HasComponent<HealthCD>(e)
                     && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
 
+                // Le joueur LOCAL lui-meme (GhostOwnerIsLocal = ce client possede cette entite -
+                // ne matche PAS un autre joueur en multi, dont l'entite appartient a une autre
+                // connexion) et son familier/serviteur (FactionID.PlayerMinion) n'ont rien a
+                // faire dans "creatures" - mais un AUTRE joueur en multi doit rester visible.
+                if (EntityManager.HasComponent<GhostOwnerIsLocal>(e)) continue;
+
                 bool critter = EntityManager.HasComponent<CritterCD>(e);
+                bool hasFaction = EntityManager.HasComponent<FactionCD>(e);
+                FactionID faction = hasFaction ? EntityManager.GetComponentData<FactionCD>(e).faction : FactionID.None;
+                if (faction == FactionID.PlayerMinion) continue;
                 ObjectID oid = EntityManager.HasComponent<ObjectDataCD>(e)
                     ? EntityManager.GetComponentData<ObjectDataCD>(e).objectID
                     : ObjectID.None;
-                bool hostile = !critter
-                    && EntityManager.HasComponent<FactionCD>(e)
-                    && HostileFilter.IsHostile(EntityManager.GetComponentData<FactionCD>(e).faction)
-                    && !HostileFilter.IsDormantSlime(oid);
 
-                PingScan.Targets[count++] = new PingScan.Target { Pos = p, Hostile = hostile };
+                ProximityScanner.Category cat;
+                if (!critter && hasFaction && faction == FactionID.Merchant)
+                    cat = ProximityScanner.Category.Merchant;
+                else if (!critter && hasFaction && HostileFilter.IsHostile(faction) && !HostileFilter.IsDormantSlime(oid))
+                    cat = ProximityScanner.Category.Enemy;
+                else if (critter || hasFaction)
+                    cat = ProximityScanner.Category.Passive;
+                else
+                    continue; // ni critter ni faction exploitable : rien a classer
+
+                VisibilityScan.Targets[count++] = new VisibilityScan.Creature
+                {
+                    Key = EntityKey.Of(e),
+                    Pos = p,
+                    Obj = oid,
+                    Cat = cat,
+                };
             }
             ents.Dispose();
 
-            PingScan.Count = count;
-            PingScan.ResultValid = true;
+            VisibilityScan.Count = count;
         }
 
         // Dump ASCII du reseau local (dev) : grille "vue par le mod" dans Player.log, Nord en

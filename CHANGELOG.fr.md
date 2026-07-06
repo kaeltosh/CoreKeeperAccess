@@ -2,6 +2,24 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.9 (bêta ouverte) — juillet 2026
+
+Scanner de proximité par catégorie, états portes/leviers, tri de coffre, réglage de la roue de barre rapide, et corrections.
+
+### Ajouts
+
+- **Scanner de proximité (R3 tenu) : navigation par catégorie.** Le D-pad parcourt ce qui est visible à l'écran par catégorie (ennemis, créatures paisibles, PNJ marchands, plantes, ressources, coffres), puis les entrées individuelles au sein d'une catégorie (earcon positionnel + nom vocal). R3+L3 envoie un beacon continu vers la cible courante : il se met en pause à l'arrivée, reprend si vous vous éloignez, et saute vers la plus proche si la cible disparaît. Feature permanente (pas de bascule on/off), remplace l'ancien ping sonar (Triangle+L1).
+- **Annonce d'état pour portes, portails et leviers.** Au survol du curseur ou en approchant ("interaction disponible"), l'état ouvert/fermé d'une porte ou d'un portail, ou activé/désactivé d'un levier, est annoncé avec son nom. Le changement d'état est aussi signalé dès qu'il se produit, curseur détaché ou collé.
+- **Trier le coffre ouvert depuis la roue d'actions inventaire.** Le "trier" natif manette ne triait que votre propre sac ; une nouvelle entrée de roue (dernier secteur libre) appelle directement le bouton de tri du coffre.
+- **Roue de saut barre rapide : latence de déclenchement réglable.** Nouveau réglage "latence de déclenchement de la roue" (0-300 ms, défaut 120 ms) dans le panneau d'accessibilité : un appui bref sous ce seuil change de slot au pas-à-pas classique (aucune latence ajoutée), une tenue plus longue ouvre la roue de saut. Les deux systèmes de sélection coexistent sur R1/L1.
+
+### Corrections
+
+- **Corrigé : la barre rapide pouvait signaler deux cases fantômes au-delà de ses 10 vraies cases.** La barre d'action persistante du jeu reste active derrière l'écran d'inventaire plein écran et était lue comme des emplacements en trop ; la navigation est désormais bornée aux 10 vraies cases.
+- **Le scanner de proximité ne liste plus votre propre personnage ni votre compagnon posé sous "créatures".**
+
+---
+
 ## 1.0.8 (bêta ouverte) — juillet 2026
 
 Renforcement d'objet, annonce de vie du boss, bascule de catégories de recettes, et corrections.
@@ -12,7 +30,6 @@ Renforcement d'objet, annonce de vie du boss, bascule de catégories de recettes
 - **Annonce de vie des boss tous les 10 %.** Pendant un combat de boss, la vie restante est annoncée par palier de 10 %, à la baisse comme à la remontée (ne masque jamais un soin en cours).
 - **Bascule entre catégories de recettes sur un établi/station qui en regroupe plusieurs.** Certaines stations conservent aussi les recettes d'un modèle antérieur (par exemple une enclume améliorée qui garde les recettes de l'enclume précédente) : Triangle+Droite/Gauche passe d'une catégorie à l'autre, avec annonce du nom du modèle affiché. Muet si la station n'a qu'une seule catégorie.
 - **Réglage "Silence interaction en curseur".** Dans le panneau d'accessibilité, catégorie Navigation : coupe l'annonce redondante "interaction disponible" pendant l'usage du curseur de tuile détaché (qui annonce déjà l'objet survolé). Désactivé par défaut.
-- **Annonce d'état pour portes, portails et leviers.** Au survol du curseur ou en approchant ("interaction disponible"), l'état ouvert/fermé d'une porte ou d'un portail, ou activé/désactivé d'un levier, est annoncé avec son nom. Le changement d'état est aussi signalé dès qu'il se produit, curseur détaché ou collé.
 
 ### Corrections
 

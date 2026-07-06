@@ -56,6 +56,11 @@ namespace CoreKeeperAccess.Navigation
             foreach (var s in slots)
             {
                 if (s == null || s.gameObject == null || !s.gameObject.activeInHierarchy || !s.isShowing) continue;
+                // La barre d'action HUD persistante (ItemSlotsBarUI) reste active derriere
+                // le panneau d'inventaire plein ecran -> doublon des memes inventorySlotIndex
+                // que "barre rapide"/"sac" (bug constate : dpad bas atteignait des cases
+                // fantomes 11/12). On l'exclut, seul le panneau plein ecran est navigable.
+                if (IsHudHotbarSlot(s)) continue;
                 var kind = KindOf(s);
                 if (!byKind.TryGetValue(kind, out var list))
                 {
@@ -97,6 +102,21 @@ namespace CoreKeeperAccess.Navigation
             AddStatsSection(sections);
             AppendWindowTabsToProgressViews(sections);
             return sections;
+        }
+
+        private static System.Reflection.FieldInfo _containerField;
+
+        // Vrai si l'emplacement appartient a la barre d'action HUD persistante
+        // (ItemSlotsBarUI), pas au panneau d'inventaire plein ecran (InventoryUI).
+        // Ce HUD reste actif derriere le panneau (confirme par diagnostic en jeu,
+        // 6 juillet 2026) et reexpose les memes inventorySlotIndex 0-9 -> doublon.
+        private static bool IsHudHotbarSlot(SlotUIBase s)
+        {
+            if (_containerField == null)
+                _containerField = typeof(SlotUIBase).GetField("slotsUIContainer",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (_containerField == null) return false;
+            return _containerField.GetValue(s) is ItemSlotsBarUI;
         }
 
         // Reorganise la section pochette en lignes logiques (cf. SlotSection.Rows) :

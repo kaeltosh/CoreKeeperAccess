@@ -65,6 +65,10 @@
                       "guid":  "330fc950073ea764b84e995a347a2f9b"
                   },
                   {
+                      "path":  "Scripts/Controls/ScannerModifier.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/SoundGuide.cs",
                       "guid":  ""
                   },
@@ -169,12 +173,12 @@
                       "guid":  "42dd9a8908e75c443978992f247c3e8b"
                   },
                   {
-                      "path":  "Scripts/Gameplay/PingSonar.cs",
-                      "guid":  "63696b12f6756a34f807f8867567be2a"
-                  },
-                  {
                       "path":  "Scripts/Gameplay/PlacementReader.cs",
                       "guid":  "0135bc140932ce943a6288d45060cdfa"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/ProximityScanner.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/ProximitySonar.cs",
