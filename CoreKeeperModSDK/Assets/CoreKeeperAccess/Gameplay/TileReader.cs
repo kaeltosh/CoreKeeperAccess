@@ -6,6 +6,7 @@ using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Physics;
 using Unity.Transforms;
 
@@ -1130,9 +1131,16 @@ namespace CoreKeeperAccess.Gameplay
                 if (EntityManager.HasComponent<HealthCD>(e)
                     && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
 
+                // Le joueur LOCAL lui-meme (GhostOwnerIsLocal = ce client possede cette entite -
+                // ne matche PAS un autre joueur en multi, dont l'entite appartient a une autre
+                // connexion) et son familier/serviteur (FactionID.PlayerMinion) n'ont rien a
+                // faire dans "creatures" - mais un AUTRE joueur en multi doit rester visible.
+                if (EntityManager.HasComponent<GhostOwnerIsLocal>(e)) continue;
+
                 bool critter = EntityManager.HasComponent<CritterCD>(e);
                 bool hasFaction = EntityManager.HasComponent<FactionCD>(e);
                 FactionID faction = hasFaction ? EntityManager.GetComponentData<FactionCD>(e).faction : FactionID.None;
+                if (faction == FactionID.PlayerMinion) continue;
                 ObjectID oid = EntityManager.HasComponent<ObjectDataCD>(e)
                     ? EntityManager.GetComponentData<ObjectDataCD>(e).objectID
                     : ObjectID.None;
