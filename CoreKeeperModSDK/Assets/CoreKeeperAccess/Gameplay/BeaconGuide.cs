@@ -39,7 +39,7 @@ namespace CoreKeeperAccess.Gameplay
     internal static class BeaconGuide
     {
         private const SfxID GuideSfx = SfxID.skillPointChime1; // placeholder (choix utilisateur)
-        private const float ArriveTiles = 1.5f;     // rayon d'arrivée sur la cible finale
+        private const float ArriveTiles = 1f;       // rayon d'arrivée sur la cible finale (~portée d'interaction réelle, 0,7 case)
         private const float ReachTiles = 2f;        // rayon pour considérer le réseau « rejoint »
 
         // --- Suivi de route ---
@@ -95,6 +95,17 @@ namespace CoreKeeperAccess.Gameplay
             _lastPing = -999f;  // force un premier ping immédiat
             string verb = Strings.L(routed ? "guide.routed" : "guide.direct.to");
             TtsText.Say(verb + " " + _name, true);
+        }
+
+        // Resynchronise la case cible d'un guidage DIRECT en cours, SANS re-annoncer "Guidage
+        // vers X" (le scanner de proximite l'utilise pour suivre une cible qui reste detectee
+        // d'un rescan a l'autre, ou pour reorienter silencieusement quand on renavigue la liste
+        // avec le TTS de nav qui dit deja le nom). No-op si aucun guidage DIRECT actif (jamais
+        // sur un guidage RESEAU, qui a sa propre polyligne).
+        public static void RetargetDirectSilent(int2 target)
+        {
+            if (!_hasTarget || _routed) return;
+            _target = target;
         }
 
         public static void Stop(bool announce)

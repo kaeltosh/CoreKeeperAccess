@@ -66,10 +66,6 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null || Manager.ui == null) { Reset(); return; }
 
-            // Salve du ping sonar en cours : fenetre sonore reservee, le laser se tait
-            // sans perdre son etat (pas de Reset : a la reprise, pas de reannonce).
-            if (PingSonar.Silencing) return;
-
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
             if (!InputContext.InGameFree) { Reset(); return; }
 

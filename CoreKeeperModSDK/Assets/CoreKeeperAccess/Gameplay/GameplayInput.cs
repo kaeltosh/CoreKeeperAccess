@@ -63,9 +63,9 @@ namespace CoreKeeperAccess.Gameplay
                 TtsText.Say(msg, true);
             }
 
-            // Les combos (prospection, ping sonar, double-tap carte) sont routes par
-            // ComboDispatcher (cf. ComboBindings). Ici ne restent que les ticks.
-            PingSonar.Tick(player);
+            // Les combos (prospection, double-tap carte) sont routes par ComboDispatcher
+            // (cf. ComboBindings). Ici ne restent que les ticks.
+            ProximityScanner.Tick(player);
             StepEngine.Tick(player);
             ProximitySonar.Tick(player);
             CollisionRadar.Tick(player);

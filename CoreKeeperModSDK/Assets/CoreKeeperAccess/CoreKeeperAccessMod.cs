@@ -140,6 +140,7 @@ public class CoreKeeperAccessMod : IMod
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
+        ScannerModifier.Tick(); // second modificateur (R3) : scanner de proximite
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)

@@ -122,6 +122,10 @@ namespace CoreKeeperAccess.Gameplay
             // evite le doublon avec le TTS du curseur lui-meme. Hors curseur, comportement
             // inchange. Defaut d'usine ETEINT (comportement historique garde).
             public bool muteInteractInCursor = false;
+            // Scanner de proximite (R3 tenu) : earcon positionnel navigable par categorie sur
+            // les choses visibles a l'ecran. Feature PERMANENTE (comme la roue de stats ou la
+            // roue d'actions) : pas de coupe-circuit, juste un volume.
+            public float scannerVolume = 1f; // 0..2, volume de l'earcon de navigation (pas le beacon, qui reutilise GuideVolume)
         }
 
         private static Data _d = new Data();
@@ -172,6 +176,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float CollisionRadarRange => _d.collisionRadarRange;
         public static bool HotbarWheelEnabled => _d.hotbarWheelEnabled;
         public static bool MuteInteractInCursor => _d.muteInteractInCursor;
+        public static float ScannerVolume => _d.scannerVolume;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -212,6 +217,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetCollisionRadarRange(float v) { _d.collisionRadarRange = Mathf.Clamp(Mathf.Round(v), 2f, 6f); Save(); }
         public static void SetHotbarWheelEnabled(bool v) { _d.hotbarWheelEnabled = v; Save(); }
         public static void SetMuteInteractInCursor(bool v) { _d.muteInteractInCursor = v; Save(); }
+        public static void SetScannerVolume(float v) { _d.scannerVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et
@@ -271,6 +277,7 @@ namespace CoreKeeperAccess.Gameplay
             d.healthCritThreshold = Mathf.Clamp(d.healthCritThreshold, 0.1f, 0.35f);
             d.collisionRadarVolume = Mathf.Clamp(d.collisionRadarVolume, 0f, 2f);
             d.collisionRadarRange = Mathf.Clamp(Mathf.Round(d.collisionRadarRange), 2f, 6f);
+            d.scannerVolume = Mathf.Clamp(d.scannerVolume, 0f, 2f);
             _d = d;
         }
 

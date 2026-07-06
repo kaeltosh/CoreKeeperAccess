@@ -151,27 +151,31 @@ namespace CoreKeeperAccess.Gameplay
         public static float Radius;
     }
 
-    // Pont ping sonar (Triangle + L1). Le mod pose une demande (centre, rayon) ; le
-    // systeme balaye les CREATURES en query ECS (EnemyCD / CritterCD) et publie
-    // position + bord (hostile ou paisible). Les trouvailles (objets type zone de
-    // fouille) sont lues cote mod directement dans ObjectIndex - pas besoin d'ECS.
-    internal static class PingScan
+    // Pont du scanner de proximite (R3 tenu). PUBLICATION CONTINUE (pas de demande/reponse
+    // consommee comme PingScan) : le mod publie chaque frame le rectangle camera courant
+    // (meme convention que la sentinelle d'aggro, AggroScan.CamHal) et le systeme rafraichit
+    // Targets/Count a son propre rythme (VisInterval) - le mod lit "la derniere photo connue",
+    // acceptable pour une liste qui se reconstruit ~4 Hz. Creatures (ennemis / passifs / PNJ
+    // marchands) uniquement : les objets poses (coffres, plantes, ressources) sont lus cote
+    // mod directement dans ObjectIndex, pas besoin d'ECS pour eux.
+    internal static class VisibilityScan
     {
-        public struct Target
+        public struct Creature
         {
+            public long Key;   // identite d'entite (EntityKey.Of), suit une cible qui bouge
             public float2 Pos;
-            public bool Hostile;
+            public ObjectID Obj;
+            public ProximityScanner.Category Cat;
         }
 
-        public const int MaxTargets = 24;
+        public const int MaxTargets = 32;
 
-        public static bool Requested;   // demande posee par le mod (consommee par le systeme)
+        public static bool Active;      // le mod veut le scan (scanner active + jeu normal)
         public static float2 Center;    // position joueur
-        public static float Radius;     // rayon en cases
+        public static float2 CamHalf;   // demi-largeur/hauteur ecran en cases (+ marge), cf. AggroScan
 
-        public static bool ResultValid; // reponse publiee (consommee par le mod)
         public static int Count;
-        public static readonly Target[] Targets = new Target[MaxTargets];
+        public static readonly Creature[] Targets = new Creature[MaxTargets];
     }
 
     // Pont du sonar de proximite. Le mod pose une demande (case du joueur) ; le systeme lit
@@ -444,9 +448,11 @@ namespace CoreKeeperAccess.Gameplay
 
         private EntityQuery _objQuery;
         private EntityQuery _dbQuery;
-        private EntityQuery _creatureQuery;
+        private EntityQuery _visQuery;
         private float _nextIndex;
         private float _nextHazardScan;
+        private float _nextVis;
+        private const float VisInterval = 0.25f; // ~4 Hz, meme cadence que l'index d'objets
 
         protected override void OnCreate()
         {
@@ -457,14 +463,16 @@ namespace CoreKeeperAccess.Gameplay
             // large et on lit la position composant par composant dans la boucle.
             _objQuery = GetEntityQuery(ComponentType.ReadOnly<ObjectDataCD>());
             _dbQuery = GetEntityQuery(ComponentType.ReadOnly<PugDatabase.DatabaseBankCD>());
-            // Creatures pour le ping sonar : tout ce qui porte EnemyCD OU CritterCD
-            // (exclusifs entre eux ; le joueur n'a ni l'un ni l'autre).
-            _creatureQuery = GetEntityQuery(new EntityQueryDesc
+            // Creatures pour le scanner de proximite : tout ce qui porte EnemyCD, CritterCD OU
+            // FactionCD (les deux premiers sont exclusifs entre eux ; FactionCD elargit aux PNJ
+            // marchands, qui ne portent ni l'un ni l'autre).
+            _visQuery = GetEntityQuery(new EntityQueryDesc
             {
                 Any = new[]
                 {
                     ComponentType.ReadOnly<EnemyCD>(),
                     ComponentType.ReadOnly<CritterCD>(),
+                    ComponentType.ReadOnly<FactionCD>(),
                 },
             });
         }
@@ -472,16 +480,16 @@ namespace CoreKeeperAccess.Gameplay
         protected override void OnUpdate()
         {
             RebuildObjectIndex();
-            // Ping sonar : scan des creatures a la demande (independant du curseur).
-            if (PingScan.Requested)
+            // Scanner de proximite : creatures visibles a l'ecran, rafraichi en continu tant
+            // que le mod le demande (pas de request/consume : le scanner lit la derniere photo).
+            if (VisibilityScan.Active && UnityEngine.Time.unscaledTime >= _nextVis)
             {
-                PingScan.Requested = false;
-                try { ScanCreaturesForPing(); }
+                _nextVis = UnityEngine.Time.unscaledTime + VisInterval;
+                try { ScanVisibility(); }
                 catch (System.Exception ex)
                 {
-                    PingScan.Count = 0;
-                    PingScan.ResultValid = true;
-                    Diag.Error("A11yPingDiag", ex);
+                    VisibilityScan.Count = 0;
+                    Diag.Error("A11yScannerDiag", ex);
                 }
             }
             // Prospection minerai : independante du curseur (TileQuery peut etre inactif).
@@ -1092,21 +1100,22 @@ namespace CoreKeeperAccess.Gameplay
             HazardGroundScan.Tile = bestTile;
         }
 
-        // Balaye les creatures dans le rayon du ping et publie position + bord.
-        // Memes regles que le laser : CritterCD = paisible ; EnemyCD a faction
-        // hostile = hostile, sauf slime dormant (paisible) ; EnemyCD a faction
-        // neutre (chevres, betail) = paisible. Cadavres ecartes (HealthCD a 0 :
-        // l'entite persiste quelques secondes apres la mort).
-        private void ScanCreaturesForPing()
+        // Balaye les creatures dans la fenetre camera et publie position + categorie, pour le
+        // scanner de proximite. Memes regles de classification que l'ancien ping sonar (retire) :
+        // CritterCD = paisible ; EnemyCD a faction hostile = ennemi, sauf slime dormant (paisible) ;
+        // EnemyCD a faction neutre (chevres, betail) = paisible. Faction Merchand (PNJ, ni EnemyCD
+        // ni CritterCD) = categorie PNJ marchands, testee AVANT le reste. Cadavres ecartes
+        // (HealthCD a 0 : l'entite persiste quelques secondes apres la mort).
+        private void ScanVisibility()
         {
             int count = 0;
-            float r2 = PingScan.Radius * PingScan.Radius;
-            float2 center = PingScan.Center;
+            float2 center = VisibilityScan.Center;
+            float2 half = VisibilityScan.CamHalf;
 
-            var ents = _creatureQuery.ToEntityArray(Allocator.Temp);
+            var ents = _visQuery.ToEntityArray(Allocator.Temp);
             foreach (var e in ents)
             {
-                if (count >= PingScan.MaxTargets) break;
+                if (count >= VisibilityScan.MaxTargets) break;
 
                 float3 pos;
                 if (EntityManager.HasComponent<LocalToWorld>(e))
@@ -1115,26 +1124,40 @@ namespace CoreKeeperAccess.Gameplay
                     pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
                 else continue;
                 float2 p = new float2(pos.x, pos.z);
-                if (math.lengthsq(p - center) > r2) continue;
+                float2 d = p - center;
+                if (math.abs(d.x) > half.x || math.abs(d.y) > half.y) continue;
 
                 if (EntityManager.HasComponent<HealthCD>(e)
                     && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
 
                 bool critter = EntityManager.HasComponent<CritterCD>(e);
+                bool hasFaction = EntityManager.HasComponent<FactionCD>(e);
+                FactionID faction = hasFaction ? EntityManager.GetComponentData<FactionCD>(e).faction : FactionID.None;
                 ObjectID oid = EntityManager.HasComponent<ObjectDataCD>(e)
                     ? EntityManager.GetComponentData<ObjectDataCD>(e).objectID
                     : ObjectID.None;
-                bool hostile = !critter
-                    && EntityManager.HasComponent<FactionCD>(e)
-                    && HostileFilter.IsHostile(EntityManager.GetComponentData<FactionCD>(e).faction)
-                    && !HostileFilter.IsDormantSlime(oid);
 
-                PingScan.Targets[count++] = new PingScan.Target { Pos = p, Hostile = hostile };
+                ProximityScanner.Category cat;
+                if (!critter && hasFaction && faction == FactionID.Merchant)
+                    cat = ProximityScanner.Category.Merchant;
+                else if (!critter && hasFaction && HostileFilter.IsHostile(faction) && !HostileFilter.IsDormantSlime(oid))
+                    cat = ProximityScanner.Category.Enemy;
+                else if (critter || hasFaction)
+                    cat = ProximityScanner.Category.Passive;
+                else
+                    continue; // ni critter ni faction exploitable : rien a classer
+
+                VisibilityScan.Targets[count++] = new VisibilityScan.Creature
+                {
+                    Key = EntityKey.Of(e),
+                    Pos = p,
+                    Obj = oid,
+                    Cat = cat,
+                };
             }
             ents.Dispose();
 
-            PingScan.Count = count;
-            PingScan.ResultValid = true;
+            VisibilityScan.Count = count;
         }
 
         // Dump ASCII du reseau local (dev) : grille "vue par le mod" dans Player.log, Nord en

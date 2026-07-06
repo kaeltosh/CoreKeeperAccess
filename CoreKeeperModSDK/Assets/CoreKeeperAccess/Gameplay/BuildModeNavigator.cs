@@ -113,10 +113,10 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
             // D-pad -> deplacer le curseur d'une case (un cran par appui), borne a l'ecran.
-            // Sauf si Triangle (touche access) est tenu : le D-pad est alors reserve aux
-            // commandes info (InfoKey), il ne deplace plus le curseur. Sauf aussi si la canne
-            // laser est active (stick droit pousse) : le laser a alors priorite.
-            else if (joy != null && !InfoKey.ModifierHeld && !LaserCane.Active && DpadDir(joy, out int2 dir))
+            // Sauf si Triangle (touche access) OU R3 (scanner de proximite) est tenu : le D-pad
+            // est alors reserve aux commandes de ce modificateur, il ne deplace plus le curseur.
+            // Sauf aussi si la canne laser est active (stick droit pousse) : le laser a alors priorite.
+            else if (joy != null && !InfoKey.ModifierHeld && !ScannerModifier.Held && !LaserCane.Active && DpadDir(joy, out int2 dir))
             {
                 int2 target = _cursor + dir;
                 if (InViewport(target))

@@ -72,7 +72,9 @@ namespace CoreKeeperAccess.Settings
                     () => { GameplayAudio.PlaySpatial(SfxID.inventory_select, 0f, 1f, A11ySettings.NavigationVolume); LaserCane.Preview(); }),
                 Vol("settings.guidevolume", "settings.desc.guidevolume", () => A11ySettings.GuideVolume, A11ySettings.SetGuideVolume,
                     BeaconGuide.Preview),
-                Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor)));
+                Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor),
+                Vol("settings.scannervolume", "settings.desc.scannervolume", () => A11ySettings.ScannerVolume, A11ySettings.SetScannerVolume,
+                    () => GameplayAudio.PlaySpatial(SfxID.inventory_doot, 0f, 1f, A11ySettings.ScannerVolume))));
 
             _root.Children.Add(Cat("settings.cat.sonar", "settings.desc.cat.sonar",
                 Tg("settings.sonar", "settings.desc.sonar", () => A11ySettings.ProximitySonar, A11ySettings.SetProximitySonar,

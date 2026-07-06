@@ -86,12 +86,6 @@ namespace CoreKeeperAccess.Controls
                     InventoryNavState.ArmedTtl = 2;
                 }, "cmd.hotbar.prev");
 
-            // Triangle + L1 = ping sonar (jeu normal seulement : pas en inventaire /
-            // fiche perso / carte - sur la carte, les bumpers naviguent les categories).
-            ComboDispatcher.Register(ComboDispatcher.Combo.BumperL,
-                () => !UiBusy() && InputContext.InGameFree && Player() != null,
-                () => PingSonar.Trigger(Player()), "cmd.ping");
-
             // Triangle + L3 = bascule "direction assistee" (snap cardinal du deplacement),
             // jeu normal seulement. Toggle : reste actif jusqu'a re-bascule.
             ComboDispatcher.Register(ComboDispatcher.Combo.LeftStick,

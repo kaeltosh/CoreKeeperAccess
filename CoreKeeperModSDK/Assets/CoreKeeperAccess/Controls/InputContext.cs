@@ -18,6 +18,7 @@ namespace CoreKeeperAccess.Controls
             None,       // pas en jeu (pas de joueur / UI pas prete)
             Settings,   // panneau de reglages a11y ouvert : modal, prime sur tout
             AccessKey,  // Triangle tenu : D-pad reserve aux combos
+            Scanner,    // R3 tenu (et Triangle relache) : D-pad reserve au scanner de proximite
             Menu,       // menu (pause, options...) : le jeu navigue, on ne touche a rien
             Map,        // carte ouverte : TeleportNavigator
             Inventory,  // fenetre inventaire / fiche perso : nav par sections
@@ -91,6 +92,7 @@ namespace CoreKeeperAccess.Controls
             : ActionMenu.Active ? PadOwner.Settings // modal a11y : possede le D-pad comme le panneau
             : SoundGuide.Active ? PadOwner.Settings // idem : menu d'apprentissage des sons
             : InfoKey.ModifierHeld ? PadOwner.AccessKey
+            : ScannerModifier.Held ? PadOwner.Scanner
             : MenuOpen ? PadOwner.Menu
             : MapOpen ? PadOwner.Map
             : (AnyInventoryOpen || CharacterWindowOpen) ? PadOwner.Inventory
