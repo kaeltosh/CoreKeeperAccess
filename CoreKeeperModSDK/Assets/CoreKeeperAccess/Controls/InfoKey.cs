@@ -35,8 +35,15 @@ namespace CoreKeeperAccess.Controls
         // (sinon R1/L1 restent Triangle+R1=pivoter / Triangle+L1=sonar) et le reglage
         // active. R1 = stick gauche pilote (marche gelee) ; L1 = stick droit pilote
         // (canne laser coupee le temps de la tenue). Cf. HotbarJumpWheel.
+        // Vrai seulement une fois le seuil de latence (A11ySettings.HotbarWheelHoldMs)
+        // atteint (0 = seuil nul, actif des l'appui comme avant). Sous ce seuil, on ne
+        // touche a RIEN : le pas-a-pas natif (NEXT_SLOT/PREVIOUS_SLOT) part normalement des
+        // l'appui, sans latence ajoutee (cf. UpdateHotbarBumper) - attendre que le delai
+        // s'ecoule suffit, pas besoin d'intercepter ou de rejouer quoi que ce soit.
         public static bool HotbarWheelRight;
         public static bool HotbarWheelLeft;
+        private static bool _r1Down, _l1Down;
+        private static float _r1HoldStart, _l1HoldStart;
 
         // Pose par la roue de stats (stick droit pousse pendant la tenue de Triangle) :
         // empeche le relachement d'etre lu comme un tap -> pas de double-tap parasite quand
@@ -96,13 +103,23 @@ namespace CoreKeeperAccess.Controls
                 else if (GetButtonDownById(joy, LeftStickClick)) ComboL3 = true;
                 else if (GetButtonDownById(joy, BackButton)) ComboBack = true;
                 else if (GetButtonDownById(joy, CircleButton)) ComboO = true;
+                // Triangle tient la main sur R1/L1 (pivoter / sonar) : oublie tout appui
+                // R1/L1 en cours de suivi pour la roue de saut.
+                _r1Down = false; _l1Down = false;
             }
             else if (A11ySettings.HotbarWheelEnabled)
             {
                 // Roue de saut barre rapide, Triangle relache : R1 = stick gauche pilote,
-                // L1 = stick droit pilote (mode miroir, cf. HotbarJumpWheel).
-                HotbarWheelRight = GetButtonById(joy, BumperRight);
-                HotbarWheelLeft = GetButtonById(joy, BumperLeft);
+                // L1 = stick droit pilote (mode miroir, cf. HotbarJumpWheel). Latence de
+                // declenchement : sous le seuil regle, on ne touche a rien (pas-a-pas natif
+                // libre) ; la roue s'active d'elle-meme une fois le delai ecoule, sans avoir
+                // besoin d'intercepter le relachement.
+                HotbarWheelRight = UpdateHotbarBumper(joy, BumperRight, ref _r1Down, ref _r1HoldStart);
+                HotbarWheelLeft = UpdateHotbarBumper(joy, BumperLeft, ref _l1Down, ref _l1HoldStart);
+            }
+            else
+            {
+                _r1Down = false; _l1Down = false;
             }
 
             // Suivi tap / double-tap (fronts montant et descendant de Triangle).
@@ -142,6 +159,19 @@ namespace CoreKeeperAccess.Controls
             for (int i = 0; i < joy.buttonCount; i++)
                 if (joy.ButtonElementIdentifiers[i].id == id) return joy.GetButtonDown(i);
             return false;
+        }
+
+        // Suivi de tenue d'un bumper (R1 ou L1) pour la roue de saut barre rapide : chrono
+        // depuis le front montant, actif (retour true) une fois A11ySettings.HotbarWheelHoldMs
+        // ecoule. En dessous du seuil on ne fait RIEN d'autre - aucun blocage, aucune
+        // relecture - le pas-a-pas natif (NEXT_SLOT/PREVIOUS_SLOT) part de lui-meme des
+        // l'appui comme avant, sans latence ajoutee sur un tap bref.
+        private static bool UpdateHotbarBumper(Joystick joy, int buttonId, ref bool held, ref float holdStart)
+        {
+            bool down = GetButtonById(joy, buttonId);
+            if (down && !held) holdStart = Time.unscaledTime;
+            held = down;
+            return down && (Time.unscaledTime - holdStart) * 1000f >= A11ySettings.HotbarWheelHoldMs;
         }
     }
 }

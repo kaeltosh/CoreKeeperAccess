@@ -62,6 +62,13 @@ namespace CoreKeeperAccess.Settings
             _root.Children.Add(Tg("settings.hotbarwheel", "settings.desc.hotbarwheel",
                 () => A11ySettings.HotbarWheelEnabled, A11ySettings.SetHotbarWheelEnabled));
 
+            _root.Children.Add(new TreeMenu.Slider
+            {
+                LabelKey = "settings.hotbarwheelhold", DescKey = "settings.desc.hotbarwheelhold",
+                Get = () => A11ySettings.HotbarWheelHoldMs, Set = A11ySettings.SetHotbarWheelHoldMs,
+                Step = 10f, Min = 0f, Max = 300f, Raw = true, RawUnitKey = "settings.unit.ms",
+            });
+
             _root.Children.Add(Cat("settings.cat.navigation", "settings.desc.cat.navigation",
                 Tg("settings.stepbeep", "settings.desc.stepbeep", () => A11ySettings.StepBeep, A11ySettings.SetStepBeep,
                     () => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume)),
