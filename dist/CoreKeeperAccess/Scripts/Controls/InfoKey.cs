@@ -23,8 +23,8 @@ namespace CoreKeeperAccess.Controls
         public static bool ComboRight;      // Triangle + droite (reparer, selon contexte)
         public static bool ComboDown;       // Triangle + bas (transferer)
         public static bool ComboLeft;       // Triangle + gauche (tout recycler)
-        public static bool ComboLB;         // Triangle + L1 (ping sonar)
-        public static bool ComboR1;         // Triangle + R1 (pivoter / changer taille de zone)
+        public static bool ComboLB;         // Triangle + L1 (barre rapide precedente)
+        public static bool ComboR1;         // Triangle + R1 (barre rapide suivante)
         public static bool ComboL3;         // Triangle + L3 (toggle direction assistee)
         public static bool ComboBack;       // Triangle + Back (ouvrir le panneau de reglages)
         public static bool ComboO;          // Triangle + Rond (saut direct barre 1 / slot 1)
@@ -32,9 +32,9 @@ namespace CoreKeeperAccess.Controls
         public static bool RecallRequested; // double-tap D-pad haut sous Triangle (menu d'aide)
 
         // Roue de saut barre rapide (miroir R1/L1), UNIQUEMENT quand Triangle est relache
-        // (sinon R1/L1 restent Triangle+R1=pivoter / Triangle+L1=sonar) et le reglage
-        // active. R1 = stick gauche pilote (marche gelee) ; L1 = stick droit pilote
-        // (canne laser coupee le temps de la tenue). Cf. HotbarJumpWheel.
+        // (sinon R1/L1 restent Triangle+R1=barre suivante / Triangle+L1=barre precedente)
+        // et le reglage active. R1 = stick gauche pilote (marche gelee) ; L1 = stick droit
+        // pilote (canne laser coupee le temps de la tenue). Cf. HotbarJumpWheel.
         // Vrai seulement une fois le seuil de latence (A11ySettings.HotbarWheelHoldMs)
         // atteint (0 = seuil nul, actif des l'appui comme avant). Sous ce seuil, on ne
         // touche a RIEN : le pas-a-pas natif (NEXT_SLOT/PREVIOUS_SLOT) part normalement des

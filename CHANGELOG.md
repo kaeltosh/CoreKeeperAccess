@@ -2,7 +2,11 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
-## 1.0.11 (open beta) — July 2026
+## 1.0.10 beta, build 2 — July 2026
+
+### Changes
+
+- **Hotbar switching and item rotation swapped controls.** Switching hotbar rows is now Triangle+R1 (next) / Triangle+L1 (previous, taking over the slot left free by the old sonar ping). Rotating the held item / resizing a tool's zone (hoe, shovel...) is now Triangle+D-pad right.
 
 ### Fixes
 

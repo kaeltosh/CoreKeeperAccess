@@ -18,7 +18,9 @@ namespace CoreKeeperAccess.Gameplay
     //  - rotation (rotationVariationToPlace) change -> annonce le cap ("face nord") ;
     //  - validite (canPlaceObject = ghost bleu/rouge) passe a INVALIDE -> earcon de refus
     //    (PAS de TTS : le ghost oscille en balayant, on ne sature pas la voix).
-    // La TAILLE de l'emprise est annoncee a la selection hotbar (HeldItemAnnouncePatch).
+    // La TAILLE de l'emprise (zone d'outil) est SEULEMENT annoncee ici (poll), jamais a
+    // l'EquipSlot (HeldItemAnnouncePatch) : EquippedObjectVisualCD.sizeVariationToPlace
+    // n'y est pas encore a jour, lue trop tot ca disait "1x1" avant de se corriger.
     // Le joueur se replace lui-meme : on donne l'info qui manque, pas un assistant.
     internal static class PlacementReader
     {
@@ -74,11 +76,14 @@ namespace CoreKeeperAccess.Gameplay
                     TtsText.Say(Strings.L("place.facing") + " " + Cardinal4(dir), true);
                 }
                 // Zone d'outil cyclee au Rotate -> annonce "zone 3x3" (null = pas un outil
-                // a zone reglable, donc muet pour les meubles).
+                // a zone reglable, donc muet pour les meubles). En file (interrupt:false) :
+                // a la prise en main, l'annonce de durabilite (native, deja en file) peut
+                // encore parler quand ce Tick rattrape la taille reelle de l'outil ~150ms
+                // plus tard -> ne plus s'ecraser, s'enchainer.
                 if (sizeVar != _lastSize && _lastSize >= 0)
                 {
                     string zone = InGameTtsCore.ToolZoneLabel(player);
-                    if (!string.IsNullOrEmpty(zone)) TtsText.Say(zone, true);
+                    if (!string.IsNullOrEmpty(zone)) TtsText.Say(zone, false);
                 }
                 if (_lastValid && !pc.canPlaceObject)
                     GameplayAudio.PlaySpatial(InvalidSfx, 0f, 1f, InvalidVolume);

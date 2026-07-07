@@ -2,7 +2,11 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
-## 1.0.11 (bêta ouverte) — juillet 2026
+## 1.0.10 bêta, build 2 — juillet 2026
+
+### Changements
+
+- **Changement de barre rapide et pivot d'objet ont échangé leurs touches.** Changer de barre rapide se fait désormais avec Triangle+R1 (suivante) / Triangle+L1 (précédente, qui récupère la place laissée libre par l'ancien ping sonar). Pivoter l'objet en main / redimensionner la zone d'un outil (houe, pelle...) se fait désormais avec Triangle+D-pad droite.
 
 ### Corrections
 
