@@ -52,18 +52,18 @@ namespace CoreKeeperAccess.Controls
             // embarque aussi les recettes cuivre). Muet si une seule categorie.
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InputContext.CraftingUIOpen, () => StationCommands.SwitchCraftingCategory(true), "cmd.craftcategory.next");
-            // En jeu pur : barre rapide suivante. Le D-pad droite vanilla (qui portait SORT,
-            // inutile hors inventaire) est confisque par le curseur de tuile -> on remet le
-            // swap de barre rapide ici. On arme l'action native, le jeu change la barre et
-            // EquipSlot est appele -> HeldItemAnnouncePatch annonce le nouvel objet en main.
-            // Muet si une seule rangee (vanilla CanSwapHotBar). Enregistre apres forge/station
-            // -> en station c'est reparer qui gagne, en jeu pur c'est nous (gardes exclusives).
+            // En jeu pur : pivoter l'objet en main / changer la taille de zone (houe, pelle).
+            // Recase ici le 7 juillet (etait sur Triangle+R1, desormais barre rapide) - on
+            // arme l'action ROTATE native, le jeu tourne/redimensionne lui-meme (meme canal
+            // que la pose). Un seul sens de rotation existe cote natif (PlaceObjectSlot.Rotate
+            // ne prend pas de parametre de sens) -> pas d'equivalent gauche, D-pad gauche
+            // reste libre en jeu pur.
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
                 {
-                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_NEXT_HOTBAR;
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.ROTATE;
                     InventoryNavState.ArmedTtl = 2;
-                }, "cmd.hotbar.next");
+                }, "cmd.rotate");
 
             // Triangle + gauche = action "de masse" : tout vendre (marchand ouvert) / tout
             // recycler (station). La prospection minerai est passee sur la roue de stats
@@ -78,13 +78,9 @@ namespace CoreKeeperAccess.Controls
             // (symetrique du Triangle+droite ci-dessus).
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InputContext.CraftingUIOpen, () => StationCommands.SwitchCraftingCategory(false), "cmd.craftcategory.prev");
-            // En jeu pur : barre rapide precedente (symetrique du Triangle+droite ci-dessus).
-            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
-                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
-                {
-                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR;
-                    InventoryNavState.ArmedTtl = 2;
-                }, "cmd.hotbar.prev");
+            // En jeu pur, D-pad gauche est libre (pas d'equivalent au pivoter de droite -
+            // ROTATE n'a qu'un seul sens cote natif). La barre rapide precedente est
+            // desormais sur Triangle+L1 (cf. plus bas).
 
             // Triangle + L3 = bascule "direction assistee" (snap cardinal du deplacement),
             // jeu normal seulement. Toggle : reste actif jusqu'a re-bascule.
@@ -92,16 +88,24 @@ namespace CoreKeeperAccess.Controls
                 () => !UiBusy() && InputContext.InGameFree && Player() != null,
                 DirectionAssist.Toggle, "cmd.dirassist");
 
-            // Triangle + R1 = pivoter l'objet en main / changer la taille de zone (houe,
-            // pelle). On arme l'action ROTATE native -> le jeu tourne/redimensionne lui-meme
-            // (meme canal que la pose). Croix reste libre (action Rotate retiree de la manette
-            // par TriangleModifier, plus de pivot intempestif).
+            // Triangle + R1/L1 = barre rapide suivante/precedente (recase ici le 7 juillet,
+            // etait sur D-pad droite/gauche - le pivoter a pris leur place, cf. plus haut).
+            // L1 recupere le role laisse vacant par le ping sonar (retire le 6 juillet, juge
+            // redondant avec le scanner de proximite R3). On arme l'action native, le jeu
+            // change la barre et EquipSlot est appele -> HeldItemAnnouncePatch annonce le
+            // nouvel objet en main. Muet si une seule rangee (vanilla CanSwapHotBar).
             ComboDispatcher.Register(ComboDispatcher.Combo.BumperR,
                 () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
                 {
-                    InventoryNavState.ArmedInput = PlayerInput.InputType.ROTATE;
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_NEXT_HOTBAR;
                     InventoryNavState.ArmedTtl = 2;
-                }, "cmd.rotate");
+                }, "cmd.hotbar.next");
+            ComboDispatcher.Register(ComboDispatcher.Combo.BumperL,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR;
+                    InventoryNavState.ArmedTtl = 2;
+                }, "cmd.hotbar.prev");
 
             // Triangle + Back = ouvrir le panneau de reglages a11y (maison, TTS). Dispo en
             // jeu (hors menu de pause natif) ; le panneau gele ensuite l'input et navigue au
