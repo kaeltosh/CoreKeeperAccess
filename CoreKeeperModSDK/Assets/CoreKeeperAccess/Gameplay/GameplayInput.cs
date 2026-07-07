@@ -4,6 +4,7 @@ using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
 using Interaction;
+using PugMod;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -87,6 +88,108 @@ namespace CoreKeeperAccess.Gameplay
             TickProspect(player);
             WatchInteractable(player);
             WatchCursorToggle();
+            WatchLeash(player);
+            WatchCattleUi(player);
+        }
+
+        // Annonce d'OUVERTURE de la fenetre bétail (CattleUI, Cattle.Interact) : nom, faim,
+        // etat de reproduction si dispo - parite avec ce qu'un joueur voyant lit d'un coup
+        // d'oeil sur la fenetre. Puis SUIT le texte de faim tant que la fenetre reste ouverte
+        // (change progressivement, sans reouverture). Navigation/interaction (slots de
+        // nourriture, toggle reproduction) : géré par SlotSections/InventoryNavigator, pas ici.
+        private const float CattleUiPollInterval = 0.2f;
+        private static Cattle _lastActiveCattle;
+        private static string _lastCattleStatus;
+        private static CattleUI _cattleUiRef;
+        private static float _nextCattleUiPoll;
+
+        private static void WatchCattleUi(PlayerController player)
+        {
+            if (Time.unscaledTime < _nextCattleUiPoll) return;
+            _nextCattleUiPoll = Time.unscaledTime + CattleUiPollInterval;
+
+            Cattle active = player.activeCattle;
+            string status = null;
+            if (active != null)
+            {
+                if (_cattleUiRef == null) _cattleUiRef = Object.FindObjectOfType<CattleUI>();
+                status = _cattleUiRef != null ? TtsText.ResolvePugText(_cattleUiRef.statusText) : null;
+            }
+
+            if (active != _lastActiveCattle)
+            {
+                _lastActiveCattle = active;
+                _lastCattleStatus = status;
+                if (active == null) return; // fermeture : silence, comme les autres fenetres du mod
+
+                string name = active.GetName();
+                if (string.IsNullOrEmpty(name))
+                    name = InGameTtsCore.ResolveObjectName(active.objectData.objectID);
+
+                string breed = active.IsBreedingAvailable()
+                    ? API.Localization?.GetLocalizedTerm(
+                        active.IsBreedingDisabled() ? "toggleBreedingTextOff" : "toggleBreedingTextOn")
+                    : null;
+
+                string text = name ?? "";
+                if (!string.IsNullOrEmpty(status)) text += (text.Length > 0 ? ", " : "") + status;
+                if (!string.IsNullOrEmpty(breed)) text += (text.Length > 0 ? ", " : "") + breed;
+                if (text.Length > 0) TtsText.Say(text, true);
+                return;
+            }
+
+            if (active == null) return;
+            if (!string.IsNullOrEmpty(status) && status != _lastCattleStatus)
+            {
+                _lastCattleStatus = status;
+                TtsText.Say(status, false);
+            }
+        }
+
+        // Annonce ACCROCHAGE/CASSE de la laisse (betail) : le joueur porte lui-meme
+        // LeashingCD.leashedEntity, l'entite qu'il tracte actuellement (Entity.Null si rien).
+        // Null -> une entite = laisse accrochee (annonce le nom de la bete) ; entite -> Null =
+        // laisse cassee, que ce soit un relachement volontaire (on rejette l'objet Leash) ou
+        // une casse automatique (bete trop loin, joueur monte en vehicule/minecart/bateau,
+        // mort) - meme libelle dans les deux cas, la nuance ne vaut pas la peine a l'oreille.
+        private const float LeashPollInterval = 0.2f;
+        private static Entity _lastLeashed = Entity.Null;
+        private static float _nextLeashPoll;
+
+        private static void WatchLeash(PlayerController player)
+        {
+            if (Time.unscaledTime < _nextLeashPoll) return;
+            _nextLeashPoll = Time.unscaledTime + LeashPollInterval;
+
+            Entity leashed = Entity.Null;
+            try
+            {
+                if (EntityUtility.HasComponentData<LeashingCD>(player.entity, player.world))
+                    leashed = EntityUtility.GetComponentData<LeashingCD>(player.entity, player.world).leashedEntity;
+            }
+            catch (System.Exception ex) { Diag.Error("A11yLeashDiag", ex); return; }
+
+            if (leashed == _lastLeashed) return;
+            bool wasLeashed = _lastLeashed != Entity.Null;
+            _lastLeashed = leashed;
+
+            if (leashed != Entity.Null)
+            {
+                string name = null;
+                try
+                {
+                    if (EntityUtility.HasComponentData<ObjectDataCD>(leashed, player.world))
+                        name = InGameTtsCore.ResolveObjectName(
+                            EntityUtility.GetComponentData<ObjectDataCD>(leashed, player.world).objectID);
+                }
+                catch (System.Exception ex) { Diag.Error("A11yLeashDiag", ex); }
+                if (string.IsNullOrEmpty(name)) return;
+                TtsText.Say(string.Format(Strings.L("leash.attached"), name), true);
+            }
+            else if (wasLeashed)
+            {
+                TtsText.Say(Strings.L("leash.broken"), true);
+            }
         }
 
         // Annonce d'INTERACTION A PORTEE : le jeu maintient sur le joueur l'interactible

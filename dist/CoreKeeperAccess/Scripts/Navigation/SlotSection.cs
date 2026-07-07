@@ -34,7 +34,7 @@ namespace CoreKeeperAccess.Navigation
 
         private static readonly string[] Order =
         {
-            "hotbar", "bag", "pouch", "equipment", "buy", "sell", "crafting", "chest", "trash", "other"
+            "hotbar", "bag", "pouch", "equipment", "buy", "sell", "crafting", "chest", "trash", "cattle", "other"
         };
 
         private static readonly Dictionary<string, string> NameKeys = new Dictionary<string, string>
@@ -44,7 +44,7 @@ namespace CoreKeeperAccess.Navigation
             { "crafting", "section.crafting" },
             { "chest", "section.chest" }, { "trash", "section.trash" }, { "other", "section.other" },
             { "skills", "section.skills" }, { "talents", "section.talents" }, { "pettalents", "section.pettalents" },
-            { "souls", "section.souls" }, { "stats", "section.stats" },
+            { "souls", "section.souls" }, { "stats", "section.stats" }, { "cattle", "section.cattle" },
         };
 
         // Reconstruit les sections a partir des emplacements actuellement affiches.
@@ -85,6 +85,7 @@ namespace CoreKeeperAccess.Navigation
             }
             BuildPouchRows(sections);
             AppendEquipmentTabs(sections);
+            AppendCattleBreedingToggle(sections);
             // Fenetres de progression (sous-vues de characterWindow) : compétences,
             // arbre de talents de la competence ouverte, talents de familier. Ce sont
             // des UIelement navigables, captes comme des sections en mode liste.
@@ -394,6 +395,25 @@ namespace CoreKeeperAccess.Navigation
             }
         }
 
+        // Toggle de reproduction de la fenetre bétail (CattleUI) : pas un SlotUIBase (bouton
+        // a part), rattache a la suite des slots de nourriture de la meme section "cattle"
+        // (creee si besoin - le toggle peut exister meme si KindOf n'a pas encore vu de slot,
+        // meme ordre de bataille que AppendPetTalentButton pour la section equipement).
+        private static void AppendCattleBreedingToggle(List<SlotSection> sections)
+        {
+            var toggle = Object.FindObjectOfType<BreedStateToggle>();
+            if (toggle == null || toggle.gameObject == null || !toggle.gameObject.activeInHierarchy
+                || !toggle.isShowing) return;
+
+            var section = sections.Find(s => s.Kind == "cattle");
+            if (section == null)
+            {
+                section = new SlotSection { Kind = "cattle", NameKey = NameKeys["cattle"] };
+                sections.Add(section);
+            }
+            if (!section.Slots.Contains(toggle)) section.Slots.Add(toggle);
+        }
+
         // Les onglets de bascule (equipement / talents joueur / ames) ne vivent que dans la
         // section equipement -- or cet onglet DISPARAIT quand on bascule sur talents ou ames
         // (vues mutuellement exclusives), ce qui coince sans retour possible. On les append
@@ -429,6 +449,10 @@ namespace CoreKeeperAccess.Navigation
             // Rattaches ici explicitement.
             if (s.slotType == ItemSlotsUIType.UpgradeSlot || s is UpgradePreviewSlotUI)
                 return "crafting";
+
+            // Slots de nourriture de la fenetre bétail (CattleUI) : pas un ItemSlotsUIType
+            // dedie (tombent sinon en "Autre"), rattaches ici explicitement.
+            if (s is CattleFoodSlotUI) return "cattle";
 
             switch (s.slotType)
             {
@@ -501,6 +525,10 @@ namespace CoreKeeperAccess.Navigation
                 || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents"
                 || section.Kind == "souls" || section.Kind == "stats")
                 return null;
+            // Toggle de reproduction (bétail) : son titre natif ("Reproduction active/coupee")
+            // suffit, pas de numero. Les slots de nourriture gardent un numero, prefixe.
+            if (section.Kind == "cattle")
+                return element is BreedStateToggle ? null : Strings.L("cattle.food") + " " + (indexInSection + 1);
             return (indexInSection + 1).ToString();
         }
 

@@ -2,7 +2,7 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à la 1.0.9 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0.10 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
 
 > **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
 
@@ -11,6 +11,11 @@
 - **Certains sons sont encore provisoires** (sonar de proximité, créatures et objets paisibles au laser, son de pose invalide, guidage par balises) : ils fonctionnent, mais les sons définitifs ne sont pas encore choisis — ils peuvent changer.
 - **Pas encore validé sur le terrain** : les menus de gestion multijoueur en vraie session multi, l'alerte d'étourdissement, et la lecture des machines d'automation avancée (industrie) au curseur. C'est codé mais pas confirmé en conditions réelles.
 - **Scanner de proximité : l'exclusion de votre propre personnage et de votre compagnon de la catégorie "créatures" n'a pas été vérifiée en multijoueur** — un coéquipier doit rester visible ; pas encore confirmé en conditions réelles.
+- **Le décor destructible n'est plus signalé comme ennemi par la sentinelle/le scanner, et la plante immobilisante (piège végétal) est désormais alertée** — pas encore confirmé en conditions réelles.
+- **Les statues d'invocation de boss et les invocations du sceptre invocateur sont traduites** — pas encore confirmé en conditions réelles.
+- **Attraper ou lâcher un animal à la laisse (vache, chèvre, tortue…) est désormais annoncé** — pas encore confirmé en conditions réelles.
+- **Le scanner de proximité a maintenant une catégorie dédiée au bétail**, séparée des créatures classiques — pas encore confirmé en conditions réelles.
+- **La fenêtre de gestion du bétail (nom, faim, reproduction, slots de nourriture) est désormais lisible et navigable** — pas encore confirmé en conditions réelles.
 
 ## Bugs connus
 

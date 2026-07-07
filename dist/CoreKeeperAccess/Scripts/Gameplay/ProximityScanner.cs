@@ -27,13 +27,26 @@ namespace CoreKeeperAccess.Gameplay
     // (pont ECS dedie, cf. TileReader.cs).
     internal static class ProximityScanner
     {
-        internal enum Category { Enemy, Passive, Merchant, Plant, Resource, Chest }
+        internal enum Category { Enemy, Passive, Cattle, Merchant, Plant, Resource, Chest }
 
         // Ordre de cyclage FIXE (comme les positions de roue) : previsible au D-pad haut/bas.
         private static readonly Category[] CatOrder =
         {
-            Category.Enemy, Category.Passive, Category.Merchant,
+            Category.Enemy, Category.Passive, Category.Cattle, Category.Merchant,
             Category.Plant, Category.Resource, Category.Chest,
+        };
+
+        // Betail (mecanique "Cattle" du jeu, laisse/reproduction) : sorti de la categorie
+        // Passive generique (lucioles, vers...) ou il etait auparavant noye, sur demande
+        // utilisateur - rien a voir avec les creatures ou les PNJ. Variantes bebe incluses.
+        internal static readonly HashSet<ObjectID> CattleIds = new HashSet<ObjectID>
+        {
+            ObjectID.Cow, ObjectID.CowBaby,
+            ObjectID.Goat, ObjectID.GoatBaby,
+            ObjectID.RolyPoly, ObjectID.RolyPolyBaby,
+            ObjectID.Turtle, ObjectID.TurtleBaby,
+            ObjectID.Dodo, ObjectID.DodoBaby,
+            ObjectID.Camel, ObjectID.CamelBaby,
         };
 
         internal struct Entry
@@ -55,6 +68,7 @@ namespace CoreKeeperAccess.Gameplay
         // familles deja utilisees ailleurs dans le mod (canne laser / ancien ping sonar).
         private const SfxID EnemySfx = SfxID.proximity_sensor_set;
         private const SfxID PassiveSfx = SfxID.inventory_doot;
+        private const SfxID CattleSfx = SfxID.inventory_select;
         private const SfxID MerchantSfx = SfxID.menu_select2;
         private const SfxID PlantSfx = SfxID.inventory_ding;
         private const SfxID ResourceSfx = SfxID.inventory_ding;
@@ -349,6 +363,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 case Category.Enemy: return EnemySfx;
                 case Category.Passive: return PassiveSfx;
+                case Category.Cattle: return CattleSfx;
                 case Category.Merchant: return MerchantSfx;
                 case Category.Plant: return PlantSfx;
                 case Category.Resource: return ResourceSfx;
@@ -363,6 +378,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 case Category.Enemy: return "scanner.cat.enemy";
                 case Category.Passive: return "scanner.cat.passive";
+                case Category.Cattle: return "scanner.cat.cattle";
                 case Category.Merchant: return "scanner.cat.merchant";
                 case Category.Plant: return "scanner.cat.plant";
                 case Category.Resource: return "scanner.cat.resource";

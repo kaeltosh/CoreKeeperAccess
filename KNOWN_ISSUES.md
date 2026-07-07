@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.9 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.10 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
@@ -11,6 +11,11 @@ Current as of 1.0.9 beta. Please check this list before opening an issue — and
 - **Some sound cues are still placeholders** (proximity sonar, peaceful creatures and objects on the laser cane, the invalid-placement sound, beacon guidance): they work, but the final sounds aren't picked yet — they may change.
 - **Not yet validated in the field**: the multiplayer management menus in a real multiplayer session, the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
 - **Proximity scanner: excluding your own character and companion from the "creatures" category hasn't been checked in multiplayer** — a teammate should still show up; not yet confirmed live.
+- **Destructible scenery is no longer flagged as an enemy by the sentinel/scanner, and the immobilizing plant (snare trap) is now alerted** — not yet confirmed live.
+- **Boss summon statues and scepter summons are now translated** — not yet confirmed live.
+- **Leashing or releasing an animal (cow, goat, turtle…) is now announced** — not yet confirmed live.
+- **The proximity scanner now has a dedicated livestock category**, split out from regular creatures — not yet confirmed live.
+- **The livestock management window (name, hunger, breeding, food slots) is now readable and navigable** — not yet confirmed live.
 
 ## Known bugs
 

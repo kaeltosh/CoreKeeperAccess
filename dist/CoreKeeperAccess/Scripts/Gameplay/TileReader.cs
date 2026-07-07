@@ -1146,7 +1146,9 @@ namespace CoreKeeperAccess.Gameplay
                     : ObjectID.None;
 
                 ProximityScanner.Category cat;
-                if (!critter && hasFaction && faction == FactionID.Merchant)
+                if (ProximityScanner.CattleIds.Contains(oid))
+                    cat = ProximityScanner.Category.Cattle;
+                else if (!critter && hasFaction && faction == FactionID.Merchant)
                     cat = ProximityScanner.Category.Merchant;
                 else if (!critter && hasFaction && HostileFilter.IsHostile(faction) && !HostileFilter.IsDormantSlime(oid))
                     cat = ProximityScanner.Category.Enemy;
