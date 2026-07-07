@@ -2,6 +2,14 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.11 (bêta ouverte) — juillet 2026
+
+### Corrections
+
+- **Corrigé : une fausse annonce "zone 1x1" à l'équipement d'un outil à zone réglable (houe, arrosoir, pelle...).** La taille de zone est maintenant annoncée correctement dès la prise en main, et ne se fait plus couper par l'annonce de durabilité de l'outil.
+
+---
+
 ## 1.0.9 (bêta ouverte) — juillet 2026
 
 Scanner de proximité par catégorie, états portes/leviers, tri de coffre, réglage de la roue de barre rapide, et corrections.

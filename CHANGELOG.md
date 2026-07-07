@@ -2,6 +2,14 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.11 (open beta) — July 2026
+
+### Fixes
+
+- **Fixed a false "zone 1x1" announcement when equipping a resizable tool (hoe, watering can, shovel...).** The zone size is now announced correctly right away, and no longer gets cut off by the tool's durability announcement.
+
+---
+
 ## 1.0.9 (open beta) — July 2026
 
 Proximity scanner categories, door/gate/lever states, chest sort, hotbar wheel tuning, and fixes.

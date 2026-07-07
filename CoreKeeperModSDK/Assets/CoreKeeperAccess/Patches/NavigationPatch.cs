@@ -100,10 +100,12 @@ namespace CoreKeeperAccess.Patches
                     string fill = InGameTtsCore.FillLevelLabel(held);
                     if (fill != null) text = $"{name}, {fill}";
                     else text = held.amount > 1 ? $"{name}, {held.amount}" : name;
-                    // Outil a zone reglable (houe/arrosoir/pelle/semoir) : ajouter la zone
-                    // d'effet courante ("zone 3x3"). null pour tout autre objet.
-                    string zone = InGameTtsCore.ToolZoneLabel(__instance);
-                    if (!string.IsNullOrEmpty(zone)) text += ", " + zone;
+                    // Zone d'un outil a zone reglable (houe/arrosoir/pelle/semoir) : PAS lue
+                    // ici. EquippedObjectVisualCD.sizeVariationToPlace n'est pas encore a jour
+                    // a l'instant de l'EquipSlot (EquipmentPresentationUpdateSystem l'applique
+                    // juste apres) -> lue ici, donnait un "1x1" faux avant de se corriger.
+                    // PlacementReader.Tick reste la SEULE source de la zone (rattrape la vraie
+                    // valeur ~150ms plus tard, en file d'attente).
                 }
                 TtsText.Say(text, true);
             }
