@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Controls;
 using CoreKeeperAccess.Patches;
+using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -226,6 +227,12 @@ namespace CoreKeeperAccess.Gameplay
                 case FactionID.Merchant:
                 case FactionID.PlayerMinion:
                 case FactionID.Explosion:
+                // Decor destructible (tables, pots, caisses...) : faction native reservee
+                // aux objets qui encaissent des coups sans jamais attaquer personne. Sans
+                // cette exclusion, un meuble tape (IsInCombatCD s'allume pour TOUTE entite
+                // qui prend des degats, pas seulement les monstres) sonnait comme un
+                // ennemi a la sentinelle, et sa case ressortait "Ennemi" au scanner.
+                case FactionID.CanOnlyBeAttackedByPlayerOrExplosion:
                     return false;
                 default:
                     return true;
@@ -257,6 +264,7 @@ namespace CoreKeeperAccess.Gameplay
     public partial class AggroSentinelSystem : SystemBase
     {
         private const float ScanInterval = 0.2f; // 5 Hz : position assez fraiche pour la file de bips
+        private const float SnarePlantRangeTiles = 8f; // portee d'alerte de la plante immobilisante
 
         private EntityQuery _query;
         private EntityQuery _eggQuery;
@@ -325,26 +333,47 @@ namespace CoreKeeperAccess.Gameplay
                 }
                 ents.Dispose();
 
-                // Oeufs actifs de la Hive Mother : pas IsInCombatCD -> invisibles a la
-                // boucle principale. On les injecte ici comme chasers normaux.
+                // Oeufs actifs de la Hive Mother + plante immobilisante (SnarePlant) : ni
+                // l'un ni l'autre n'allume IsInCombatCD (l'oeuf n'attaque pas ; la plante
+                // attaque via l'etat StateID.MeleeAttackContinuous, absent de la liste
+                // native d'IsInCombatSystem - StateInfoCD n'est de toute facon pas replique
+                // au client, donc pas moyen de lire son etat directement). Injectes ici
+                // comme chasers normaux, chacun avec sa propre regle de portee.
+                TileAccessor ta = default;
+                bool taReady = false;
                 var eggs = _eggQuery.ToEntityArray(Allocator.Temp);
                 foreach (var egg in eggs)
                 {
                     if (n >= AggroScan.Chasers.Length) break;
                     var od = EntityManager.GetComponentData<ObjectDataCD>(egg);
-                    if (od.objectID != ObjectID.LarvaHiveEgg) continue;
+                    if (od.objectID != ObjectID.LarvaHiveEgg && od.objectID != ObjectID.SnarePlant) continue;
                     var hp = EntityManager.GetComponentData<HealthCD>(egg);
                     if (hp.health <= 0) continue;
                     var pos = EntityManager.GetComponentData<LocalTransform>(egg).Position;
                     float2 ep = new float2(pos.x, pos.z);
                     float2 ed = ep - AggroScan.PlayerPos;
-                    // Zone 2x plus large que la camera : oeufs hors ecran restent audibles.
-                    if (math.abs(ed.x) > AggroScan.CamHalf.x * 2f || math.abs(ed.y) > AggroScan.CamHalf.y * 2f) continue;
+
+                    if (od.objectID == ObjectID.LarvaHiveEgg)
+                    {
+                        // Zone 2x plus large que la camera : oeufs hors ecran restent audibles.
+                        if (math.abs(ed.x) > AggroScan.CamHalf.x * 2f || math.abs(ed.y) > AggroScan.CamHalf.y * 2f) continue;
+                    }
+                    else // SnarePlant
+                    {
+                        // Immobile : le rectangle camera entier biperait a travers un mur
+                        // pour un danger jamais atteignable. Rayon court + ligne de vue.
+                        if (math.lengthsq(ed) > SnarePlantRangeTiles * SnarePlantRangeTiles) continue;
+                        if (!taReady) { ta = new TileAccessor(ref CheckedStateRef, true); taReady = true; }
+                        int2 playerTile = new int2((int)math.round(AggroScan.PlayerPos.x), (int)math.round(AggroScan.PlayerPos.y));
+                        int2 plantTile = new int2((int)math.round(ep.x), (int)math.round(ep.y));
+                        if (!HasLineOfSight(ref ta, playerTile, plantTile)) continue;
+                    }
+
                     AggroScan.Chasers[n++] = new AggroScan.Chaser
                     {
                         Key    = EntityKey.Of(egg),
                         Pos    = ep,
-                        Obj    = ObjectID.LarvaHiveEgg,
+                        Obj    = od.objectID,
                         IsBoss = false,
                     };
                 }
@@ -361,6 +390,36 @@ namespace CoreKeeperAccess.Gameplay
                 // passer une erreur DIFFERENTE au meme site.
                 Diag.Error("A11yAggroDiag", ex);
             }
+        }
+
+        // Trajet a->b degage de mur ? Meme logique que l'occlusion de la canne laser :
+        // un mur bloque (impact), un gouffre/de l'eau reste transparent a la vue (juste
+        // infranchissable a pied). Traversee de grille case par case (Amanatides-Woo).
+        private static bool HasLineOfSight(ref TileAccessor ta, int2 a, int2 b)
+        {
+            int x = a.x, y = a.y;
+            int dx = b.x - a.x, dy = b.y - a.y;
+            int stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
+            int stepY = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
+            float adx = math.abs(dx), ady = math.abs(dy);
+            float tDeltaX = adx > 0 ? 1f / adx : float.MaxValue;
+            float tDeltaY = ady > 0 ? 1f / ady : float.MaxValue;
+            float tMaxX = adx > 0 ? 0.5f / adx : float.MaxValue;
+            float tMaxY = ady > 0 ? 0.5f / ady : float.MaxValue;
+
+            int guard = (int)(adx + ady) + 2; // garde-fou anti-boucle
+            while ((x != b.x || y != b.y) && guard-- > 0)
+            {
+                if (tMaxX < tMaxY) { tMaxX += tDeltaX; x += stepX; }
+                else { tMaxY += tDeltaY; y += stepY; }
+                if (x == b.x && y == b.y) break; // case d'arrivee : jamais testee comme mur
+                if (ta.TryGetBlockingTile(new int2(x, y), out TileCD blocking, true))
+                {
+                    bool seeThrough = blocking.tileType == TileType.pit || blocking.tileType == TileType.water;
+                    if (!seeThrough) return false;
+                }
+            }
+            return true;
         }
     }
 }
