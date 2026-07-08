@@ -10,8 +10,9 @@ namespace CoreKeeperAccess.Controls
     // Mode DECOUVERTE de la manette : on presse un bouton / bouge un stick, le mod annonce son
     // NOM (nomenclature PS/Xbox reglee, via Glyphs) + sa POSITION physique -> apprendre la
     // manette sans deja connaitre les noms. MODAL (input jeu gele, cf. InputContext.ModalA11yOpen).
-    // Force UNE fois a la 1re entree en jeu (flag A11ySettings.ControllerTutorialSeen) ;
-    // relancable depuis la 1re entree du menu d'aide. Sortie = double-tap du bouton de droite
+    // PAS de forçage automatique (retire le 8 juillet 2026, remplace par OnboardingHint qui se
+    // contente d'indiquer comment rouvrir le menu d'aide) : lancable UNIQUEMENT depuis la 1re
+    // entree du menu d'aide ("Apprendre les boutons"). Sortie = double-tap du bouton de droite
     // (Rond / B). Lecture brute Rewired (ids physiques confirmes F9), aucun patch Harmony.
     internal static class PadLearn
     {
@@ -97,12 +98,7 @@ namespace CoreKeeperAccess.Controls
 
         public static void Tick()
         {
-            if (!Active)
-            {
-                // Forçage unique a la 1re entree en jeu (apres ce passage, le flag est pose).
-                if (!A11ySettings.ControllerTutorialSeen && InputContext.InGameFree) Start();
-                return;
-            }
+            if (!Active) return;
             if (!ReInput.isReady) return;
             var joy = ReInput.controllers.GetLastActiveController<Joystick>();
             if (joy == null) return;

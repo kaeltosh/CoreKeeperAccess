@@ -806,7 +806,7 @@ namespace CoreKeeperAccess.Patches
         private static float _lastTime;
 
         [HarmonyPostfix]
-        public static void Postfix(PopUpText __instance, List<string> options) => PatchGuard.Run("A11yPopUp", () =>
+        public static void Postfix(PopUpText __instance, List<string> options, bool holdToConfirm) => PatchGuard.Run("A11yPopUp", () =>
         {
             var question = TtsText.ResolvePugText(__instance.pugText);
             if (string.IsNullOrEmpty(question)) return;
@@ -821,10 +821,18 @@ namespace CoreKeeperAccess.Patches
             var parts = new List<string> { question };
             if (options != null)
             {
-                foreach (var key in options)
+                for (int i = 0; i < options.Count; i++)
                 {
-                    var label = ResolveKey(key);
-                    if (!string.IsNullOrEmpty(label)) parts.Add(label);
+                    var label = ResolveKey(options[i]);
+                    if (string.IsNullOrEmpty(label)) continue;
+                    // popUpYesOption = options[1] (cf. PopUpText.popUpYesOption). Quand
+                    // l'appelant pose holdToConfirm=true (ex. suppression de monde/perso,
+                    // WorldSlotDeleteOption/SaveSlotDeleteOption), ce bouton n'accepte PAS
+                    // un simple Croix : il faut le maintenir 1 s. Rien ne le signalait
+                    // (signale par l'utilisateur, 8 juillet 2026).
+                    if (holdToConfirm && i == 1)
+                        label += " (" + Strings.L("popup.hold_confirm") + ")";
+                    parts.Add(label);
                 }
             }
 

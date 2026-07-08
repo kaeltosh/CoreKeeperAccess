@@ -57,6 +57,10 @@
                       "guid":  "a6b68f69676cc5b4795e859177f72513"
                   },
                   {
+                      "path":  "Scripts/Controls/OnboardingHint.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/PadDiagnostic.cs",
                       "guid":  "753c02ea84bd2c344b130d90e78a65ed"
                   },

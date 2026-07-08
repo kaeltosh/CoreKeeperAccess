@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "1.0.10 beta";
-    private const string BuildTag = "build 3";
+    private const string BuildTag = "build 4";
 
     public void Init()
     {
@@ -146,7 +146,8 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.SoundGuide.Tick(); // menu d'apprentissage des sons (modal, lit la manette en direct)
-        CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (force 1re fois en jeu, modal)
+        CoreKeeperAccess.Controls.OnboardingHint.Tick(); // popup d'accueil, comment rouvrir l'aide (force 1re fois en jeu, modal)
+        CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (relancable via le menu d'aide, modal)
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)

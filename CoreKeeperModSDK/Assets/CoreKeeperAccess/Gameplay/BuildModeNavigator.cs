@@ -532,6 +532,7 @@ namespace CoreKeeperAccess.Gameplay
 
         // Nom du materiau du mur pointe (ObjectInfo de la tuile -> nom localise), pour la
         // commande de details. Meme resolution que ResolveWallSfx, mais on rend le NOM.
+        // Couleur de peinture ajoutee en suffixe si le tileset est une teinte "base building".
         private static string ResolveWallName()
         {
             try
@@ -540,10 +541,45 @@ namespace CoreKeeperAccess.Gameplay
                 ObjectInfo info = wt.IsContainedResource()
                     ? PugDatabase.TryGetTileItemInfo(TileType.wall, TileQuery.WallTileset)
                     : PugDatabase.TryGetTileItemInfo(wt, TileQuery.WallTileset);
-                if (info != null) return InGameTtsCore.ResolveObjectName(info.objectID);
+                if (info != null)
+                    return AppendPaintColor(InGameTtsCore.ResolveObjectName(info.objectID), TileQuery.WallTileset);
             }
             catch { }
             return null;
+        }
+
+        // Couleur de peinture d'un mur/sol "base building" : les 14 teintes du pinceau ont
+        // chacune leur propre valeur de Tileset (PaintToolSlot.PaintIndexToTileset, confirme
+        // par decompil), independante de l'ObjectID (le nom de base ne change pas, seul le
+        // sprite/tileset varie). Suffixe court, style adjectif ("Mur jaune"), pas de "peint"/
+        // "a peindre" (consigne utilisateur, 8 juillet 2026).
+        private static string AppendPaintColor(string name, int tileset)
+        {
+            string color = PaintColorLabel(tileset);
+            if (string.IsNullOrEmpty(color)) return name;
+            return string.IsNullOrEmpty(name) ? color : name + " " + color;
+        }
+
+        private static string PaintColorLabel(int tileset)
+        {
+            switch ((Tileset)tileset)
+            {
+                case Tileset.BaseBuildingYellow: return Strings.L("paint.yellow");
+                case Tileset.BaseBuildingGreen: return Strings.L("paint.green");
+                case Tileset.BaseBuildingRed: return Strings.L("paint.red");
+                case Tileset.BaseBuildingPurple: return Strings.L("paint.purple");
+                case Tileset.BaseBuildingBlue: return Strings.L("paint.blue");
+                case Tileset.BaseBuildingBrown: return Strings.L("paint.brown");
+                case Tileset.BaseBuildingWhite: return Strings.L("paint.white");
+                case Tileset.BaseBuildingBlack: return Strings.L("paint.black");
+                case Tileset.BaseBuildingOrange: return Strings.L("paint.orange");
+                case Tileset.BaseBuildingPink: return Strings.L("paint.pink");
+                case Tileset.BaseBuildingCyan: return Strings.L("paint.cyan");
+                case Tileset.BaseBuildingGrey: return Strings.L("paint.grey");
+                case Tileset.BaseBuildingPeach: return Strings.L("paint.peach");
+                case Tileset.BaseBuildingTeal: return Strings.L("paint.teal");
+                default: return null;
+            }
         }
 
         // Decor de terrain pur, jamais interactif ni minable (confirme en jeu et par le
@@ -568,7 +604,7 @@ namespace CoreKeeperAccess.Gameplay
                 if (info != null)
                 {
                     string name = InGameTtsCore.ResolveObjectName(info.objectID);
-                    if (!string.IsNullOrEmpty(name)) return name;
+                    if (!string.IsNullOrEmpty(name)) return AppendPaintColor(name, tileset);
                 }
             }
             catch { }
