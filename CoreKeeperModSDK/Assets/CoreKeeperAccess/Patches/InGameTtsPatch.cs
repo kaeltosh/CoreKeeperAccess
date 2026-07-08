@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using HarmonyLib;
+using PugMod;
 using Unity.Mathematics;
 
 namespace CoreKeeperAccess.Patches
@@ -313,6 +314,34 @@ namespace CoreKeeperAccess.Patches
             }
             catch { }
             return name;
+        }
+
+        // Nom + faim + etat de reproduction de l'animal actif (fenetre CattleUI) : meme
+        // contenu que l'annonce d'ouverture (GameplayInput.WatchCattleUi), factorise ici
+        // pour etre aussi lisible A LA DEMANDE via l'element navigable en tete de la
+        // section "cattle" (le poll passif seul pouvait etre rate ou coupe par un autre TTS).
+        public static string BuildCattleInfoLabel()
+        {
+            var player = Manager.main != null ? Manager.main.player : null;
+            var active = player != null ? player.activeCattle : null;
+            if (active == null) return null;
+
+            string name = active.GetName();
+            if (string.IsNullOrEmpty(name))
+                name = ResolveObjectName(active.objectData.objectID);
+
+            var cattleUi = UnityEngine.Object.FindObjectOfType<CattleUI>();
+            string status = cattleUi != null ? TtsText.ResolvePugText(cattleUi.statusText) : null;
+
+            string breed = active.IsBreedingAvailable()
+                ? API.Localization?.GetLocalizedTerm(
+                    active.IsBreedingDisabled() ? "toggleBreedingTextOff" : "toggleBreedingTextOn")
+                : null;
+
+            string text = name ?? "";
+            if (!string.IsNullOrEmpty(status)) text += (text.Length > 0 ? ", " : "") + status;
+            if (!string.IsNullOrEmpty(breed)) text += (text.Length > 0 ? ", " : "") + breed;
+            return text.Length > 0 ? text : null;
         }
 
         // Tooltip standard : nom du set + compte N/total seulement — pas de ProcessText sur

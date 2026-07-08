@@ -651,9 +651,11 @@ namespace CoreKeeperAccess.Navigation
                 // depenser), prioritaire pour garantir un compte de points a jour.
                 string content = SlotSections.IsPetTalentButton(slot)
                     ? InGameTtsCore.BuildPetTalentButtonLabel()
-                    : section.Kind == "stats"
-                        ? InGameTtsCore.BuildStatLine(slot)
-                        : InGameTtsCore.BuildElementAnnouncement(slot);
+                    : SlotSections.IsCattleInfoElement(slot)
+                        ? InGameTtsCore.BuildCattleInfoLabel()
+                        : section.Kind == "stats"
+                            ? InGameTtsCore.BuildStatLine(slot)
+                            : InGameTtsCore.BuildElementAnnouncement(slot);
                 // L'etoile n'a pas de hover title : libelle de repli.
                 if (string.IsNullOrEmpty(content) && SlotSections.IsStatsButton(slot))
                     content = Strings.L("section.stats");

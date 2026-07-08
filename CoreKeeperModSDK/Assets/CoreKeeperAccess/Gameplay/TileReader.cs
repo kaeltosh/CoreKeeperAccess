@@ -382,8 +382,11 @@ namespace CoreKeeperAccess.Gameplay
                     // veut que les objets POSES (la sonde a mi-hauteur attraperait un
                     // slime de passage et l'annoncerait comme un meuble). Idem pour les
                     // projectiles en vol (fleches du joueur, mortiers...).
-                    if (EntityUtility.HasComponentData<EnemyCD>(h.Entity, world)
-                        || EntityUtility.HasComponentData<CritterCD>(h.Entity, world)
+                    bool isCattleEntity = EntityUtility.HasComponentData<ObjectDataCD>(h.Entity, world)
+                        && ProximityScanner.CattleIds.Contains(
+                            EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world).objectID);
+                    if ((!isCattleEntity && (EntityUtility.HasComponentData<EnemyCD>(h.Entity, world)
+                            || EntityUtility.HasComponentData<CritterCD>(h.Entity, world)))
                         || EntityUtility.HasComponentData<PlayerGhost>(h.Entity, world)
                         || EntityUtility.HasComponentData<ProjectileCD>(h.Entity, world)
                         || EntityUtility.HasComponentData<MortarProjectileCD>(h.Entity, world)) continue;

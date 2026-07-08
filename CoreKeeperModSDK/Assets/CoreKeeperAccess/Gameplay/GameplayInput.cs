@@ -122,19 +122,8 @@ namespace CoreKeeperAccess.Gameplay
                 _lastCattleStatus = status;
                 if (active == null) return; // fermeture : silence, comme les autres fenetres du mod
 
-                string name = active.GetName();
-                if (string.IsNullOrEmpty(name))
-                    name = InGameTtsCore.ResolveObjectName(active.objectData.objectID);
-
-                string breed = active.IsBreedingAvailable()
-                    ? API.Localization?.GetLocalizedTerm(
-                        active.IsBreedingDisabled() ? "toggleBreedingTextOff" : "toggleBreedingTextOn")
-                    : null;
-
-                string text = name ?? "";
-                if (!string.IsNullOrEmpty(status)) text += (text.Length > 0 ? ", " : "") + status;
-                if (!string.IsNullOrEmpty(breed)) text += (text.Length > 0 ? ", " : "") + breed;
-                if (text.Length > 0) TtsText.Say(text, true);
+                string text = InGameTtsCore.BuildCattleInfoLabel();
+                if (!string.IsNullOrEmpty(text)) TtsText.Say(text, true);
                 return;
             }
 
