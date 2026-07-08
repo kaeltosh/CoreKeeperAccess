@@ -11,6 +11,7 @@
 ### Corrections
 
 - **Corrigé : une fausse annonce "zone 1x1" à l'équipement d'un outil à zone réglable (houe, arrosoir, pelle...).** La taille de zone est maintenant annoncée correctement dès la prise en main, et ne se fait plus couper par l'annonce de durabilité de l'outil.
+- **Corrigé : le décor destructible (tables...) était encore classé "Ennemi" par le scanner et déclenchait la sentinelle en le tapant**, malgré un premier correctif. La faction seule ne suffisait pas à distinguer un meuble d'un monstre ; le filtre exige désormais la présence du marqueur "créature" du jeu.
 
 ---
 

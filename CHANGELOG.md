@@ -11,6 +11,7 @@
 ### Fixes
 
 - **Fixed a false "zone 1x1" announcement when equipping a resizable tool (hoe, watering can, shovel...).** The zone size is now announced correctly right away, and no longer gets cut off by the tool's durability announcement.
+- **Fixed: destructible scenery (tables...) was still classified "Enemy" by the scanner and triggered the sentinel when hit**, despite an earlier fix attempt. Faction alone wasn't enough to tell furniture from a monster; the filter now also requires the game's own "creature" marker.
 
 ---
 

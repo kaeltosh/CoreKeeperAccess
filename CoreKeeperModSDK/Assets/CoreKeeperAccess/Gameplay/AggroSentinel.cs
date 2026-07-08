@@ -299,8 +299,13 @@ namespace CoreKeeperAccess.Gameplay
                     if (n >= AggroScan.Chasers.Length) break;
                     if (!EntityManager.GetComponentData<IsInCombatCD>(e).isInCombat) continue;
 
-                    // Memes garde-fous que la canne laser : pas de critter, faction hostile.
+                    // Memes garde-fous que la canne laser : pas de critter, une VRAIE creature
+                    // (EnemyCD), faction hostile. Decor destructible (tables...) peut porter un
+                    // FactionCD herite (ex. Caveling, confirme diag 8 juillet) sans etre EnemyCD :
+                    // IsInCombatCD s'allume pour tout ce qui encaisse des degats, EnemyCD est le
+                    // seul signal fiable "c'est un monstre".
                     if (EntityUtility.HasComponentData<CritterCD>(e, World)) continue;
+                    if (!EntityUtility.HasComponentData<EnemyCD>(e, World)) continue;
                     if (!EntityUtility.HasComponentData<FactionCD>(e, World)
                         || !HostileFilter.IsHostile(EntityUtility.GetComponentData<FactionCD>(e, World).faction)) continue;
 

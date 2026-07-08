@@ -1138,6 +1138,7 @@ namespace CoreKeeperAccess.Gameplay
                 if (EntityManager.HasComponent<GhostOwnerIsLocal>(e)) continue;
 
                 bool critter = EntityManager.HasComponent<CritterCD>(e);
+                bool enemyCd = EntityManager.HasComponent<EnemyCD>(e);
                 bool hasFaction = EntityManager.HasComponent<FactionCD>(e);
                 FactionID faction = hasFaction ? EntityManager.GetComponentData<FactionCD>(e).faction : FactionID.None;
                 if (faction == FactionID.PlayerMinion) continue;
@@ -1145,17 +1146,20 @@ namespace CoreKeeperAccess.Gameplay
                     ? EntityManager.GetComponentData<ObjectDataCD>(e).objectID
                     : ObjectID.None;
 
+                // Decor destructible (tables...) peut porter un FactionCD herite (ex. Caveling)
+                // sans etre une creature : exiger EnemyCD/CritterCD, sauf PNJ marchand qui est
+                // volontairement FactionCD seul (ni EnemyCD ni CritterCD, cf. requete ci-dessus).
                 ProximityScanner.Category cat;
                 if (ProximityScanner.CattleIds.Contains(oid))
                     cat = ProximityScanner.Category.Cattle;
-                else if (!critter && hasFaction && faction == FactionID.Merchant)
+                else if (!critter && !enemyCd && hasFaction && faction == FactionID.Merchant)
                     cat = ProximityScanner.Category.Merchant;
-                else if (!critter && hasFaction && HostileFilter.IsHostile(faction) && !HostileFilter.IsDormantSlime(oid))
+                else if (!critter && enemyCd && HostileFilter.IsHostile(faction) && !HostileFilter.IsDormantSlime(oid))
                     cat = ProximityScanner.Category.Enemy;
-                else if (critter || hasFaction)
+                else if (critter || enemyCd)
                     cat = ProximityScanner.Category.Passive;
                 else
-                    continue; // ni critter ni faction exploitable : rien a classer
+                    continue; // ni critter ni EnemyCD ni PNJ marchand : pas une creature
 
                 VisibilityScan.Targets[count++] = new VisibilityScan.Creature
                 {
