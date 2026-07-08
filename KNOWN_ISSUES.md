@@ -16,6 +16,7 @@ Current as of 1.0.10 beta. Please check this list before opening an issue — an
 - **Leashing or releasing an animal (cow, goat, turtle…) is now announced** — not yet confirmed live.
 - **The proximity scanner now has a dedicated livestock category**, split out from regular creatures — not yet confirmed live.
 - **The livestock management window (name, hunger, breeding, food slots) is now readable and navigable** — not yet confirmed live.
+- **Summoning tomes (Summoner class) now get an aiming assist**: the main button (command your summons) and the secondary button (summon a new one) target whatever your laser cane is pointing at, falling back to your own position when the cane isn't aimed — meant to fix summons spawning or being commanded unpredictably. A short square-wave beep confirms when a command actually locks onto a target; silence doesn't necessarily mean it failed, just that we couldn't confirm it. **Not yet confirmed live** — if it misbehaves, a temporary toggle at the root of the settings panel ("Cane aim on summoning tomes (test)") turns the whole thing off.
 
 ## Known bugs
 

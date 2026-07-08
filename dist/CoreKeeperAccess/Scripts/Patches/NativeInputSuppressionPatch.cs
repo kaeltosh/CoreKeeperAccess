@@ -196,6 +196,22 @@ namespace CoreKeeperAccess.Patches
         public static float2 TargetWorld; // position monde (xz) de l'ennemi a viser
     }
 
+    // === Focus tome d'invocation (canne laser) ===
+    // Meme recette que MortarFocus, pour les tomes d'invocation (bouton principal = commander
+    // les invocations sur une cible, bouton secondaire = en invoquer une nouvelle) : le jeu
+    // pose les deux sur le MEME viseur fantome que le mortier (RangeWeaponSlot.
+    // CalculateAimMarkerTargetPosition), avec le meme piege manette (offset qui rampe, jamais
+    // remis a zero au relachement). Regle voulue, DIFFERENTE du mortier : ACTIF en permanence
+    // tant qu'un tome de commande est equipe (pas seulement si la canne accroche un ennemi) -
+    // canne tenue = cible ce qu'elle vise (ennemi, sinon le point d'impact mur/portee - couvre
+    // le minion pioche qui commande une CASE, pas un ennemi) ; canne relachee = retour sur la
+    // position du joueur (jamais le viseur natif qui traine). Mis a jour par LaserCane.
+    internal static class TomeFocus
+    {
+        public static bool Active;
+        public static float2 TargetWorld;
+    }
+
     // Point d'impact "souris" du joueur. En mode souris, le mortier (cercle ET tir, client
     // + serveur via l'input replique) vise ce point -> on l'ecrase sur l'ennemi. Postfix
     // sur la methode privee qui calcule ce point dans SendClientInputSystem.
@@ -206,22 +222,23 @@ namespace CoreKeeperAccess.Patches
         public static void Postfix(ref float2 __result)
         {
             if (MortarFocus.Active) __result = MortarFocus.TargetWorld;
+            else if (TomeFocus.Active) __result = TomeFocus.TargetWorld;
         }
     }
 
-    // Bascule "mode souris" : sans ce flag, le calcul de cible du mortier prend la branche
-    // manette (offset accumule, integre dans le temps -> rampe, pas reactif) et ignore notre
-    // point. On ne le force QUE pendant le focus (en combat). VALIDE en jeu : hors menu, les
+    // Bascule "mode souris" : sans ce flag, le calcul de cible (mortier ET tome) prend la
+    // branche manette (offset accumule, integre dans le temps -> rampe, pas reactif) et ignore
+    // notre point. On ne le force QUE pendant le focus. VALIDE en jeu (mortier) : hors menu, les
     // seuls autres lecteurs sont le rendu du ghost (qu'on veut en souris) et le curseur souris,
     // qui ne s'est PAS manifeste en combat -> aucun effet de bord observe. La quasi-totalite
-    // des autres lecteurs du flag sont des ecrans de menu, inactifs quand on tire au mortier.
+    // des autres lecteurs du flag sont des ecrans de menu, inactifs en jeu direct.
     [HarmonyPatch(typeof(InputManager), nameof(InputManager.SystemPrefersKeyboardAndMouse))]
     internal static class MortarPrefersMousePatch
     {
         [HarmonyPostfix]
         public static void Postfix(ref bool __result)
         {
-            if (MortarFocus.Active) __result = true;
+            if (MortarFocus.Active || TomeFocus.Active) __result = true;
         }
     }
 }

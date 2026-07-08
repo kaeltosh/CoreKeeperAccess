@@ -85,6 +85,7 @@ namespace CoreKeeperAccess.Navigation
             }
             BuildPouchRows(sections);
             AppendEquipmentTabs(sections);
+            AppendCattleInfoElement(sections);
             AppendCattleBreedingToggle(sections);
             // Fenetres de progression (sous-vues de characterWindow) : compétences,
             // arbre de talents de la competence ouverte, talents de familier. Ce sont
@@ -395,6 +396,34 @@ namespace CoreKeeperAccess.Navigation
             }
         }
 
+        // Element "info" en TETE de la section betail (CattleUI elle-meme, deja un
+        // UIelement) : nom + faim + reproduction, lisible A LA DEMANDE en naviguant
+        // dessus (BuildCattleInfoLabel, meme contenu que l'annonce d'ouverture passive
+        // de GameplayInput.WatchCattleUi). Sans ca, seul le toggle de reproduction etait
+        // un element navigable, et l'info faim/nom n'etait accessible qu'au poll (loupee
+        // si coupee par un autre TTS ou si le statut change hors de vue) - signale par
+        // testeur le 8 juillet 2026. Cree la section si besoin (meme ordre de bataille
+        // que le toggle ci-dessous).
+        private static UIelement _cattleInfoElement;
+
+        public static bool IsCattleInfoElement(UIelement e) => e != null && e == _cattleInfoElement;
+
+        private static void AppendCattleInfoElement(List<SlotSection> sections)
+        {
+            _cattleInfoElement = null;
+            var ui = Object.FindObjectOfType<CattleUI>();
+            if (ui == null || ui.gameObject == null || !ui.gameObject.activeInHierarchy || !ui.isShowing) return;
+
+            var section = sections.Find(s => s.Kind == "cattle");
+            if (section == null)
+            {
+                section = new SlotSection { Kind = "cattle", NameKey = NameKeys["cattle"] };
+                sections.Add(section);
+            }
+            if (!section.Slots.Contains(ui)) section.Slots.Insert(0, ui);
+            _cattleInfoElement = ui;
+        }
+
         // Toggle de reproduction de la fenetre bétail (CattleUI) : pas un SlotUIBase (bouton
         // a part), rattache a la suite des slots de nourriture de la meme section "cattle"
         // (creee si besoin - le toggle peut exister meme si KindOf n'a pas encore vu de slot,
@@ -525,10 +554,21 @@ namespace CoreKeeperAccess.Navigation
                 || section.Kind == "skills" || section.Kind == "talents" || section.Kind == "pettalents"
                 || section.Kind == "souls" || section.Kind == "stats")
                 return null;
-            // Toggle de reproduction (bétail) : son titre natif ("Reproduction active/coupee")
-            // suffit, pas de numero. Les slots de nourriture gardent un numero, prefixe.
+            // Element info (nom/faim/reproduction) et toggle de reproduction (bétail) :
+            // contenu deja parlant, pas de numero. Les slots de nourriture gardent un
+            // numero, prefixe - rang parmi les SEULS slots de nourriture de la section
+            // (pas indexInSection brut : l'element info en tete decalerait le compte).
             if (section.Kind == "cattle")
-                return element is BreedStateToggle ? null : Strings.L("cattle.food") + " " + (indexInSection + 1);
+            {
+                if (element is BreedStateToggle || IsCattleInfoElement(element)) return null;
+                int rank = 1;
+                foreach (var s in section.Slots)
+                {
+                    if (s == element) break;
+                    if (s is CattleFoodSlotUI) rank++;
+                }
+                return Strings.L("cattle.food") + " " + rank;
+            }
             return (indexInSection + 1).ToString();
         }
 

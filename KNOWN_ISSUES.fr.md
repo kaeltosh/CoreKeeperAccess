@@ -16,6 +16,7 @@
 - **Attraper ou lâcher un animal à la laisse (vache, chèvre, tortue…) est désormais annoncé** — pas encore confirmé en conditions réelles.
 - **Le scanner de proximité a maintenant une catégorie dédiée au bétail**, séparée des créatures classiques — pas encore confirmé en conditions réelles.
 - **La fenêtre de gestion du bétail (nom, faim, reproduction, slots de nourriture) est désormais lisible et navigable** — pas encore confirmé en conditions réelles.
+- **Les tomes d'invocation (classe Invocateur) ont maintenant une aide à la visée** : le bouton principal (commander vos invocations) et le bouton secondaire (en invoquer une nouvelle) ciblent ce que pointe votre canne laser, avec un repli sur votre propre position quand la canne n'est pas active — objectif : corriger les invocations qui apparaissaient ou étaient commandées n'importe où. Un bref bip carré confirme quand une commande verrouille bien une cible ; le silence ne veut pas forcément dire que ça a raté, juste qu'on n'a pas pu le confirmer. **Pas encore confirmé en conditions réelles** — en cas de souci, un réglage temporaire à la racine du panneau ("Viseur canne sur tomes d'invocation (test)") coupe tout le mécanisme.
 
 ## Bugs connus
 

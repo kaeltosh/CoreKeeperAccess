@@ -64,18 +64,23 @@ namespace CoreKeeperAccess.Gameplay
         public static void Tick()
         {
             var player = Manager.main != null ? Manager.main.player : null;
-            if (player == null || Manager.ui == null) { Reset(); return; }
+            // tomeContextValid=false : etat ambigu (pas de joueur/UI) ou franchement hors jeu
+            // (menu/inventaire/carte) -> on force TomeFocus.Active a false plutot que de risquer
+            // le mode souris force pendant un ecran qui LIT ce flag (piege deja identifie sur
+            // le mortier : "aucun effet de bord" valide uniquement hors menu).
+            if (player == null || Manager.ui == null) { Reset(false); return; }
 
             // Jeu normal seulement (comme le curseur) : pas en inventaire / fiche perso / carte.
-            if (!InputContext.InGameFree) { Reset(); return; }
+            if (!InputContext.InGameFree) { Reset(false); return; }
 
             // Roue de saut barre rapide en mode L1 (stick droit vole a la roue, cf.
             // HotbarJumpWheel) : la canne se tait le temps de la tenue, sinon elle
-            // continuerait a scanner/biper des ennemis pendant qu'on vise un slot.
+            // continuerait a scanner/biper des ennemis pendant qu'on vise un slot. On reste
+            // en jeu direct -> le tome (si equipe) retombe sur le joueur, pas de coupure forcee.
             if (InfoKey.HotbarWheelLeft) { Reset(); return; }
 
             var input = player.inputModule;
-            if (input == null) { Reset(); return; }
+            if (input == null) { Reset(false); return; }
 
             // Visee = stick droit BRUT (GetAxis2D 59/60, memes axes que la visee du jeu ->
             // mapping monde correct x=est, y=nord). On lit le RAW et PAS GetInputAxisValue :
@@ -193,6 +198,10 @@ namespace CoreKeeperAccess.Gameplay
             // Focus mortier : si un mortier est equipe et qu'un ennemi est dans le
             // faisceau, on cale le viseur du jeu dessus (placement instantane cote patch).
             UpdateMortarFocus(player);
+
+            // Focus tome d'invocation : canne tenue -> cible ce qu'elle vise (ennemi, sinon
+            // le point d'impact). Cf. UpdateTomeFocus pour le cas canne relachee (centre).
+            UpdateTomeFocus(player, true);
         }
 
         // Cale le viseur du mortier sur l'ennemi vise par le laser. N'a de sens que si un
@@ -229,7 +238,75 @@ namespace CoreKeeperAccess.Gameplay
             catch { return false; }
         }
 
-        private static void Reset()
+        // Un tome de commande (invocation) est equipe ? Meme cache que isMortar, meme champ
+        // que celui qui affiche l'icone dediee sur le bouton principal (CommandMinionWeaponCD).
+        private static bool IsCommandMinionEquipped(PlayerController player)
+        {
+            try
+            {
+                if (player == null) return false;
+                return EntityUtility.HasComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world)
+                    && EntityUtility.GetComponentData<AimIndicatorCachedStatesCD>(player.entity, player.world).isCommandMinion;
+            }
+            catch { return false; }
+        }
+
+        // Focus tome : voir le commentaire de TomeFocus (NativeInputSuppressionPatch.cs) pour
+        // la regle. canneActive=true (fin de Tick, canne tenue) -> cible l'ennemi accroche par
+        // la canne, sinon son point d'impact (mur/portee - couvre le minion pioche, qui commande
+        // une CASE et non un ennemi). canneActive=false (canne relachee, appele depuis Reset) ->
+        // cible la position du joueur, jamais le viseur natif qui traine.
+        private static bool _tomeFocusWas;
+        private static void UpdateTomeFocus(PlayerController player, bool canneActive)
+        {
+            // Coupe-circuit de test (A11ySettings.TomeFocusEnabled) : off -> jamais de mode
+            // souris force sur les tomes, le jeu reprend son comportement natif tel quel.
+            if (!A11ySettings.TomeFocusEnabled)
+            {
+                TomeFocus.Active = false;
+                _tomeFocusWas = false;
+                MinionCommandFeedback.Disable();
+                return;
+            }
+
+            if (player == null) player = Manager.main != null ? Manager.main.player : null;
+            bool tomeEquipped = IsCommandMinionEquipped(player);
+            if (!tomeEquipped)
+            {
+                TomeFocus.Active = false;
+                _tomeFocusWas = false;
+                MinionCommandFeedback.Disable();
+                return;
+            }
+
+            bool haveEnemyTarget = canneActive && LaserScan.ResultValid && LaserScan.HasEnemy;
+            float2 target;
+            if (haveEnemyTarget)
+                target = LaserScan.EnemyPos;
+            else if (canneActive && LaserScan.ResultValid)
+                target = new float2(LaserScan.ImpactTile.x, LaserScan.ImpactTile.y);
+            else
+                target = new float2(player.WorldPosition.x, player.WorldPosition.z);
+
+            TomeFocus.TargetWorld = target;
+            TomeFocus.Active = true;
+            if (!_tomeFocusWas)
+            {
+                _tomeFocusWas = true;
+                Diag.Log("A11yTomeFocus", "ON cible=" + target.x + "," + target.y);
+            }
+
+            // Bouton commande (Interact, gachette principale) presse ce tick -> tenter la
+            // verification indirecte de la prise (cf. MinionCommandFeedback pour le pourquoi).
+            bool pressed = player.inputModule != null
+                && player.inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.INTERACT);
+            MinionCommandFeedback.Tick(player, pressed, haveEnemyTarget, target);
+        }
+
+        // tomeContextValid=true (defaut) : toujours en jeu direct, juste canne relachee -> le
+        // tome (si equipe) retombe sur le joueur. false : etat hors jeu (menu/inventaire/carte/
+        // pas de joueur) -> on coupe TomeFocus net, jamais de mode souris force hors gameplay.
+        private static void Reset(bool tomeContextValid = true)
         {
             Active = false;
             MortarFocus.Active = false; // pas de laser -> pas de focus mortier
@@ -239,6 +316,13 @@ namespace CoreKeeperAccess.Gameplay
             _lastSpecial = NoImpact;
             _lastEnemyKey = 0;
             _lastPassiveKey = 0;
+            if (tomeContextValid)
+                UpdateTomeFocus(null, false); // canne relachee -> le tome (si equipe) retombe sur le joueur
+            else
+            {
+                TomeFocus.Active = false;
+                _tomeFocusWas = false;
+            }
         }
 
         // Bip ennemi positionnel : pan gauche-droite + pitch vertical (+1 demi-ton/ligne),
