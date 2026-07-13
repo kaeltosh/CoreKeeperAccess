@@ -199,6 +199,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private static void WatchInteractable(PlayerController player)
         {
+            if (!InputContext.InGameFree) return;
             if (A11ySettings.MuteInteractInCursor && BuildModeNavigator.CursorDetached) return;
             if (Time.unscaledTime < _nextInteractPoll) return;
             _nextInteractPoll = Time.unscaledTime + InteractPollInterval;
@@ -270,6 +271,7 @@ namespace CoreKeeperAccess.Gameplay
 
         private static void WatchCursorToggle()
         {
+            if (!InputContext.InGameFree) return;
             if (!BuildModeNavigator.CursorDetached || !TileQuery.ResultValid
                 || TileQuery.Toggle == ToggleState.None || TileQuery.ObjectId == ObjectID.None)
             {

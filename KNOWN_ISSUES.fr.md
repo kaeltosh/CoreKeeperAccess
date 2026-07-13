@@ -2,7 +2,7 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à la 1.0.10 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0.11 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
 
 > **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
 
@@ -16,7 +16,10 @@
 - **Attraper ou lâcher un animal à la laisse (vache, chèvre, tortue…) est désormais annoncé** — pas encore confirmé en conditions réelles.
 - **Le scanner de proximité a maintenant une catégorie dédiée au bétail**, séparée des créatures classiques — pas encore confirmé en conditions réelles.
 - **La fenêtre de gestion du bétail (nom, faim, reproduction, slots de nourriture) est désormais lisible et navigable** — pas encore confirmé en conditions réelles.
-- **Les tomes d'invocation (classe Invocateur) ont maintenant une aide à la visée** : le bouton principal (commander vos invocations) et le bouton secondaire (en invoquer une nouvelle) ciblent ce que pointe votre canne laser, avec un repli sur votre propre position quand la canne n'est pas active — objectif : corriger les invocations qui apparaissaient ou étaient commandées n'importe où. Un bref bip carré confirme quand une commande verrouille bien une cible ; le silence ne veut pas forcément dire que ça a raté, juste qu'on n'a pas pu le confirmer. **Pas encore confirmé en conditions réelles** — en cas de souci, un réglage temporaire à la racine du panneau ("Viseur canne sur tomes d'invocation (test)") coupe tout le mécanisme.
+- **La couleur de peinture murs/sols est désormais annoncée au curseur** (14 teintes) — pas encore confirmé en conditions réelles.
+- **Un popup de confirmation signale désormais que supprimer un monde ou un personnage exige un appui long** — pas encore confirmé en conditions réelles.
+- **Pêche : l'annonce native "Attrapé X" a été retirée.** Elle doublonnait l'annonce de ramassage et pouvait, lors d'une resynchronisation réseau, répéter le nom de la prise précédente au lieu de la nouvelle. L'annonce de ramassage seule couvre désormais la pêche — pas encore confirmé en conditions réelles.
+- **Les annonces "interaction disponible" sont désormais coupées quand une fenêtre est ouverte** (inventaire, carte, menu pause, fiche perso) — objectif : qu'un familier ou PNJ à proximité ne spamme plus l'annonce pendant que tu es dans un menu — pas encore confirmé en conditions réelles.
 
 ## Bugs connus
 

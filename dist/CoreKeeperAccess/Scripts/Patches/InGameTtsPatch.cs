@@ -780,7 +780,13 @@ namespace CoreKeeperAccess.Patches
         {
             ChatWindow.MessageTextType.Received,
             ChatWindow.MessageTextType.NewItem,
-            ChatWindow.MessageTextType.CaughtItem,
+            // CaughtItem RETIRE (13 juillet) : son payload (displayFishingLootToSpawn) vit
+            // sur FishingStateCD mais N'EST PAS dans le snapshot Ghost replique (confirme au
+            // decompil du serializer genere) -> boite aux lettres a un seul casier, jamais
+            // restauree lors d'une correction reseau. Si caughtFishCounter saute de plus de 1
+            // (rattrapage), FishingCueSystem relit deux fois le meme casier -> annonce le nom
+            // de la prise precedente. PickupAnnouncer (diff d'inventaire reel, non predit)
+            // couvre deja la peche de facon fiable -> doublon retire, bug de repetition avec.
             // NewTalentPointAvailable RETIRE : geree desormais par SkillIncreasePopupPatch
             // (fusionnee a l'annonce de montee de niveau pour eviter l'ecrasement au palier).
             ChatWindow.MessageTextType.DurabilityLost,

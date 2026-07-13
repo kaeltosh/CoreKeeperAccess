@@ -48,8 +48,8 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.10 beta";
-    private const string BuildTag = "build 4";
+    private const string ReleaseTag = "1.0.11 beta";
+    private const string BuildTag = "build 1";
 
     public void Init()
     {
@@ -137,6 +137,7 @@ public class CoreKeeperAccessMod : IMod
         TryDevBeaconGraphDiag();
         TryDevNetworkRecalc();
         TryDevNetworkDump();
+        TryDevLightDiag();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
@@ -247,6 +248,108 @@ public class CoreKeeperAccessMod : IMod
             UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
         CoreKeeperAccess.Gameplay.NetworkDump.Radius = 12f;
         CoreKeeperAccess.Gameplay.NetworkDump.Requested = true;
+    }
+
+    // Diagnostic dev eclairage/plafond (Triangle maintenu + F3, cache comme F4-F9) : dump dans
+    // Player.log (a) le biome + la liste ManagedLight proche du joueur (reflexion : allLights
+    // est prive cote jeu, meme genre d'acces que GameplayAudio.cs/SlotSection.cs) et (b) demande
+    // au systeme ECS le dump ASCII de la grille roofHole/mur (LightDump, Gameplay/TileReader.cs).
+    // But : verifier en jeu si allLights est complet (pas coupe par distance) et si le "plafond"
+    // (roofHole) colle aux observations (Azeos qui perce le plafond, desert sans plafond).
+    private void TryDevLightDiag()
+    {
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F3)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        try
+        {
+            var wp = player.WorldPosition;
+            string biome = CoreKeeperAccess.Navigation.MapMarkerUtil.ResolveBiome(
+                new Unity.Mathematics.float2(wp.x, wp.z));
+            Diag.Log("A11yLightDiag", "joueur " + wp.x + "," + wp.z + " biome=" + (biome ?? "?"));
+
+            DumpManagedLights(wp);
+
+            CoreKeeperAccess.Gameplay.LightDump.Center = new Unity.Mathematics.int2(
+                UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+            CoreKeeperAccess.Gameplay.LightDump.Radius = 12;
+            CoreKeeperAccess.Gameplay.LightDump.Requested = true;
+
+            TtsText.Say("Diagnostic eclairage enregistre", true);
+        }
+        catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
+    }
+
+    private static System.Reflection.FieldInfo _allLightsField;
+    private static System.Reflection.FieldInfo _lightObjLightField;
+    private static System.Reflection.FieldInfo _lightObjTransformField;
+
+    // ManagedLight.allLights est prive cote jeu (List<ManagedLight.ManagedLightObject>, struct
+    // egalement privee) : lu par reflexion. La struct est privee mais ses CHAMPS ("light"/
+    // "transform") sont publics et leurs TYPES (ManagedLight, Transform) le sont aussi -> une
+    // fois extraits par reflexion, castables et utilisables normalement (pas besoin de re-
+    // reflechir dedans).
+    private void DumpManagedLights(Vector3 playerPos)
+    {
+        if (_allLightsField == null)
+            _allLightsField = typeof(ManagedLight).GetField("allLights",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var list = _allLightsField?.GetValue(null) as System.Collections.IList;
+        if (list == null)
+        {
+            Diag.Log("A11yLightDiag", "ManagedLight.allLights introuvable (reflexion)");
+            return;
+        }
+
+        Diag.Log("A11yLightDiag", "ManagedLight.allLights total=" + list.Count);
+
+        var entries = new List<LightEntry>();
+        foreach (var boxed in list)
+        {
+            if (_lightObjLightField == null || _lightObjTransformField == null)
+            {
+                var t = boxed.GetType();
+                _lightObjLightField = t.GetField("light", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                _lightObjTransformField = t.GetField("transform", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            }
+            var light = _lightObjLightField.GetValue(boxed) as ManagedLight;
+            var transform = _lightObjTransformField.GetValue(boxed) as Transform;
+            if (light == null || transform == null || light.lightToOptimize == null) continue;
+            // transform.position est en coordonnees RENDU (camera-relatives, cf.
+            // ManagedLight.UpdateOptimization cote jeu) : il faut reajouter RenderOrigo pour
+            // retrouver le vrai monde et comparer a player.WorldPosition.
+            var p = transform.position + Manager.camera.RenderOrigo;
+            float dx = p.x - playerPos.x;
+            float dz = p.z - playerPos.z;
+            entries.Add(new LightEntry
+            {
+                dist = Mathf.Sqrt(dx * dx + dz * dz),
+                dx = dx,
+                dz = dz,
+                range = light.lightToOptimize.range,
+                intensity = light.lightToOptimize.intensity,
+                enabled = light.isLightEnabled,
+            });
+        }
+        entries.Sort((a, b) => a.dist.CompareTo(b.dist));
+        int shown = 0;
+        foreach (var e in entries)
+        {
+            if (shown >= 40) break;
+            Diag.Log("A11yLightDiag", "  dx=" + e.dx.ToString("F1") + " dz=" + e.dz.ToString("F1")
+                + " range=" + e.range.ToString("F1") + " intensity=" + e.intensity.ToString("F2")
+                + " enabled=" + e.enabled);
+            shown++;
+        }
+        if (entries.Count > shown)
+            Diag.Log("A11yLightDiag", "  ... + " + (entries.Count - shown) + " autres (tri par distance)");
+    }
+
+    private struct LightEntry
+    {
+        public float dist, dx, dz, range, intensity;
+        public bool enabled;
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

@@ -152,6 +152,18 @@ namespace CoreKeeperAccess.Gameplay
         public static float Radius;
     }
 
+    // Pont DUMP eclairage/plafond (dev, Triangle+F3). Le mod pose une demande (centre, rayon) ;
+    // le systeme dessine dans Player.log une grille "vue par le mod" : # = mur LU, R = tuile
+    // roofHole (trou perce dans le plafond implicite), . = sol ferme (pas de trou), @ = joueur.
+    // Sert a verifier en jeu la mecanique observee (Azeos qui perce le plafond de ses attaques,
+    // biome desert eclaire sans plafond a percer). Cf. [[core-keeper-ingame-data-access]].
+    internal static class LightDump
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static int Radius;
+    }
+
     // Pont du scanner de proximite (R3 tenu). PUBLICATION CONTINUE (pas de demande/reponse
     // consommee comme PingScan) : le mod publie chaque frame le rectangle camera courant
     // (meme convention que la sentinelle d'aggro, AggroScan.CamHal) et le systeme rafraichit
@@ -594,6 +606,14 @@ namespace CoreKeeperAccess.Gameplay
                 NetworkDump.Requested = false;
                 try { DumpNetwork(); }
                 catch (System.Exception ex) { Diag.Error("A11yNetDump", ex); }
+            }
+
+            // Dump ASCII plafond/roofHole (dev) : verification terrain de la mecanique eclairage.
+            if (LightDump.Requested)
+            {
+                LightDump.Requested = false;
+                try { DumpLight(); }
+                catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
             }
 
             // Diagnostic automation a la demande (dev) : independant du curseur actif.
@@ -1230,6 +1250,37 @@ namespace CoreKeeperAccess.Gameplay
                 es.Append(la).Append('-').Append(lb);
             }
             Diag.Log("A11yNetDump", "aretes (" + edges.Count + ") : " + es);
+        }
+
+        // Dump ASCII plafond/roofHole (dev) : meme principe que DumpNetwork mais pour la
+        // mecanique eclairage. # = mur LU, R = roofHole (trou perce), . = sol ferme, @ = joueur.
+        private void DumpLight()
+        {
+            int r = LightDump.Radius;
+            int2 c = LightDump.Center;
+            var ta = new TileAccessor(ref CheckedStateRef, true);
+
+            Diag.Log("A11yLightDiag", "=== plafond zone " + c.x + "," + c.y + " rayon " + r
+                + " (Nord en haut, @ joueur, # mur, R roofHole perce, . sol ferme) ===");
+
+            int roofHoleCount = 0, floorCount = 0;
+            var sb = new System.Text.StringBuilder();
+            for (int y = c.y + r; y >= c.y - r; y--)
+            {
+                sb.Clear();
+                for (int x = c.x - r; x <= c.x + r; x++)
+                {
+                    int2 t = new int2(x, y);
+                    char ch;
+                    if (x == c.x && y == c.y) ch = '@';
+                    else if (ta.TryGetBlockingTile(t, out _, true)) ch = '#';
+                    else if (ta.HasType(t, TileType.roofHole)) { ch = 'R'; roofHoleCount++; floorCount++; }
+                    else { ch = '.'; floorCount++; }
+                    sb.Append(ch);
+                }
+                Diag.Log("A11yLightDiag", sb.ToString());
+            }
+            Diag.Log("A11yLightDiag", "roofHole=" + roofHoleCount + " / sol=" + floorCount);
         }
 
         // Dump dev : liste TOUS les composants de l'entite sous le curseur + les valeurs

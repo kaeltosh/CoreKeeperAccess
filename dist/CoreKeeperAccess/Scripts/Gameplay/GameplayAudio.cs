@@ -271,10 +271,8 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _relayOn;
         private static float[] _toneData;
         private static float[] _bossData;
-        private static float[] _lockData;
         private static AudioClip[] _toneBank;
         private static AudioClip[] _bossBank;
-        private static AudioClip[] _lockBank;
 
         // Bip sinusoidal GENERE (aucun asset) : sinus a freqHz pendant ms, fondu
         // d'attaque/sortie de 5 ms contre les clics. Rend les ECHANTILLONS mono ;
@@ -379,43 +377,6 @@ namespace CoreKeeperAccess.Gameplay
             if (_bossData == null) _bossData = BuildSawData(440.0, 90);
             var clip = PannedTone(ref _bossBank, _bossData, "A11yBossBeep", pan);
             _toneSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
-            _toneSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
-        }
-
-        // Carre GENERE : meme enveloppe (fondus 5 ms) que BuildSineData, transitoires nets
-        // (riche en harmoniques impaires, timbre distinct des autres tons du mod). Amplitude
-        // reduite a 0.55 (le carre est la forme la plus "forte" a crete egale de toutes -
-        // RMS = crete, contrairement au sinus/dent de scie deja attenuee a 0.8).
-        private static float[] BuildSquareData(double freqHz, int ms)
-        {
-            const int rate = 44100;
-            int len = rate * ms / 1000;
-            const int fade = rate * 5 / 1000;   // 5 ms
-            var data = new float[len];
-            double w = 2.0 * System.Math.PI * freqHz / rate;
-            for (int i = 0; i < len; i++)
-            {
-                float env = 1f;
-                if (i < fade) env = i / (float)fade;
-                else if (i >= len - fade) env = (len - 1 - i) / (float)fade;
-                data[i] = (float)(System.Math.Sin(w * i) >= 0.0 ? 1.0 : -1.0) * 0.55f * env;
-            }
-            return data;
-        }
-
-        // Confirmation "commande d'invocation verrouillee" (MinionCommandFeedback) : carre
-        // 50 ms, MEME base 440 Hz que les autres bips (referentiel pitch/pan appris intact,
-        // meme raisonnement que PlayBossTone). Marqueur d'IDENTITE (evenement confirme), pas
-        // porteur de position -> centre, hauteur fixe (regle du mod : un marqueur ne code
-        // jamais une 2e info). Source dediee = _toneSource (PlayOneShot, jamais superpose vu
-        // le sequencement des autres bips).
-        public static void PlayTomeLock(float volume = 1f)
-        {
-            EnsureInit();
-            if (_toneSource == null) return;
-            if (_lockData == null) _lockData = BuildSquareData(440.0, 50);
-            var clip = PannedTone(ref _lockBank, _lockData, "A11yTomeLockBeep", 0f);
-            _toneSource.pitch = 1f;
             _toneSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
         }
 

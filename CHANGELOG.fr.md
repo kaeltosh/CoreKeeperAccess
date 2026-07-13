@@ -2,6 +2,19 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.11 bêta — juillet 2026
+
+### Ajouts
+
+- **Le tutoriel manette complet imposé au premier lancement a été remplacé par un popup court**, qui rappelle comment rouvrir le menu d'aide quand tu en as besoin.
+
+### Corrections
+
+- **Le viseur canne sur les tomes d'invocation (classe Invocateur), introduit en test dans la 1.0.10, est confirmé fonctionnel et reste actif en permanence.** Le réglage temporaire de désactivation et son bip de confirmation ont été retirés.
+- **Les annonces "interaction disponible" sont désormais coupées quand une fenêtre est ouverte** (inventaire, carte, menu pause, fiche perso). Un familier qui tourne autour ne spamme plus l'annonce pendant que tu es dans un menu.
+
+---
+
 ## 1.0.10 bêta, build 2 — juillet 2026
 
 ### Changements

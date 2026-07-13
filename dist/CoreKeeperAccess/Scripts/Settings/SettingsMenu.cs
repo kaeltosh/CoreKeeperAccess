@@ -69,13 +69,6 @@ namespace CoreKeeperAccess.Settings
                 Step = 10f, Min = 0f, Max = 300f, Raw = true, RawUnitKey = "settings.unit.ms",
             });
 
-            // PROVISOIRE (coupe-circuit de test, cf. A11ySettings.TomeFocusEnabled) : coupe le
-            // viseur canne sur les tomes d'invocation (spawn + commande) si le mecanisme s'avere
-            // brise en jeu, sans redeploiement. A la racine (pas dans une categorie) pour un
-            // acces rapide en cas de souci.
-            _root.Children.Add(Tg("settings.tomefocus", "settings.desc.tomefocus",
-                () => A11ySettings.TomeFocusEnabled, A11ySettings.SetTomeFocusEnabled));
-
             _root.Children.Add(Cat("settings.cat.navigation", "settings.desc.cat.navigation",
                 Tg("settings.stepbeep", "settings.desc.stepbeep", () => A11ySettings.StepBeep, A11ySettings.SetStepBeep,
                     () => GameplayAudio.PlayTone(0f, 1f, A11ySettings.DirectionTickVolume)),

@@ -169,10 +169,6 @@
                       "guid":  "b3d09b6239f64f8409db3868d2555519"
                   },
                   {
-                      "path":  "Scripts/Gameplay/MinionCommandFeedback.cs",
-                      "guid":  ""
-                  },
-                  {
                       "path":  "Scripts/Gameplay/MovementReader.cs",
                       "guid":  "5e4c773ab5bd00f4682ae018f54f5b26"
                   },

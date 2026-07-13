@@ -130,10 +130,6 @@ namespace CoreKeeperAccess.Gameplay
             // les choses visibles a l'ecran. Feature PERMANENTE (comme la roue de stats ou la
             // roue d'actions) : pas de coupe-circuit, juste un volume.
             public float scannerVolume = 1f; // 0..2, volume de l'earcon de navigation (pas le beacon, qui reutilise GuideVolume)
-            // PROVISOIRE (coupe-circuit de test) : viseur canne sur les tomes d'invocation
-            // (spawn + commande). A retirer si le mecanisme est valide en jeu sans souci, ou
-            // a garder si le natif reste fragile. Actif par defaut (feature deja deployee).
-            public bool tomeFocusEnabled = true;
         }
 
         private static Data _d = new Data();
@@ -186,7 +182,6 @@ namespace CoreKeeperAccess.Gameplay
         public static float HotbarWheelHoldMs => _d.hotbarWheelHoldMs;
         public static bool MuteInteractInCursor => _d.muteInteractInCursor;
         public static float ScannerVolume => _d.scannerVolume;
-        public static bool TomeFocusEnabled => _d.tomeFocusEnabled;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -202,7 +197,6 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetSonarVolMedium(float v) { _d.sonarVolMedium = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetSonarVolGrave(float v) { _d.sonarVolGrave = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetObjectDing(bool v) { _d.objectDing = v; Save(); }
-        public static void SetTomeFocusEnabled(bool v) { _d.tomeFocusEnabled = v; Save(); }
         public static void SetPickupAnnounce(bool v) { _d.pickupAnnounce = v; Save(); }
         public static void SetPickupFilterBlocks(bool v) { _d.pickupFilterBlocks = v; Save(); }
         public static void SetPickupTotal(bool v) { _d.pickupTotal = v; Save(); }

@@ -259,23 +259,12 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _tomeFocusWas;
         private static void UpdateTomeFocus(PlayerController player, bool canneActive)
         {
-            // Coupe-circuit de test (A11ySettings.TomeFocusEnabled) : off -> jamais de mode
-            // souris force sur les tomes, le jeu reprend son comportement natif tel quel.
-            if (!A11ySettings.TomeFocusEnabled)
-            {
-                TomeFocus.Active = false;
-                _tomeFocusWas = false;
-                MinionCommandFeedback.Disable();
-                return;
-            }
-
             if (player == null) player = Manager.main != null ? Manager.main.player : null;
             bool tomeEquipped = IsCommandMinionEquipped(player);
             if (!tomeEquipped)
             {
                 TomeFocus.Active = false;
                 _tomeFocusWas = false;
-                MinionCommandFeedback.Disable();
                 return;
             }
 
@@ -295,12 +284,6 @@ namespace CoreKeeperAccess.Gameplay
                 _tomeFocusWas = true;
                 Diag.Log("A11yTomeFocus", "ON cible=" + target.x + "," + target.y);
             }
-
-            // Bouton commande (Interact, gachette principale) presse ce tick -> tenter la
-            // verification indirecte de la prise (cf. MinionCommandFeedback pour le pourquoi).
-            bool pressed = player.inputModule != null
-                && player.inputModule.WasButtonPressedDownThisFrame(PlayerInput.InputType.INTERACT);
-            MinionCommandFeedback.Tick(player, pressed, haveEnemyTarget, target);
         }
 
         // tomeContextValid=true (defaut) : toujours en jeu direct, juste canne relachee -> le

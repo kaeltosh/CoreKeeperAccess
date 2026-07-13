@@ -2,6 +2,19 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.11 beta — July 2026
+
+### Additions
+
+- **Onboarding: the mandatory full controller tutorial on first launch has been replaced with a short popup** reminding you how to reopen the help menu whenever you need it.
+
+### Fixes
+
+- **Cane aim on summoning tomes (Summoner class), introduced as a testing feature in 1.0.10, is now confirmed working and stays on permanently.** The temporary on/off safety setting and its confirmation beep have been removed.
+- **"Interaction available" callouts are now muted while any UI is open** (inventory, map, pause menu, character sheet). A nearby pet circling you no longer spams the callout while you're in a menu.
+
+---
+
 ## 1.0.10 beta, build 2 — July 2026
 
 ### Changes
