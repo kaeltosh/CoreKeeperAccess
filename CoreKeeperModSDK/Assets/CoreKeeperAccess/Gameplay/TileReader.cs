@@ -164,6 +164,9 @@ namespace CoreKeeperAccess.Gameplay
         public static int Radius;
     }
 
+    // CheckerStamp (pont banc de test damier, Triangle+F10) deplace dans Gameplay/DevTools.cs,
+    // avec le systeme SERVEUR qui le consomme (cf. leçon CheckerStampSystem/DevInvincibilitySystem).
+
     // Pont du scanner de proximite (R3 tenu). PUBLICATION CONTINUE (pas de demande/reponse
     // consommee comme PingScan) : le mod publie chaque frame le rectangle camera courant
     // (meme convention que la sentinelle d'aggro, AggroScan.CamHal) et le systeme rafraichit
@@ -615,6 +618,10 @@ namespace CoreKeeperAccess.Gameplay
                 try { DumpLight(); }
                 catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
             }
+
+            // Tampon damier (dev) : la demande est consommee cote SERVEUR (CheckerStampSystem,
+            // Gameplay/DevTools.cs) - une ecriture ICI (client) serait ecrasee au prochain
+            // snapshot NetCode, meme piege que DevInvincibilitySystem. Rien a faire cote client.
 
             // Diagnostic automation a la demande (dev) : independant du curseur actif.
             if (AutomationDiag.Requested)

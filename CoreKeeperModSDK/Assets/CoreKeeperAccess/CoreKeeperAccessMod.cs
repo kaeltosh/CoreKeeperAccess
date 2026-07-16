@@ -138,6 +138,7 @@ public class CoreKeeperAccessMod : IMod
         TryDevNetworkRecalc();
         TryDevNetworkDump();
         TryDevLightDiag();
+        TryDevCheckerStamp();
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
@@ -279,6 +280,35 @@ public class CoreKeeperAccessMod : IMod
             TtsText.Say("Diagnostic eclairage enregistre", true);
         }
         catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
+    }
+
+    // Banc de test tuilage/eclairage (Triangle maintenu + F10, cache comme F3-F9) : pose un
+    // damier noir/blanc max-contraste (TileType.floor) sur un carre de 24 cases de demi-taille
+    // autour du joueur (CheckerStamp, Gameplay/TileReader.cs). Sert de reference visuelle a un
+    // testeur voyant pour calibrer a l'oeil l'etendue du halo d'eclairage indirect (aucun
+    // chiffre "N cases" extractible du code, cf. core-keeper-ingame-data-access.md). N'ecrit
+    // que le sol - le testeur choisit lui-meme une zone sans plafond troue ni lumiere.
+    private void TryDevCheckerStamp()
+    {
+        // Ecrit cote SERVEUR (voir CheckerStampSystem) : sur un vrai serveur partage,
+        // rase et damier-ise une zone pour TOUT le monde, pas juste le client local.
+        // Calibration eclairage terminee (15 juillet) -> gate _devMode, jamais actif
+        // dans l'artefact distribue (dev.flag absent), evite tout risque en multi.
+        if (!_devMode) return;
+        if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld) return;
+        if (!UnityEngine.Input.GetKeyDown(UnityEngine.KeyCode.F10)) return;
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) return;
+        try
+        {
+            var wp = player.WorldPosition;
+            CoreKeeperAccess.Gameplay.CheckerStamp.Center = new Unity.Mathematics.int2(
+                UnityEngine.Mathf.RoundToInt(wp.x), UnityEngine.Mathf.RoundToInt(wp.z));
+            CoreKeeperAccess.Gameplay.CheckerStamp.HalfSize = 24;
+            CoreKeeperAccess.Gameplay.CheckerStamp.Requested = true;
+            TtsText.Say("Damier pose", true);
+        }
+        catch (System.Exception ex) { Diag.Error("A11yCheckerStamp", ex); }
     }
 
     private static System.Reflection.FieldInfo _allLightsField;

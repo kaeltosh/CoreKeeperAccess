@@ -1,5 +1,7 @@
+using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace CoreKeeperAccess.Gameplay
 {
@@ -49,6 +51,62 @@ namespace CoreKeeperAccess.Gameplay
                 ents.Dispose();
             }
             catch (System.Exception ex) { Diag.Error("A11yDevGodMode", ex); }
+        }
+    }
+
+    // Tampon damier (dev, Triangle+F10) : banc de test tuilage/eclairage. Le mod (client, cf.
+    // CoreKeeperAccessMod.TryDevCheckerStamp) pose centre+demiTaille dans CheckerStamp
+    // (Gameplay/TileReader.cs) - static partage entre worlds, meme process en solo. LECON DU
+    // MEME GENRE QUE DevInvincibilitySystem : une premiere version ecrivait depuis le monde
+    // CLIENT (TileReaderSystem) - ecriture silencieusement ecrasee au prochain snapshot NetCode
+    // (CreateClientSubMapSystem repackete ClientSubMapLayerCD -> SubMapLayerBuffer client a
+    // chaque tick depuis la copie SERVEUR, cf. decompil). Ici : SERVEUR (autoritaire), la seule
+    // ecriture qui tient.
+    internal static class CheckerStamp
+    {
+        public static bool Requested;
+        public static int2 Center;
+        public static int HalfSize;
+    }
+
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    public partial class CheckerStampSystem : SystemBase
+    {
+        protected override void OnCreate()
+        {
+            Diag.Log("A11yCheckerStamp", "CheckerStampSystem cree dans " + World.Name);
+        }
+
+        protected override void OnUpdate()
+        {
+            if (!CheckerStamp.Requested) return;
+            CheckerStamp.Requested = false;
+            try
+            {
+                int h = CheckerStamp.HalfSize;
+                int2 c = CheckerStamp.Center;
+                var ta = new TileAccessor(ref CheckedStateRef, false);
+
+                int count = 0;
+                for (int y = c.y - h; y <= c.y + h; y++)
+                {
+                    for (int x = c.x - h; x <= c.x + h; x++)
+                    {
+                        var pos = new int2(x, y);
+                        ta.Clear(pos);
+                        var tile = new TileCD
+                        {
+                            tileType = TileType.floor,
+                            tileset = (int)(((x + y) & 1) == 0 ? Tileset.BaseBuildingWhite : Tileset.BaseBuildingBlue)
+                        };
+                        ta.Set(pos, tile);
+                        count++;
+                    }
+                }
+                Diag.Log("A11yCheckerStamp", "damier pose (rase+sol) centre=" + c.x + "," + c.y
+                    + " demiTaille=" + h + " cases=" + count);
+            }
+            catch (System.Exception ex) { Diag.Error("A11yCheckerStamp", ex); }
         }
     }
 }
