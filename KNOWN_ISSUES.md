@@ -14,6 +14,7 @@ Current as of 1.0.12 beta. Please check this list before opening an issue — an
 - **Boss summon statues and scepter summons are now translated** — not yet confirmed live.
 - **Hotbar switching controls have been swapped**: it's now Triangle+L1 (next) / Triangle+R1 (previous), reversed from before, based on tester feedback — not yet confirmed live after the swap.
 - **New command-learn mode**: hold Triangle (or R3, or press neither) and press any button to hear what it does, without it actually triggering — a screen-reader-style "input help" complementing the existing button-naming mode. Not yet confirmed live.
+- **New shortcut to cycle equipment presets**: with the character/inventory window open (not at a station), Triangle+D-pad right/left switches to the next/previous of your 3 equipment presets. Not yet confirmed live.
 
 ## Known bugs
 

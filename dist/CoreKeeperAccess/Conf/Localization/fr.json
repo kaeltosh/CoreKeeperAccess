@@ -29,6 +29,8 @@
   "cmd.hotbar.next": "Barre rapide suivante",
   "cmd.hotbar.prev": "Barre rapide précédente",
   "cmd.hotbar.jumpfirst": "Barre 1, premier slot",
+  "cmd.equippreset.next": "Profil d'équipement suivant",
+  "cmd.equippreset.prev": "Profil d'équipement précédent",
   "gesture.dpad": "Croix directionnelle",
   "gesture.dpadud": "Croix directionnelle haut et bas",
   "gesture.dpadlr": "Croix directionnelle gauche et droite",

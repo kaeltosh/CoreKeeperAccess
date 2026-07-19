@@ -47,6 +47,24 @@ namespace CoreKeeperAccess.Controls
                 () => InputContext.ForgeOpen, StationCommands.UpgradeForgeAction, "cmd.upgrade");
             ComboDispatcher.Register(ComboDispatcher.Combo.Right,
                 () => InputContext.StationOpen, StationCommands.RepairSelected, "cmd.repair");
+            // Fiche perso / inventaire simple (pas station) : profil d'equipement suivant.
+            // DOIT etre enregistre AVANT le combo categorie d'artisanat ci-dessous : le
+            // panneau d'artisanat "simple" (recettes a main nue) est TOUJOURS actif en
+            // fond des qu'on ouvre juste son sac (CraftingHandler.craftingType.Simple,
+            // cf. UIManager.OnPlayerInventoryOpen), donc CraftingUIOpen est vrai EN MEME
+            // TEMPS que CharacterWindowOpen dans ce cas precis - sans cet ordre, le combo
+            // categorie (muet, une seule categorie en simple) gagnait en silence et celui-ci
+            // n'etait jamais atteint (bug rapporte par testeur). A une VRAIE station de
+            // craft (etabli, enclume...), CharacterWindowOpen est FAUX (le jeu masque la
+            // fiche perso des que craftingHandler != player.playerCraftingHandler), donc
+            // aucun risque de voler la categorie suivante a une vraie station.
+            // SetActiveEquipmentPreset() est le meme canal que les onglets natifs
+            // (CharacterWindowUI, clic d'onglet) - appel direct, pas besoin d'armer une
+            // action native. Deja annonce par le postfix existant sur SetActiveEquipmentPreset
+            // (InGameTtsPatch), rien a ajouter cote TTS ici.
+            ComboDispatcher.Register(ComboDispatcher.Combo.Right,
+                () => InputContext.CharacterWindowOpen && Player() != null,
+                () => CycleEquipmentPreset(1), "cmd.equippreset.next");
             // Etabli/station de craft classique (pas station reparation/forge) : categorie
             // de recettes suivante, si plusieurs batiments sont inclus (ex. enclume fer qui
             // embarque aussi les recettes cuivre). Muet si une seule categorie.
@@ -74,6 +92,12 @@ namespace CoreKeeperAccess.Controls
                 StationCommands.SellAllToMerchant, "cmd.sellall");
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
                 () => InputContext.StationOpen, StationCommands.SalvageStation, "cmd.salvageall");
+            // Fiche perso / inventaire simple : profil d'equipement precedent. Meme piege
+            // et meme ordre que Triangle+droite ci-dessus (doit primer sur la categorie
+            // d'artisanat simple, toujours active en fond dans l'inventaire nu).
+            ComboDispatcher.Register(ComboDispatcher.Combo.Left,
+                () => InputContext.CharacterWindowOpen && Player() != null,
+                () => CycleEquipmentPreset(-1), "cmd.equippreset.prev");
             // Etabli/station de craft classique : categorie de recettes precedente
             // (symetrique du Triangle+droite ci-dessus).
             ComboDispatcher.Register(ComboDispatcher.Combo.Left,
@@ -151,5 +175,14 @@ namespace CoreKeeperAccess.Controls
 
         private static PlayerController Player() =>
             Manager.main != null ? Manager.main.player : null;
+
+        private const int EquipmentPresetCount = 3; // EquipmentPresetsBuffer.MaxEquipmentPresets (natif)
+
+        private static void CycleEquipmentPreset(int dir)
+        {
+            var p = Player();
+            int next = ((p.activeEquipmentPreset + dir) % EquipmentPresetCount + EquipmentPresetCount) % EquipmentPresetCount;
+            p.SetActiveEquipmentPreset(next);
+        }
     }
 }

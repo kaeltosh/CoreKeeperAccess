@@ -29,6 +29,8 @@
   "cmd.hotbar.next": "Next hotbar",
   "cmd.hotbar.prev": "Previous hotbar",
   "cmd.hotbar.jumpfirst": "Bar 1, first slot",
+  "cmd.equippreset.next": "Next equipment preset",
+  "cmd.equippreset.prev": "Previous equipment preset",
   "gesture.dpad": "D-pad",
   "gesture.dpadud": "D-pad up and down",
   "gesture.dpadlr": "D-pad left and right",
