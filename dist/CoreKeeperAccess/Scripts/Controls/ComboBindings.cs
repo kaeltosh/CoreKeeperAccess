@@ -97,15 +97,15 @@ namespace CoreKeeperAccess.Controls
             ComboDispatcher.Register(ComboDispatcher.Combo.BumperR,
                 () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
                 {
-                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_NEXT_HOTBAR;
-                    InventoryNavState.ArmedTtl = 2;
-                }, "cmd.hotbar.next");
-            ComboDispatcher.Register(ComboDispatcher.Combo.BumperL,
-                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
-                {
                     InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_PREVIOUS_HOTBAR;
                     InventoryNavState.ArmedTtl = 2;
                 }, "cmd.hotbar.prev");
+            ComboDispatcher.Register(ComboDispatcher.Combo.BumperL,
+                () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
+                {
+                    InventoryNavState.ArmedInput = PlayerInput.InputType.SWAP_NEXT_HOTBAR;
+                    InventoryNavState.ArmedTtl = 2;
+                }, "cmd.hotbar.next");
 
             // Triangle + Back = ouvrir le panneau de reglages a11y (maison, TTS). Dispo en
             // jeu (hors menu de pause natif) ; le panneau gele ensuite l'input et navigue au

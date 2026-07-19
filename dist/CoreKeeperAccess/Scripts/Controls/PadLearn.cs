@@ -169,7 +169,7 @@ namespace CoreKeeperAccess.Controls
         // compose deja "croix directionnelle haut".
         private static string ButtonName(int id)
         {
-            Btn? b = IdToBtn(id);
+            Btn? b = Glyphs.FromPhysicalId(id);
             if (b == null) return Strings.L("learn.unknown");
             return Glyphs.Name(b.Value);
         }
@@ -185,28 +185,6 @@ namespace CoreKeeperAccess.Controls
                 case 4: return Glyphs.Name(Btn.L2);
                 case 5: return Glyphs.Name(Btn.R2);
                 default: return Strings.L("learn.unknown");
-            }
-        }
-
-        private static Btn? IdToBtn(int id)
-        {
-            switch (id)
-            {
-                case 6: return Btn.FaceDown;
-                case 7: return Btn.FaceRight;
-                case 8: return Btn.FaceLeft;
-                case 9: return Btn.FaceUp;
-                case 10: return Btn.L1;
-                case 11: return Btn.R1;
-                case 12: return Btn.Back;
-                case 13: return Btn.Start;
-                case 14: return Btn.L3;
-                case 15: return Btn.R3;
-                case 16: return Btn.Up;
-                case 17: return Btn.Right;
-                case 18: return Btn.Down;
-                case 19: return Btn.Left;
-                default: return null;
             }
         }
     }

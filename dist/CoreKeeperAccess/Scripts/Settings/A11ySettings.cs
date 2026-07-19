@@ -130,6 +130,12 @@ namespace CoreKeeperAccess.Gameplay
             // les choses visibles a l'ecran. Feature PERMANENTE (comme la roue de stats ou la
             // roue d'actions) : pas de coupe-circuit, juste un volume.
             public float scannerVolume = 1f; // 0..2, volume de l'earcon de navigation (pas le beacon, qui reutilise GuideVolume)
+            // Detecteur d'obscurite (design fige 16 juillet 2026, cf. core-keeper-darkness-gate.md) :
+            // bride curseur/canne/scanner/sonar/collision par-case si non eclaire, parite voyant.
+            // Toggle present EN PHASE DE TEST (a retirer ou garder selon retour d'experience une
+            // fois valide en jeu - decision explicite, PAS un toggle de confort comme les autres
+            // alertes). Actif par defaut.
+            public bool darknessGate = true;
         }
 
         private static Data _d = new Data();
@@ -182,6 +188,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float HotbarWheelHoldMs => _d.hotbarWheelHoldMs;
         public static bool MuteInteractInCursor => _d.muteInteractInCursor;
         public static float ScannerVolume => _d.scannerVolume;
+        public static bool DarknessGate => _d.darknessGate;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
         public static void SetMasterVolume(float v) { _d.masterVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
@@ -224,6 +231,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetHotbarWheelHoldMs(float v) { _d.hotbarWheelHoldMs = Mathf.Clamp(Mathf.Round(v), 0f, 300f); Save(); }
         public static void SetMuteInteractInCursor(bool v) { _d.muteInteractInCursor = v; Save(); }
         public static void SetScannerVolume(float v) { _d.scannerVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetDarknessGate(bool v) { _d.darknessGate = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier
         // d'install du mod : un build (Unity ou fast-build) reconstruit ce dossier et

@@ -86,5 +86,30 @@ namespace CoreKeeperAccess.Controls
                 default: return null;
             }
         }
+
+        // Bouton logique correspondant a un id PHYSIQUE brut (template Rewired Gamepad,
+        // confirme par diagnostic F9 : 6-19). Partage entre PadLearn et tout mode qui lit
+        // la manette en direct (ex. CommandLearn). null si hors plage connue.
+        public static Btn? FromPhysicalId(int id)
+        {
+            switch (id)
+            {
+                case 6: return Btn.FaceDown;
+                case 7: return Btn.FaceRight;
+                case 8: return Btn.FaceLeft;
+                case 9: return Btn.FaceUp;
+                case 10: return Btn.L1;
+                case 11: return Btn.R1;
+                case 12: return Btn.Back;
+                case 13: return Btn.Start;
+                case 14: return Btn.L3;
+                case 15: return Btn.R3;
+                case 16: return Btn.Up;
+                case 17: return Btn.Right;
+                case 18: return Btn.Down;
+                case 19: return Btn.Left;
+                default: return null;
+            }
+        }
     }
 }

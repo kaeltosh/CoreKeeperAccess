@@ -2,6 +2,20 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.12 bêta — juillet 2026
+
+Confirmations terrain pour du contenu introduit non testé en 1.0.10/1.0.11, plus un remap de touche.
+
+### Ajouts
+
+- **L'élevage (vache, chèvre, roly-poly, tortue, dodo, chameau) est maintenant accessible.** Attacher ou détacher un animal est annoncé, le scanner de proximité a une catégorie "Bétail" dédiée sortie des créatures classiques, et la fenêtre de gestion du bétail (nom, faim, reproduction, slots de nourriture) est lisible et navigable. Introduit non testé en 1.0.10, confirmé fonctionnel sur le terrain.
+- **La couleur de peinture des murs et sols est désormais annoncée au curseur** (14 teintes). Confirmé fonctionnel.
+- **Un popup de confirmation signale désormais quand supprimer un monde ou un personnage exige un appui long**, pas juste le bouton de confirmation. Confirmé fonctionnel.
+
+### Corrections
+
+- **Pêche : retrait de l'annonce native "Attrapé X"**, qui faisait doublon avec l'annonce de ramassage et pouvait répéter le nom de la prise précédente lors d'une resynchronisation réseau. L'annonce de ramassage seule couvre désormais les prises de pêche. Confirmé fonctionnel.
+
 ## 1.0.11 bêta — juillet 2026
 
 ### Ajouts

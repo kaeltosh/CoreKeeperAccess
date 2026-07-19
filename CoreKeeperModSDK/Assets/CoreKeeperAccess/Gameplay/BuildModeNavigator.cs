@@ -278,6 +278,18 @@ namespace CoreKeeperAccess.Gameplay
         // pas un TTS hache. La case (coords MONDE) sert a positionner les sons natifs.
         public static void SonifyTile(int2 tile, in TileInfo info, int dx, int dy, bool speak)
         {
+            // Detecteur d'obscurite (design fige 16 juillet 2026, parite avec un joueur
+            // voyant) : case non eclairee -> UN SEUL earcon dedie ("le son du noir"), rien
+            // d'autre (pas de TTS, pas de son de materiau/objet/sol) - on ne revele RIEN sur
+            // une case qu'un voyant ne verrait pas non plus. Remplace toute la sonification
+            // normale, curseur ET canne (les deux passent par ici). Cf.
+            // core-keeper-darkness-gate.md.
+            if (!info.Lit)
+            {
+                PlayDarkness(dx, dy);
+                return;
+            }
+
             // Case infranchissable (mur/bloc) : on joue le SON DU MATERIAU que le jeu
             // attribue lui-meme a cette tuile (sfxTableDestroyId du TileEffectCD : c'est
             // le seul son vraiment decline par materiau). Spatialise sur la case (pan +
@@ -378,6 +390,20 @@ namespace CoreKeeperAccess.Gameplay
             float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
             GameplayAudio.PlaySpatial(id, pan, pitch,
                 SpecialSurfaceVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
+        }
+
+        // Volume du "son du noir" (detecteur d'obscurite) - a regler a l'oreille, timbre
+        // choisi par audition (cf. core-keeper-sound-audition.md).
+        private const float DarknessVolume = 0.5f;
+
+        // Case sombre : meme grammaire spatiale que le reste (pan gauche-droite + pitch
+        // vertical par rapport au joueur), UN SEUL earcon, aucun TTS.
+        private static void PlayDarkness(int dx, int dy)
+        {
+            float pan = GameplayAudio.PanFromTiles(dx);
+            float pitch = Mathf.Pow(2f, dy / 12f); // 1 demi-ton par ligne
+            GameplayAudio.PlayDarknessEarcon(pan, pitch,
+                DarknessVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
         }
 
         // Volume du son de materiau au survol d'un mur (a regler a l'oreille).
@@ -490,6 +516,16 @@ namespace CoreKeeperAccess.Gameplay
         // ne joue qu'un son). Trou/eau -> leur libelle ; objet -> son nom ; sinon le sol.
         internal static void AnnounceCursorDetails()
         {
+            // Detecteur d'obscurite (cf. core-keeper-darkness-gate.md) : la sonification
+            // normale du curseur coupe deja tout sur une case sombre (PlayDarkness), mais ce
+            // combo de details la contournait - trou signale par testeur le 18 juillet 2026.
+            // Meme principe : rien de la case, juste le signal dedie.
+            if (!TileQuery.Lit)
+            {
+                TtsText.Say(Strings.L("cursor.dark"), true);
+                return;
+            }
+
             string text;
             if (TileQuery.HasWall)
             {

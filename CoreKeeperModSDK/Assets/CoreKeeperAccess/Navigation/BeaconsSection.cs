@@ -218,12 +218,13 @@ namespace CoreKeeperAccess.Navigation
             AnnounceRow(Index, interrupt: false);
         }
 
-        // Ouvre l'editeur clavier maison (carte ouverte = gameplay gele, saisie sure).
+        // Ouvre l'editeur clavier maison. Le monde n'est PAS en pause pendant la saisie
+        // (la carte n'arrete pas la simulation) : c'est TextEntry.Active qui gele le
+        // mouvement/l'attaque via ModalA11yOpen, pas la carte elle-meme.
         private void RenameBeacon(MapMarkerUIElement m)
         {
             if (m == null || !MapMarkerUtil.MarkerTile(m, out int2 tile)) return;
-            string current = BeaconStore.GetName(tile) ?? "";
-            TextEntry.Begin("beacon.rename", current, 40, name =>
+            TextEntry.Begin("beacon.rename", "", 40, name =>
             {
                 if (string.IsNullOrEmpty(name)) return; // nom vide -> on garde l'ancien
                 BeaconStore.SetName(tile, name);

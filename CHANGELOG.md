@@ -2,6 +2,20 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.12 beta — July 2026
+
+Field confirmations for content introduced untested in 1.0.10/1.0.11, plus one control remap.
+
+### Additions
+
+- **Livestock (cow, goat, roly-poly, turtle, dodo, camel) is now accessible.** Leashing or releasing an animal is announced, the proximity scanner has a dedicated "Livestock" category split out from regular creatures, and the livestock management window (name, hunger, breeding, food slots) is readable and navigable. Introduced untested in 1.0.10, now confirmed working in the field.
+- **Wall and floor paint color is now announced at the cursor** (14 shades). Confirmed working.
+- **A confirmation popup now warns when deleting a world or character requires a long press**, not just the confirm button. Confirmed working.
+
+### Fixes
+
+- **Fishing: removed the native "Caught X" announcement**, which duplicated the pickup announcer and could repeat your previous catch's name on a network resync. The pickup announcer alone now covers fishing catches. Confirmed working.
+
 ## 1.0.11 beta — July 2026
 
 ### Additions

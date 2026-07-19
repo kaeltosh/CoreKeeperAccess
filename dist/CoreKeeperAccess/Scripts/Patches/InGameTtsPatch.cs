@@ -320,7 +320,12 @@ namespace CoreKeeperAccess.Patches
         // contenu que l'annonce d'ouverture (GameplayInput.WatchCattleUi), factorise ici
         // pour etre aussi lisible A LA DEMANDE via l'element navigable en tete de la
         // section "cattle" (le poll passif seul pouvait etre rate ou coupe par un autre TTS).
-        public static string BuildCattleInfoLabel()
+        // includeBreed=false pour la lecture a la demande en navigation : le toggle de
+        // reproduction juste apres dans la section annonce deja ce meme terme natif comme
+        // son propre libelle -> doublon consecutif signale par testeur (13 juillet 2026).
+        // Le poll passif (ouverture / changement de statut), lui, garde la reproduction :
+        // seule source d'info sans avoir a naviguer jusqu'au toggle.
+        public static string BuildCattleInfoLabel(bool includeBreed = true)
         {
             var player = Manager.main != null ? Manager.main.player : null;
             var active = player != null ? player.activeCattle : null;
@@ -333,7 +338,7 @@ namespace CoreKeeperAccess.Patches
             var cattleUi = UnityEngine.Object.FindObjectOfType<CattleUI>();
             string status = cattleUi != null ? TtsText.ResolvePugText(cattleUi.statusText) : null;
 
-            string breed = active.IsBreedingAvailable()
+            string breed = includeBreed && active.IsBreedingAvailable()
                 ? API.Localization?.GetLocalizedTerm(
                     active.IsBreedingDisabled() ? "toggleBreedingTextOff" : "toggleBreedingTextOn")
                 : null;

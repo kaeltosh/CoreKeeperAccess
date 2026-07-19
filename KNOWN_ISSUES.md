@@ -2,27 +2,22 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.11 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.12 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
 ## Not finalized in this open beta
 
 - **Some sound cues are still placeholders** (proximity sonar, peaceful creatures and objects on the laser cane, the invalid-placement sound, beacon guidance): they work, but the final sounds aren't picked yet — they may change.
-- **Not yet validated in the field**: the multiplayer management menus in a real multiplayer session, the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
+- **Not yet validated in the field**: the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
 - **Proximity scanner: excluding your own character and companion from the "creatures" category hasn't been checked in multiplayer** — a teammate should still show up; not yet confirmed live.
-- **The immobilizing plant (snare trap) is now alerted by the sentinel** — not yet confirmed live.
 - **Boss summon statues and scepter summons are now translated** — not yet confirmed live.
-- **Leashing or releasing an animal (cow, goat, turtle…) is now announced** — not yet confirmed live.
-- **The proximity scanner now has a dedicated livestock category**, split out from regular creatures — not yet confirmed live.
-- **The livestock management window (name, hunger, breeding, food slots) is now readable and navigable** — not yet confirmed live.
-- **Wall and floor paint color is now announced at the cursor** (14 shades) — not yet confirmed live.
-- **A confirmation popup now warns that deleting a world or character requires a long press** — not yet confirmed live.
-- **Fishing: the native "Caught X" announcement has been removed.** It duplicated the pickup announcer and, on a network resync, could repeat the name of your previous catch instead of the new one. The pickup announcer alone now covers fishing catches — not yet confirmed live.
-- **"Interaction available" callouts are now muted while any UI is open** (inventory, map, pause menu, character sheet) — meant to stop a nearby pet or NPC from spamming the callout while you're in a menu — not yet confirmed live.
+- **Hotbar switching controls have been swapped**: it's now Triangle+L1 (next) / Triangle+R1 (previous), reversed from before, based on tester feedback — not yet confirmed live after the swap.
+- **New command-learn mode**: hold Triangle (or R3, or press neither) and press any button to hear what it does, without it actually triggering — a screen-reader-style "input help" complementing the existing button-naming mode. Not yet confirmed live.
 
 ## Known bugs
 
+- **In the livestock window, the breeding toggle's label sometimes repeats at the end of the animal's status line.** A fix has been coded but not yet confirmed live.
 - **Familiar talent tree resets on world reload.** When you leave and re-enter a world, the familiar's in-memory talent data resets to its base state (a game-engine limitation). The familiar still works, but its talents are temporarily invisible to the mod. **Workaround**: pick up the familiar and place it again — this forces the game to regenerate its data correctly.
 - **A generator placed on top of an ancient wire is silent to the tile cursor.** The indestructible wire network found in the Core ruins masks the object placed on it (two passive objects, the wire's collider wins). The generator works fine; the cursor just won't name it.
 - **Notable floor tiles are sometimes announced in raw English** (internal tile name), whatever the game language. Rare: standard ground is silent by design, only special floors are affected.

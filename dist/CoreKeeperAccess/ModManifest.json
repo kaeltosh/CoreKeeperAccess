@@ -33,6 +33,10 @@
                       "guid":  "9d45bd7c53a30af4ba2253a31e8db11e"
                   },
                   {
+                      "path":  "Scripts/Controls/CommandLearn.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/CommandWheel.cs",
                       "guid":  "63b558acab1e3b4409ee36d57c1ecd61"
                   },

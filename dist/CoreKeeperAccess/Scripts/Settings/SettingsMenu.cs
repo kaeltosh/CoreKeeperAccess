@@ -81,7 +81,9 @@ namespace CoreKeeperAccess.Settings
                     BeaconGuide.Preview),
                 Tg("settings.muteinteractcursor", "settings.desc.muteinteractcursor", () => A11ySettings.MuteInteractInCursor, A11ySettings.SetMuteInteractInCursor),
                 Vol("settings.scannervolume", "settings.desc.scannervolume", () => A11ySettings.ScannerVolume, A11ySettings.SetScannerVolume,
-                    () => GameplayAudio.PlaySpatial(SfxID.inventory_doot, 0f, 1f, A11ySettings.ScannerVolume))));
+                    () => GameplayAudio.PlaySpatial(SfxID.inventory_doot, 0f, 1f, A11ySettings.ScannerVolume)),
+                Tg("settings.darknessgate", "settings.desc.darknessgate", () => A11ySettings.DarknessGate, A11ySettings.SetDarknessGate,
+                    () => GameplayAudio.PlayDarknessEarcon(0f, 1f, A11ySettings.NavigationVolume))));
 
             _root.Children.Add(Cat("settings.cat.sonar", "settings.desc.cat.sonar",
                 Tg("settings.sonar", "settings.desc.sonar", () => A11ySettings.ProximitySonar, A11ySettings.SetProximitySonar,

@@ -273,6 +273,9 @@ namespace CoreKeeperAccess.Gameplay
         private static float[] _bossData;
         private static AudioClip[] _toneBank;
         private static AudioClip[] _bossBank;
+        private static AudioSource _darkSource;
+        private static float[] _darkData;
+        private static AudioClip[] _darkBank;
 
         // Bip sinusoidal GENERE (aucun asset) : sinus a freqHz pendant ms, fondu
         // d'attaque/sortie de 5 ms contre les clics. Rend les ECHANTILLONS mono ;
@@ -378,6 +381,49 @@ namespace CoreKeeperAccess.Gameplay
             var clip = PannedTone(ref _bossBank, _bossData, "A11yBossBeep", pan);
             _toneSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
             _toneSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
+        }
+
+        // --- "Son du noir" (detecteur d'obscurite, design fige 16 juillet 2026) ---
+        // UN SEUL earcon (decision utilisateur : pas de distinction entree/sortie, pas de
+        // second timbre pour la canne) - joue par SonifyTile (curseur ET canne, cf.
+        // BuildModeNavigator) quand la case ciblee/atteinte n'est pas eclairee. Meme grammaire
+        // spatiale que le tone standard (pan continu via banc de clips pre-pannes, pitch par
+        // le pitch de la source) - source DEDIEE (ne vole pas le pitch de _toneSource, qui
+        // sequence les bips de sentinelle). PLACEHOLDER (chirp descendant etouffe) : timbre
+        // definitif a choisir a l'oreille par l'utilisateur (cf. core-keeper-sound-audition.md).
+        public static void PlayDarknessEarcon(float pan, float pitch, float volume = 1f)
+        {
+            EnsureInit();
+            if (_darkSource == null) return;
+            if (_darkData == null) _darkData = BuildDarknessData();
+            var clip = PannedTone(ref _darkBank, _darkData, "A11yDarkness", pan);
+            _darkSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            _darkSource.PlayOneShot(clip, volume * A11ySettings.MasterVolume);
+        }
+
+        // PLACEHOLDER : chirp descendant doux (300 -> 90 Hz), attaque 5 ms / sortie 80 ms,
+        // 220 ms. Distinct des autres earcons (aucun n'est un simple sweep descendant doux) -
+        // evoque "ca s'eteint / le vide", a affiner par audition.
+        private static float[] BuildDarknessData()
+        {
+            const int rate = 44100;
+            int len = rate * 220 / 1000;
+            int atk = rate * 5 / 1000, rel = rate * 80 / 1000;
+            var data = new float[len];
+            double phase = 0.0;
+            for (int i = 0; i < len; i++)
+            {
+                double frac = (double)i / len;
+                double f = 300.0 - (300.0 - 90.0) * frac; // descend 300 -> 90 Hz
+                phase += 2.0 * System.Math.PI * f / rate;
+                double v = System.Math.Sin(phase);
+                float env = 1f;
+                if (i < atk) env = i / (float)atk;
+                else if (i >= len - rel) env = (len - 1 - i) / (float)rel;
+                data[i] = (float)v * env;
+            }
+            NormalizePeak(data, 0.5f);
+            return data;
         }
 
         // --- Earcons d'ALERTE d'etat (conditions subies) ---
@@ -1082,6 +1128,11 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee des earcons d'alerte de VIE (sirene + battement de coeur), non spatialises.
             _healthSource = go.AddComponent<AudioSource>();
             ConfigureSource(_healthSource);
+
+            // Source dediee du "son du noir" (detecteur d'obscurite), SPATIALISEE (pan+pitch
+            // par case, comme le tone standard) - ne vole pas le pitch de _toneSource.
+            _darkSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_darkSource);
 
             // Source dediee du detecteur de forme Azeos (PROVISOIRE, cf. PlayAzeosShapeCallout).
             _shapeSource = go.AddComponent<AudioSource>();

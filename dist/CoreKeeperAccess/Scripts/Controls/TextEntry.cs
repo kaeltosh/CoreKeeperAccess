@@ -8,9 +8,11 @@ namespace CoreKeeperAccess.Controls
     // Editeur de texte clavier MAISON (aucun champ UI du jeu, aucun asset Unity). Meme
     // mecanique que le jeu (MenuManager.HandleTypingInput) : Input.inputString pour les
     // caracteres, GetKeyDown pour Retour arriere / Entree / Echap. Sert a (re)nommer une
-    // balise sur la carte, ou aucun activeInputField natif n'existe. NVDA fait l'echo des
-    // frappes physiques lui-meme : on n'annonce que les bornes (ouverture, validation,
-    // annulation).
+    // balise sur la carte, ou aucun activeInputField natif n'existe. Le clavier ici est
+    // capture bas niveau par le jeu (pas de vrai controle Windows) : l'echo NVDA des
+    // touches ne passe pas de facon fiable (constate en jeu, 18 juillet) -> on echo
+    // nous-memes chaque caractere tape/efface en TTS, en plus des bornes (ouverture,
+    // validation, annulation).
     internal static class TextEntry
     {
         private static bool _active;
@@ -54,7 +56,10 @@ namespace CoreKeeperAccess.Controls
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) { Commit(); return; }
             if (Input.GetKeyDown(KeyCode.Backspace))
             {
-                if (_text.Length > 0) _text = _text.Substring(0, _text.Length - 1);
+                if (_text.Length == 0) return;
+                char removed = _text[_text.Length - 1];
+                _text = _text.Substring(0, _text.Length - 1);
+                TtsText.Say(_text.Length == 0 ? Strings.L("edit.empty") : removed.ToString(), false);
                 return;
             }
             string s = Input.inputString;
@@ -64,6 +69,7 @@ namespace CoreKeeperAccess.Controls
                 if (c == '\b' || c == '\n' || c == '\r') continue; // geres ci-dessus
                 if (_text.Length >= _maxLen) break;
                 _text += c;
+                TtsText.Say(c.ToString(), false);
             }
         }
     }

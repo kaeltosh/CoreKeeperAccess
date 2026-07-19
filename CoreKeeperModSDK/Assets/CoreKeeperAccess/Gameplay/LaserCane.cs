@@ -126,7 +126,10 @@ namespace CoreKeeperAccess.Gameplay
             // Point d'impact : on ne (re)sonifie qu'au CHANGEMENT de case (comme le curseur
             // ne parle qu'au deplacement) -> pas de spam en visee stable. Si le rayon est
             // mort en portee max DANS l'eau / le gouffre, le bord a deja parle : silence.
-            bool impactIsSurvolable = LaserScan.Impact.HasWall
+            // Case sombre : on force la sonification (le son du noir) meme si le contenu REEL
+            // serait normalement "survolable" (pit/eau) - la darkness prime, on ne revele rien
+            // du tout sur cette case.
+            bool impactIsSurvolable = !LaserScan.ImpactIsDark && LaserScan.Impact.HasWall
                 && (LaserScan.Impact.WallType == TileType.pit
                     || LaserScan.Impact.WallType == TileType.water);
             if (!LaserScan.ImpactTile.Equals(_lastImpact))
@@ -371,8 +374,13 @@ namespace CoreKeeperAccess.Gameplay
         public static int2 PlayerTile;   // case du joueur (origine du faisceau)
 
         public static bool ResultValid;
-        public static int2 ImpactTile;   // case d'impact (premier mur, ou portee max)
+        public static int2 ImpactTile;   // case d'impact (premier mur, premiere case sombre, ou portee max)
         public static TileInfo Impact;   // contenu de la case d'impact
+        // Detecteur d'obscurite (design fige 16 juillet 2026) : le rayon s'est arrete sur une
+        // case SOMBRE (traitee comme un mur, v1), pas un vrai mur. Force la sonification de
+        // l'impact meme si son contenu REEL serait normalement "survolable" (pit/eau) - on ne
+        // sait pas ce qu'il y a la, le son du noir doit jouer quoi qu'il arrive.
+        public static bool ImpactIsDark;
 
         // Premier BORD de gouffre (pit) ou d'eau sur le trajet. Ces surfaces sont
         // bloquantes pour la MARCHE mais transparentes pour la VUE et les projectiles
@@ -453,6 +461,7 @@ namespace CoreKeeperAccess.Gameplay
                 bool foundSpecial = false;
                 int2 specialTile = default;
                 TileInfo specialInfo = default;
+                bool impactIsDark = false;
 
                 for (float dd = 1f; dd <= MaxRange + 0.001f; dd += Step)
                 {
@@ -461,6 +470,19 @@ namespace CoreKeeperAccess.Gameplay
                         (int)math.round(origin.y + dir.y * dd));
                     if (c.Equals(last)) continue; // meme case qu'au pas precedent
                     last = c;
+
+                    // Detecteur d'obscurite (v1, design fige 16 juillet 2026) : une case
+                    // sombre stoppe le rayon EXACTEMENT comme un mur - on ne sait pas ce qu'il
+                    // y a derriere (chemin ouvert ou mur), donc on ne le decouvre pas. Testee
+                    // AVANT tout le reste (mur/ennemi/objet) : rien n'est revele sur cette case
+                    // ni au-dela. Cf. core-keeper-darkness-gate.md (dette "voir a travers
+                    // l'ombre" explicitement differee).
+                    if (!LightIndex.IsLit(ref ta, c))
+                    {
+                        impact = c;
+                        impactIsDark = true;
+                        break;
+                    }
 
                     // Mur -> point d'impact ici, on s'arrete (occlusion). Teste AVANT le
                     // scan ennemi : l'OverlapSphere (rayon 0.5) lance sur la case du mur
@@ -538,6 +560,7 @@ namespace CoreKeeperAccess.Gameplay
 
                 LaserScan.Impact = TileScan.Read(ref ta, impact, World);
                 LaserScan.ImpactTile = impact;
+                LaserScan.ImpactIsDark = impactIsDark;
                 LaserScan.HasSpecial = foundSpecial;
                 LaserScan.SpecialTile = specialTile;
                 LaserScan.Special = specialInfo;

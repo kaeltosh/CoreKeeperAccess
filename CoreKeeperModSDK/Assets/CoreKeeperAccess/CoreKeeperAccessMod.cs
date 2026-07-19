@@ -8,6 +8,7 @@ using CoreKeeperAccess.Navigation;
 using CoreKeeperAccess.Patches;
 using DavyKager;
 using HarmonyLib;
+using Pug.RP;
 using PugMod;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -48,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.11 beta";
+    private const string ReleaseTag = "1.0.12 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -139,6 +140,7 @@ public class CoreKeeperAccessMod : IMod
         TryDevNetworkDump();
         TryDevLightDiag();
         TryDevCheckerStamp();
+        PublishLightSources(); // detecteur d'obscurite : liste des sources actives pres du joueur
         LogAudioConfigOnce();
         TriangleModifier.Tick();
         InfoKey.Tick();
@@ -150,6 +152,7 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Controls.SoundGuide.Tick(); // menu d'apprentissage des sons (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.OnboardingHint.Tick(); // popup d'accueil, comment rouvrir l'aide (force 1re fois en jeu, modal)
         CoreKeeperAccess.Controls.PadLearn.Tick(); // mode decouverte manette (relancable via le menu d'aide, modal)
+        CoreKeeperAccess.Controls.CommandLearn.Tick(); // mode decouverte des commandes (idem, "input help")
         CoreKeeperAccess.Gameplay.VitalsReadout.Tick(); // apres InfoKey (consomme ses combos)
         CoreKeeperAccess.Gameplay.ConditionAlerts.Tick(); // earcons a l'apparition d'un DoT / stun
         CoreKeeperAccess.Gameplay.GameplayInput.Tick(); // idem (prospection minerai)
@@ -315,6 +318,62 @@ public class CoreKeeperAccessMod : IMod
     private static System.Reflection.FieldInfo _lightObjLightField;
     private static System.Reflection.FieldInfo _lightObjTransformField;
 
+    // Detecteur d'obscurite (design fige 16 juillet 2026, cf. core-keeper-darkness-gate.md) :
+    // publie chaque frame (throttle ~10 Hz) la liste des sources ponctuelles ACTIVES pres du
+    // joueur, dans le pont LightSourceScan (TileReader.cs) - les systemes ECS n'ont pas acces
+    // a Manager.camera / la reflexion Unity sur ManagedLight.allLights. Meme reflexion que
+    // DumpManagedLights (F3), mais filtree isLightEnabled (pas juste loguee) et bornee en
+    // distance (perf : eviter de publier les lumieres d'une base entiere hors ecran).
+    private float _nextLightPublish;
+    private const float LightPublishInterval = 0.1f; // ~10 Hz, coherent avec les autres scans
+    private const float LightPublishRadius = 40f;    // marge large : couvre la portee de tous les consommateurs + le bleed
+
+    private void PublishLightSources()
+    {
+        if (!CoreKeeperAccess.Gameplay.A11ySettings.DarknessGate)
+        {
+            CoreKeeperAccess.Gameplay.LightSourceScan.Count = 0;
+            return;
+        }
+        if (Time.unscaledTime < _nextLightPublish) return;
+        _nextLightPublish = Time.unscaledTime + LightPublishInterval;
+
+        var player = Manager.main != null ? Manager.main.player : null;
+        if (player == null) { CoreKeeperAccess.Gameplay.LightSourceScan.Count = 0; return; }
+
+        if (_allLightsField == null)
+            _allLightsField = typeof(ManagedLight).GetField("allLights",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var list = _allLightsField?.GetValue(null) as System.Collections.IList;
+        if (list == null) { CoreKeeperAccess.Gameplay.LightSourceScan.Count = 0; return; }
+
+        var wp = player.WorldPosition;
+        int count = 0;
+        int max = CoreKeeperAccess.Gameplay.LightSourceScan.MaxSources;
+        foreach (var boxed in list)
+        {
+            if (count >= max) break;
+            if (_lightObjLightField == null || _lightObjTransformField == null)
+            {
+                var t = boxed.GetType();
+                _lightObjLightField = t.GetField("light", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                _lightObjTransformField = t.GetField("transform", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            }
+            var light = _lightObjLightField.GetValue(boxed) as ManagedLight;
+            var transform = _lightObjTransformField.GetValue(boxed) as Transform;
+            if (light == null || transform == null || light.lightToOptimize == null) continue;
+            if (!light.isLightEnabled) continue;
+            var p = transform.position + Manager.camera.RenderOrigo; // coordonnees RENDU -> MONDE
+            float dx = p.x - wp.x, dz = p.z - wp.z;
+            if (dx * dx + dz * dz > LightPublishRadius * LightPublishRadius) continue;
+            CoreKeeperAccess.Gameplay.LightSourceScan.Pos[count] = new Unity.Mathematics.float2(p.x, p.z);
+            CoreKeeperAccess.Gameplay.LightSourceScan.Range[count] = light.lightToOptimize.range;
+            CoreKeeperAccess.Gameplay.LightSourceScan.IsWorldEntity[count] = !light.neverOptimize;
+            count++;
+        }
+        CoreKeeperAccess.Gameplay.LightSourceScan.Count = count;
+    }
+
     // ManagedLight.allLights est prive cote jeu (List<ManagedLight.ManagedLightObject>, struct
     // egalement privee) : lu par reflexion. La struct est privee mais ses CHAMPS ("light"/
     // "transform") sont publics et leurs TYPES (ManagedLight, Transform) le sont aussi -> une
@@ -333,6 +392,26 @@ public class CoreKeeperAccessMod : IMod
         }
 
         Diag.Log("A11yLightDiag", "ManagedLight.allLights total=" + list.Count);
+
+        // Hypothese a verifier (16 juillet 2026) : les lumieres portees par une ENTITE
+        // (creature/familier, glowLight de ConditionsEffectsHandler) recoivent-elles un
+        // traitement DIFFERENT des torches statiques dans le calcul d'eclairage indirect
+        // (IndirectLightRenderFeature, PugRP.dll) ? Le masque de calques indirectLightLayers
+        // (PugCamera) determine QUELS objets sont captes par la passe indirecte/bloom - si les
+        // entites sont sur un calque exclu de ce masque, leur lumiere n'aurait AUCUN bleed
+        // indirect (contrairement aux torches), ce qui expliquerait le halo bien plus petit
+        // observe sur une creature lumineuse. Log le masque + le calque de CHAQUE source.
+        try
+        {
+            var pugCam = Manager.camera != null && Manager.camera.gameCamera != null
+                ? Manager.camera.gameCamera.GetPugCamera() : null;
+            if (pugCam != null)
+                Diag.Log("A11yLightDiag", "indirectLightLayers=0x" + pugCam.indirectLightLayers.value.ToString("X")
+                    + " indirectLightSeparateBlockerPassLayers=0x" + pugCam.indirectLightSeparateBlockerPassLayers.value.ToString("X"));
+            else
+                Diag.Log("A11yLightDiag", "PugCamera introuvable (GetPugCamera a rendu null)");
+        }
+        catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
 
         var entries = new List<LightEntry>();
         foreach (var boxed in list)
@@ -360,6 +439,10 @@ public class CoreKeeperAccessMod : IMod
                 range = light.lightToOptimize.range,
                 intensity = light.lightToOptimize.intensity,
                 enabled = light.isLightEnabled,
+                layer = transform.gameObject.layer,
+                layerName = LayerMask.LayerToName(transform.gameObject.layer),
+                neverOptimize = light.neverOptimize,
+                color = light.lightToOptimize.color,
             });
         }
         entries.Sort((a, b) => a.dist.CompareTo(b.dist));
@@ -369,7 +452,9 @@ public class CoreKeeperAccessMod : IMod
             if (shown >= 40) break;
             Diag.Log("A11yLightDiag", "  dx=" + e.dx.ToString("F1") + " dz=" + e.dz.ToString("F1")
                 + " range=" + e.range.ToString("F1") + " intensity=" + e.intensity.ToString("F2")
-                + " enabled=" + e.enabled);
+                + " enabled=" + e.enabled + " layer=" + e.layer + "(" + e.layerName + ")"
+                + " neverOptimize=" + e.neverOptimize
+                + " color=" + e.color.r.ToString("F2") + "," + e.color.g.ToString("F2") + "," + e.color.b.ToString("F2"));
             shown++;
         }
         if (entries.Count > shown)
@@ -380,6 +465,10 @@ public class CoreKeeperAccessMod : IMod
     {
         public float dist, dx, dz, range, intensity;
         public bool enabled;
+        public int layer;
+        public string layerName;
+        public bool neverOptimize;
+        public Color color;
     }
 
     // Mode dev seulement : charge direct monde 1 / perso 1 des que le menu est pret.

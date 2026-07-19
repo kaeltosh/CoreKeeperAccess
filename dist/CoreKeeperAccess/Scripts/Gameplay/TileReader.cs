@@ -50,6 +50,7 @@ namespace CoreKeeperAccess.Gameplay
         public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
         public PowerState WirePower;   // tension d'un cable present sur la case (sous un objet non electrique), None sinon
         public ToggleState Toggle;     // etat ouvert/ferme (porte, portail) ou active/desactive (levier), None sinon
+        public bool Lit;               // detecteur d'obscurite : case eclairee (roofHole ou source ponctuelle), cf. LightIndex
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -82,6 +83,7 @@ namespace CoreKeeperAccess.Gameplay
         public static int StorageCount;
         public static PowerState WirePower;
         public static ToggleState Toggle;
+        public static bool Lit;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -104,6 +106,7 @@ namespace CoreKeeperAccess.Gameplay
             StorageCount = StorageCount,
             WirePower = WirePower,
             Toggle = Toggle,
+            Lit = Lit,
         };
     }
 
@@ -163,6 +166,86 @@ namespace CoreKeeperAccess.Gameplay
         public static int2 Center;
         public static int Radius;
     }
+
+    // Pont sources lumineuses ponctuelles (torche/lanterne/glow d'entite...), publie par le
+    // mod cote MonoBehaviour (CoreKeeperAccessMod.PublishLightSources, reflexion sur
+    // ManagedLight.allLights - un systeme ECS ne peut pas lire cette liste Unity). Positions
+    // DEJA en coordonnees MONDE (+ Manager.camera.RenderOrigo), filtrees isLightEnabled,
+    // bornees en distance au joueur (perf). Consomme par LightIndex.IsLit. Cf.
+    // core-keeper-darkness-gate.md (design fige 16 juillet 2026).
+    internal static class LightSourceScan
+    {
+        public const int MaxSources = 64;
+        public static int Count;
+        public static readonly float2[] Pos = new float2[MaxSources];
+        public static readonly float[] Range = new float[MaxSources];
+        // true = entite du monde (torche posee, neverOptimize=false cote jeu) ; false = glow
+        // attache au joueur (lanterne equipee, glow de condition, neverOptimize=true). Distingue
+        // le bleed a appliquer, cf. calibration 17 juillet (core-keeper-darkness-gate.md).
+        public static readonly bool[] IsWorldEntity = new bool[MaxSources];
+    }
+
+    // Detecteur d'obscurite (design fige 16 juillet 2026, cf. core-keeper-darkness-gate.md) :
+    // une case est "eclairee" si une source ponctuelle active la couvre a <= range+3 (bleed
+    // calibre a l'oeil sur PLUSIEURS points reels, torches/lanterne, cf.
+    // core-keeper-ingame-data-access.md) OU si un roofHole existe a <= 5 cases (meme fiche).
+    // Parite avec un joueur voyant : les outils de nav (curseur/canne/scanner/sonar/collision)
+    // ne doivent rien reveler sur une case que ce filtre juge sombre. Appelable depuis TOUT
+    // systeme qui a deja un TileAccessor.
+    //
+    // ⚠ 16 juillet 2026 : une tentative de rendre ce bleed PROPORTIONNEL au range (suite a
+    // une creature lumineuse range=2 semblant sur-eclairee) a ete REVERTEE - la correction
+    // etait basee sur UN SEUL point de donnee mal mesure (pas de comptage precis, juste une
+    // impression), et touchait du meme coup la constante torches qui, elle, EST calibree
+    // sur plusieurs points reels (piege signale par l'utilisateur : "t'as bousille nos calculs
+    // sur un coup de tete"). Rien ne prouve non plus que les lumieres de creature suivent le
+    // MEME mecanisme que les torches (verifie : IndirectLightRenderFeature est un effet GPU
+    // global en espace ecran, aucune distinction de code par type d'entite - mais ca ne
+    // prouve pas l'absence d'une autre difference, ex. parametres du Light lui-meme). Le flat
+    // +3 reste la seule valeur avec de vraies donnees derriere -> gardee telle quelle tant
+    // qu'une VRAIE calibration (Triangle+F3, grille "Lit" comparee case par case au damier,
+    // cf. DumpLight) n'a pas ete faite sur des lumieres de creature/plante.
+    internal static class LightIndex
+    {
+        private const int RoofHoleRadius = 5;
+        // Bleed calibre au voyant le 17 juillet 2026 (plusieurs points reels, cf.
+        // core-keeper-darkness-gate.md) : les torches posees (entites du monde) portent
+        // reellement 1 case de plus que leur range brut. Les glows attaches au joueur (lanterne
+        // equipee, glow de condition, nourriture) n'ont PAS de marge fiable qui tienne dans les
+        // deux sens (lanterne orange : range-1 reel ; glow bleu : range+1 reel) -> aucun
+        // modificateur, valeur brute prise telle quelle plutot qu'une moyenne inventee.
+        private const float TorchBleed = 1f;
+        private const float GlowBleed = 0f;
+
+        public static bool IsLit(ref TileAccessor ta, int2 tile)
+        {
+            if (!A11ySettings.DarknessGate) return true; // coupe-circuit : feature desactivee -> toujours "eclaire"
+
+            // Sources ponctuelles d'abord (liste courte en general - moins cher que le
+            // balayage roofHole dans le cas courant "pres d'une torche").
+            float2 ft = new float2(tile.x, tile.y);
+            for (int i = 0; i < LightSourceScan.Count; i++)
+            {
+                float bleed = LightSourceScan.IsWorldEntity[i] ? TorchBleed : GlowBleed;
+                if (math.distance(LightSourceScan.Pos[i], ft) <= LightSourceScan.Range[i] + bleed)
+                    return true;
+            }
+
+            int r2 = RoofHoleRadius * RoofHoleRadius;
+            for (int dy = -RoofHoleRadius; dy <= RoofHoleRadius; dy++)
+            {
+                for (int dx = -RoofHoleRadius; dx <= RoofHoleRadius; dx++)
+                {
+                    if (dx * dx + dy * dy > r2) continue;
+                    if (ta.HasType(new int2(tile.x + dx, tile.y + dy), TileType.roofHole)) return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    // CheckerStamp (pont banc de test damier, Triangle+F10) deplace dans Gameplay/DevTools.cs,
+    // avec le systeme SERVEUR qui le consomme (cf. leçon CheckerStampSystem/DevInvincibilitySystem).
 
     // Pont du scanner de proximite (R3 tenu). PUBLICATION CONTINUE (pas de demande/reponse
     // consommee comme PingScan) : le mod publie chaque frame le rectangle camera courant
@@ -349,6 +432,7 @@ namespace CoreKeeperAccess.Gameplay
             // sous une machine -> signale "courant ici" meme sous une structure non electrique.
             if (ObjectIndex.WireMap.TryGetValue(ObjectIndex.Key(t), out var wp))
                 info.WirePower = wp;
+            info.Lit = LightIndex.IsLit(ref ta, t);
             return info;
         }
 
@@ -501,7 +585,11 @@ namespace CoreKeeperAccess.Gameplay
             if (VisibilityScan.Active && UnityEngine.Time.unscaledTime >= _nextVis)
             {
                 _nextVis = UnityEngine.Time.unscaledTime + VisInterval;
-                try { ScanVisibility(); }
+                try
+                {
+                    var taVis = new TileAccessor(ref CheckedStateRef, true);
+                    ScanVisibility(ref taVis);
+                }
                 catch (System.Exception ex)
                 {
                     VisibilityScan.Count = 0;
@@ -616,6 +704,10 @@ namespace CoreKeeperAccess.Gameplay
                 catch (System.Exception ex) { Diag.Error("A11yLightDiag", ex); }
             }
 
+            // Tampon damier (dev) : la demande est consommee cote SERVEUR (CheckerStampSystem,
+            // Gameplay/DevTools.cs) - une ecriture ICI (client) serait ecrasee au prochain
+            // snapshot NetCode, meme piege que DevInvincibilitySystem. Rien a faire cote client.
+
             // Diagnostic automation a la demande (dev) : independant du curseur actif.
             if (AutomationDiag.Requested)
             {
@@ -648,6 +740,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.StorageCount = info.StorageCount;
                 TileQuery.WirePower = info.WirePower;
                 TileQuery.Toggle = info.Toggle;
+                TileQuery.Lit = info.Lit;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -1034,6 +1127,10 @@ namespace CoreKeeperAccess.Gameplay
                 for (int step = 1; step <= 2; step++)
                 {
                     int2 t = new int2(c.x + SonarDx[d] * step, c.y + SonarDy[d] * step);
+                    // Detecteur d'obscurite : case sombre -> on ne sait pas ce qu'il y a LA,
+                    // on ne dit rien pour ELLE, mais on continue de sonder plus loin dans la
+                    // meme direction (par-case, pas un arret complet comme la canne).
+                    if (!LightIndex.IsLit(ref ta, t)) continue;
                     if (ta.TryGetBlockingTile(t, out TileCD wall, true))
                     {
                         tex = (wall.tileType == TileType.pit || wall.tileType == TileType.water) ? 2 : 1;
@@ -1077,6 +1174,11 @@ namespace CoreKeeperAccess.Gameplay
                     (int)math.round(origin.y + dir.y * dd));
                 if (t.Equals(last)) continue;
                 last = t;
+
+                // Detecteur d'obscurite : par-case, pas un arret comme la canne (portee trop
+                // courte pour le probleme du "voir a travers l'ombre" - la case suivante peut
+                // rester sondee normalement).
+                if (!LightIndex.IsLit(ref ta, t)) continue;
 
                 if (ta.TryGetBlockingTile(t, out _, true))
                 {
@@ -1130,7 +1232,7 @@ namespace CoreKeeperAccess.Gameplay
         // EnemyCD a faction neutre (chevres, betail) = paisible. Faction Merchand (PNJ, ni EnemyCD
         // ni CritterCD) = categorie PNJ marchands, testee AVANT le reste. Cadavres ecartes
         // (HealthCD a 0 : l'entite persiste quelques secondes apres la mort).
-        private void ScanVisibility()
+        private void ScanVisibility(ref TileAccessor ta)
         {
             int count = 0;
             float2 center = VisibilityScan.Center;
@@ -1150,6 +1252,12 @@ namespace CoreKeeperAccess.Gameplay
                 float2 p = new float2(pos.x, pos.z);
                 float2 d = p - center;
                 if (math.abs(d.x) > half.x || math.abs(d.y) > half.y) continue;
+
+                // Detecteur d'obscurite : exclut SEULEMENT la cible dont la case a elle est
+                // sombre (pas tout le scan) - une autre cible visible plus loin, dans une
+                // flaque de lumiere, reste captee normalement. Cf. core-keeper-darkness-gate.md.
+                int2 pTile = new int2((int)math.round(p.x), (int)math.round(p.y));
+                if (!LightIndex.IsLit(ref ta, pTile)) continue;
 
                 if (EntityManager.HasComponent<HealthCD>(e)
                     && EntityManager.GetComponentData<HealthCD>(e).health <= 0) continue;
@@ -1281,6 +1389,27 @@ namespace CoreKeeperAccess.Gameplay
                 Diag.Log("A11yLightDiag", sb.ToString());
             }
             Diag.Log("A11yLightDiag", "roofHole=" + roofHoleCount + " / sol=" + floorCount);
+
+            // Grille "Lit" CALCULEE par le detecteur d'obscurite (LightIndex.IsLit) - a
+            // comparer DIRECTEMENT a un screenshot de la meme zone, sans repasser par les
+            // dx/dz bruts des sources. L = notre algo juge la case eclairee, . = sombre.
+            Diag.Log("A11yLightDiag", "=== Lit calcule (L=eclaire, .=sombre, @ joueur) ===");
+            int litCount = 0, darkCount = 0;
+            for (int y = c.y + r; y >= c.y - r; y--)
+            {
+                sb.Clear();
+                for (int x = c.x - r; x <= c.x + r; x++)
+                {
+                    int2 t = new int2(x, y);
+                    char ch;
+                    if (x == c.x && y == c.y) ch = '@';
+                    else if (LightIndex.IsLit(ref ta, t)) { ch = 'L'; litCount++; }
+                    else { ch = '.'; darkCount++; }
+                    sb.Append(ch);
+                }
+                Diag.Log("A11yLightDiag", sb.ToString());
+            }
+            Diag.Log("A11yLightDiag", "lit=" + litCount + " / sombre=" + darkCount);
         }
 
         // Dump dev : liste TOUS les composants de l'entite sous le curseur + les valeurs

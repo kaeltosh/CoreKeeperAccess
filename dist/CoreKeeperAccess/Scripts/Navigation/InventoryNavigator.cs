@@ -451,6 +451,9 @@ namespace CoreKeeperAccess.Navigation
             int baseIdx = currentKind != null ? _sections.FindIndex(s => s.Kind == currentKind) : -1;
             if (baseIdx < 0) baseIdx = Mathf.Clamp(_sectionIndex, 0, _sections.Count - 1);
             int next = ((baseIdx + delta) % _sections.Count + _sections.Count) % _sections.Count;
+            // DIAG (18 juillet 2026, meme chantier que ci-dessus) : marque le moment exact
+            // du changement d'onglet pour correler avec les logs "A11yInvSync" suivants.
+            Diag.Log("A11yInvSync", "ChangeSection " + currentKind + " -> " + _sections[next].Kind);
             SelectSection(next, announceSectionName: true);
         }
 
@@ -594,6 +597,12 @@ namespace CoreKeeperAccess.Navigation
                 int known = FindSectionIndex(sel);
                 if (known >= 0 && known != _sectionIndex)
                 {
+                    // DIAG (18 juillet 2026, bug "annonce saute sur slot 1 barre rapide au
+                    // changement d'onglet" - pas de repro fiable) : confirme que ce recul
+                    // parasite a bien ete intercepte, pas adopte.
+                    Diag.Log("A11yInvSync", "suppressed parasite sel=" + DescribeElement(sel)
+                        + " (known section=" + _sections[known].Kind
+                        + ", current section=" + _sections[_sectionIndex].Kind + ")");
                     ForceSelect(_current);
                     return;
                 }
@@ -608,10 +617,22 @@ namespace CoreKeeperAccess.Navigation
                 idx = FindSectionIndex(sel);
                 if (idx < 0) return;
             }
+            // DIAG (meme chantier) : c'est CETTE branche qui annoncerait a tort un recul
+            // parasite non intercepte par le garde-fou ci-dessus (ex. meme section que la
+            // courante). A confirmer/infirmer a la prochaine repro via les timestamps
+            // Player.log autour de "ChangeSection" (ci-dessous).
+            Diag.Log("A11yInvSync", "adopted sel=" + DescribeElement(sel)
+                + " section=" + _sections[idx].Kind + " (prev current section="
+                + (_sectionIndex < _sections.Count ? _sections[_sectionIndex].Kind : "?") + ")");
             _sectionIndex = idx;
             _current = sel;
             Announce(_sections[idx], sel, announceSectionName: true);
         }
+
+        // Libelle court pour les logs de diagnostic (pas pour le TTS) : type + nom du
+        // GameObject, suffisant pour correler avec ce qu'on entend en jeu.
+        private static string DescribeElement(UIelement e) =>
+            e == null ? "null" : e.GetType().Name + "/" + (e.gameObject != null ? e.gameObject.name : "?");
 
         private static int FindSectionIndex(UIelement e)
         {
@@ -652,7 +673,7 @@ namespace CoreKeeperAccess.Navigation
                 string content = SlotSections.IsPetTalentButton(slot)
                     ? InGameTtsCore.BuildPetTalentButtonLabel()
                     : SlotSections.IsCattleInfoElement(slot)
-                        ? InGameTtsCore.BuildCattleInfoLabel()
+                        ? InGameTtsCore.BuildCattleInfoLabel(includeBreed: false)
                         : section.Kind == "stats"
                             ? InGameTtsCore.BuildStatLine(slot)
                             : InGameTtsCore.BuildElementAnnouncement(slot);

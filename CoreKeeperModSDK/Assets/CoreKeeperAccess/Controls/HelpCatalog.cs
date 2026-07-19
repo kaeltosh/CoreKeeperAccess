@@ -71,6 +71,8 @@ namespace CoreKeeperAccess.Controls
             outList.Add(new HelpItem { Gesture = "", Label = Strings.L("help.learn"), Run = PadLearn.Start });
             // Juste apres : ouvrir le menu d'apprentissage des sons du mod.
             outList.Add(new HelpItem { Gesture = "", Label = Strings.L("sound.learn"), Run = SoundGuide.Start });
+            // Puis : mode commandes (appuyer -> annonce ce que ça fait, sans l'exécuter).
+            outList.Add(new HelpItem { Gesture = "", Label = Strings.L("cmdlearn.entry"), Run = CommandLearn.Start });
             for (int i = 0; i < _entries.Count; i++)
                 if (_entries[i].When())
                     outList.Add(new HelpItem { Gesture = _entries[i].Gesture(), Label = Strings.L(_entries[i].LabelKey), Run = null });

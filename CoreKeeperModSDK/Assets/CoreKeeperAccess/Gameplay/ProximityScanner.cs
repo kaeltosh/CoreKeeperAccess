@@ -92,6 +92,11 @@ namespace CoreKeeperAccess.Gameplay
         private static bool _beaconArmed;     // R3+L3 actif, cible = entree courante
         private static bool _wasHeld;
 
+        // "Categorie vide" ne doit se dire qu'UNE fois par occurrence, pas a chaque rebuild
+        // (~4 Hz) tant qu'on reste dessus (bug signale 18 juillet 2026 : ca bouclait). Remis a
+        // false des qu'une entree reelle est retrouvee (SetCurrent) ou qu'on relache R3.
+        private static bool _emptyAnnounced;
+
         public static void Tick(PlayerController player)
         {
             bool eligible = player != null && InputContext.InGameFree;
@@ -123,7 +128,7 @@ namespace CoreKeeperAccess.Gameplay
             bool held = ScannerModifier.Held;
             if (held && !_wasHeld) OpenAnnounce(playerPos);
             _wasHeld = held;
-            if (!held) return;
+            if (!held) { _emptyAnnounced = false; return; }
 
             if (ScannerModifier.DpadUpPressed) CycleCategory(playerPos, 1);
             else if (ScannerModifier.DpadDownPressed) CycleCategory(playerPos, -1);
@@ -197,7 +202,7 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     _beaconArmed = false;
                     _entIndex = -1;
-                    TtsText.Say(Strings.L("scanner.categoryempty"), true);
+                    if (!_emptyAnnounced) { TtsText.Say(Strings.L("scanner.categoryempty"), true); _emptyAnnounced = true; }
                 }
                 return;
             }
@@ -244,11 +249,11 @@ namespace CoreKeeperAccess.Gameplay
                 {
                     BeaconGuide.Stop(false);
                     _beaconArmed = false;
-                    TtsText.Say(Strings.L("scanner.categoryempty"), true);
+                    if (!_emptyAnnounced) { TtsText.Say(Strings.L("scanner.categoryempty"), true); _emptyAnnounced = true; }
                 }
                 else if (ScannerModifier.Held)
                 {
-                    TtsText.Say(Strings.L("scanner.categoryempty"), true);
+                    if (!_emptyAnnounced) { TtsText.Say(Strings.L("scanner.categoryempty"), true); _emptyAnnounced = true; }
                 }
             }
         }
@@ -277,7 +282,11 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             var list = _byCat[(int)CatOrder[_catOrderIdx]];
-            if (list.Count == 0) { TtsText.Say(Strings.L("scanner.categoryempty"), true); return; }
+            if (list.Count == 0)
+            {
+                if (!_emptyAnnounced) { TtsText.Say(Strings.L("scanner.categoryempty"), true); _emptyAnnounced = true; }
+                return;
+            }
             _entIndex = 0; // fraiche ouverture : repart sur la 1re entree de la categorie courante
             SetCurrent(playerPos, announceCategory: true, interrupt: true);
         }
@@ -323,6 +332,7 @@ namespace CoreKeeperAccess.Gameplay
             var list = _byCat[(int)CatOrder[_catOrderIdx]];
             var e = list[_entIndex];
             _curKey = e.Key;
+            _emptyAnnounced = false; // une vraie entree existe : reamorce le futur "categorie vide"
             string name = InGameTtsCore.ResolveObjectName(e.Id);
             string text = announceCategory ? Strings.L(CategoryKey(e.Cat)) + ". " + name : name;
             TtsText.Say(text, interrupt);
