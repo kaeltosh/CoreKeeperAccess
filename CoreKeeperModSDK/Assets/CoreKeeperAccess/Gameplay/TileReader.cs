@@ -49,8 +49,10 @@ namespace CoreKeeperAccess.Gameplay
         public bool HasStorage;        // l'objet est un stockage d'automation (StorageCD)
         public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
         public PowerState WirePower;   // tension d'un cable present sur la case (sous un objet non electrique), None sinon
+        public ObjectID WireObjectId;  // identite du cable dont WirePower rapporte la tension (None si aucun)
         public ToggleState Toggle;     // etat ouvert/ferme (porte, portail) ou active/desactive (levier), None sinon
         public bool Lit;               // detecteur d'obscurite : case eclairee (roofHole ou source ponctuelle), cf. LightIndex
+        public bool RoofHole;          // plafond troue (couche roofHole) : case a l'air libre / ciel ouvert
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -82,8 +84,10 @@ namespace CoreKeeperAccess.Gameplay
         public static bool HasStorage;
         public static int StorageCount;
         public static PowerState WirePower;
+        public static ObjectID WireObjectId;
         public static ToggleState Toggle;
         public static bool Lit;
+        public static bool RoofHole;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -105,8 +109,10 @@ namespace CoreKeeperAccess.Gameplay
             HasStorage = HasStorage,
             StorageCount = StorageCount,
             WirePower = WirePower,
+            WireObjectId = WireObjectId,
             Toggle = Toggle,
             Lit = Lit,
+            RoofHole = RoofHole,
         };
     }
 
@@ -124,7 +130,13 @@ namespace CoreKeeperAccess.Gameplay
 
         public static bool ResultValid; // reponse publiee (consommee par le mod)
         public static bool Found;
-        public static int2 Tile;        // tuile de minerai la plus proche
+        public static int2 Tile;        // veine de minerai la plus proche (couche tuile)
+
+        // Gisement a foreuse le plus proche (objet pose, ObjectIndex.Entry.Resource) -
+        // resultat SEPARE de la veine ci-dessus : les deux peuvent etre trouves en meme
+        // temps, l'un ne doit pas ecraser l'annonce de l'autre.
+        public static bool DepositFound;
+        public static int2 DepositTile;
     }
 
     // Pont recalcul local du reseau de navigation (tranche C, "mise a jour du reseau"). Le
@@ -342,12 +354,19 @@ namespace CoreKeeperAccess.Gameplay
             public Entity Ent;       // entite source (pour le diagnostic automation dev)
         }
 
+        // Cable present sur la case, INDEPENDANT de l'objet gagnant de l'index : un cable
+        // cede la case a la machine posee dessus, mais on garde sa tension ET son identite
+        // ici pour pouvoir l'annoncer separement ("cable electrique, sous tension") meme
+        // quand une machine masque la case dans Map.
+        public struct WireEntry
+        {
+            public PowerState Power;
+            public ObjectID Id;
+        }
+
         public static float2 Center; // position joueur, publiee par le mod (GameplayInput)
         public static readonly Dictionary<long, Entry> Map = new Dictionary<long, Entry>();
-        // Tension d'un cable present sur la case, INDEPENDANTE de l'objet gagnant de l'index :
-        // un cable cede la case a la machine posee dessus, mais on garde sa tension ici pour
-        // signaler "courant present" meme sous une structure non electrique.
-        public static readonly Dictionary<long, PowerState> WireMap = new Dictionary<long, PowerState>();
+        public static readonly Dictionary<long, WireEntry> WireMap = new Dictionary<long, WireEntry>();
 
         public static long Key(int2 t) => ((long)t.x << 32) ^ (uint)t.y;
 
@@ -428,11 +447,16 @@ namespace CoreKeeperAccess.Gameplay
                 info.ObjectId = ObjectAt(t, world, out bool interactable);
                 info.ObjectInteractable = interactable;
             }
-            // Tension d'un cable present sur la case, qu'il soit l'objet principal ou masque
-            // sous une machine -> signale "courant ici" meme sous une structure non electrique.
+            // Tension + identite d'un cable present sur la case, qu'il soit l'objet principal
+            // ou masque sous une machine -> permet de l'annoncer meme sous une structure non
+            // electrique (cf. AnnounceCursorDetails, clause cable dediee).
             if (ObjectIndex.WireMap.TryGetValue(ObjectIndex.Key(t), out var wp))
-                info.WirePower = wp;
+            {
+                info.WirePower = wp.Power;
+                info.WireObjectId = wp.Id;
+            }
             info.Lit = LightIndex.IsLit(ref ta, t);
+            info.RoofHole = ta.HasType(t, TileType.roofHole);
             return info;
         }
 
@@ -608,6 +632,7 @@ namespace CoreKeeperAccess.Gameplay
                 catch (System.Exception ex)
                 {
                     OreScan.Found = false;
+                    OreScan.DepositFound = false;
                     OreScan.ResultValid = true;
                     Diag.Error("A11yOreDiag", ex);
                 }
@@ -739,8 +764,10 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.HasStorage = info.HasStorage;
                 TileQuery.StorageCount = info.StorageCount;
                 TileQuery.WirePower = info.WirePower;
+                TileQuery.WireObjectId = info.WireObjectId;
                 TileQuery.Toggle = info.Toggle;
                 TileQuery.Lit = info.Lit;
+                TileQuery.RoofHole = info.RoofHole;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -988,10 +1015,12 @@ namespace CoreKeeperAccess.Gameplay
                     // moitie d'une machine pivotee ne l'etait pas (vecu : scie/etabli
                     // en fer muets une case sur deux).
                     int2 a = new int2((int)math.round(pos.x), (int)math.round(pos.z)) + corner;
-                    // Tension du cable deposee sur sa case, hors logique de priorite : meme si
-                    // une machine prend la case dans Map, on garde "courant ici" dans WireMap.
+                    // Tension + identite du cable deposees sur sa case, hors logique de
+                    // priorite : meme si une machine prend la case dans Map, on garde
+                    // "courant ici" ET "c'est un cable" dans WireMap.
                     if (wirePower != PowerState.None)
-                        ObjectIndex.WireMap[ObjectIndex.Key(a)] = wirePower;
+                        ObjectIndex.WireMap[ObjectIndex.Key(a)] =
+                            new ObjectIndex.WireEntry { Power = wirePower, Id = od.objectID };
                     // Emprise EXACTE : maintenant qu'on lit l'orientation, on couvre la taille
                     // tournee reelle (axes echanges si l'objet regarde est/ouest, regle du jeu)
                     // au lieu de l'union des deux orientations - cette union faisait DEBORDER
@@ -1077,7 +1106,8 @@ namespace CoreKeeperAccess.Gameplay
 
         // Balaye le disque (rayon en cases) autour du centre et retient la tuile de
         // minerai la plus proche. Couche ore/ancientCrystal lue par TileAccessor.HasType,
-        // independante des murs (le filon enfoui est detecte, comme ses paillettes).
+        // independante des murs (le filon enfoui est detecte, comme ses paillettes) ET
+        // de l'eclairage (pas de check TileQuery.Lit ici, comportement voulu).
         private static void ScanOre(ref TileAccessor ta)
         {
             int r = OreScan.Radius;
@@ -1104,8 +1134,32 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
 
+            // Gisements a foreuse (IronOreBoulder etc.) : objets poses, pas une couche de
+            // tuile -> lus depuis ObjectIndex (flag Resource = PugAutomationCD.type Mineable),
+            // deja rempli par TileReaderSystem. Resultat SEPARE de la veine ci-dessus (best/
+            // bestTile) : les deux annonces doivent pouvoir coexister, l'une n'ecrase pas
+            // l'autre. Meme regle que les veines : ni mur ni eclairage ne filtrent (demande
+            // explicite utilisateur, "je m'en fous qu'il soit eclaire ou non"). Borne reelle
+            // = IndexRadius (24) de l'index, pas le rayon de prospection si celui-ci le depasse.
+            bool depositFound = false;
+            int bestDeposit = int.MaxValue;
+            int2 bestDepositTile = default;
+            foreach (var kv in ObjectIndex.Map)
+            {
+                if (!kv.Value.Resource) continue;
+                int2 t = new int2((int)(kv.Key >> 32), (int)(uint)kv.Key);
+                int2 dd = t - c;
+                int d2 = dd.x * dd.x + dd.y * dd.y;
+                if (d2 > r2 || d2 >= bestDeposit) continue;
+                depositFound = true;
+                bestDeposit = d2;
+                bestDepositTile = t;
+            }
+
             OreScan.Found = found;
             OreScan.Tile = bestTile;
+            OreScan.DepositFound = depositFound;
+            OreScan.DepositTile = bestDepositTile;
             OreScan.ResultValid = true;
         }
 

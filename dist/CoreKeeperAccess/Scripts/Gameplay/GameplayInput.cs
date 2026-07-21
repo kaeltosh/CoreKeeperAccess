@@ -322,15 +322,19 @@ namespace CoreKeeperAccess.Gameplay
             _prospectRadius = radius;
         }
 
-        // Consomme la reponse du systeme (frame suivante) : ding positionnel sur le
-        // filon (son natif oreHit, pan/distance par le jeu + pitch vertical maison,
-        // meme langage que le curseur) + TTS cardinal et distance.
+        // Consomme la reponse du systeme (frame suivante) : ding positionnel sur le/les
+        // resultat(s) (son natif oreHit, pan/distance par le jeu + pitch vertical maison,
+        // meme langage que le curseur) + TTS cardinal et distance. Veine ET gisement sont
+        // des resultats INDEPENDANTS (OreScan.Found / OreScan.DepositFound) : si les deux
+        // sont trouves, un SEUL appel TtsText.Say regroupe les deux phrases -- deux appels
+        // successifs en interrupt:true se couperaient l'un l'autre (le second ecraserait
+        // le premier avant meme d'etre entendu).
         private static void TickProspect(PlayerController player)
         {
             if (!_prospectPending || !OreScan.ResultValid) return;
             _prospectPending = false;
 
-            if (!OreScan.Found)
+            if (!OreScan.Found && !OreScan.DepositFound)
             {
                 TtsText.Say(Strings.L("prospect.none") + ", "
                     + Strings.L("prospect.radius") + " " + _prospectRadius, true);
@@ -338,15 +342,33 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             float2 p = new float2(player.WorldPosition.x, player.WorldPosition.z);
-            float2 d = new float2(OreScan.Tile.x, OreScan.Tile.y) - p;
-            float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
-            GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit,
-                new Vector3(OreScan.Tile.x, 0f, OreScan.Tile.y), ProspectDingVolume, pitch);
+            string text = null;
 
-            int dist = Mathf.RoundToInt(math.length(d));
-            string text = Strings.L("prospect.ore") + ", " + (dist < 1
-                ? Strings.L("prospect.here")
-                : Cardinal(d) + ", " + dist + " " + Strings.L("teleport.tiles"));
+            if (OreScan.Found)
+            {
+                float2 d = new float2(OreScan.Tile.x, OreScan.Tile.y) - p;
+                float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
+                GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit,
+                    new Vector3(OreScan.Tile.x, 0f, OreScan.Tile.y), ProspectDingVolume, pitch);
+                int dist = Mathf.RoundToInt(math.length(d));
+                text = Strings.L("prospect.ore") + ", " + (dist < 1
+                    ? Strings.L("prospect.here")
+                    : Cardinal(d) + ", " + dist + " " + Strings.L("teleport.tiles"));
+            }
+
+            if (OreScan.DepositFound)
+            {
+                float2 d = new float2(OreScan.DepositTile.x, OreScan.DepositTile.y) - p;
+                float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
+                GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit,
+                    new Vector3(OreScan.DepositTile.x, 0f, OreScan.DepositTile.y), ProspectDingVolume, pitch);
+                int dist = Mathf.RoundToInt(math.length(d));
+                string depositText = Strings.L("prospect.deposit") + ", " + (dist < 1
+                    ? Strings.L("prospect.here")
+                    : Cardinal(d) + ", " + dist + " " + Strings.L("teleport.tiles"));
+                text = text == null ? depositText : text + ". " + depositText;
+            }
+
             TtsText.Say(text, true);
         }
 

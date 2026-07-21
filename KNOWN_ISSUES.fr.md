@@ -15,6 +15,8 @@
 - **Changement de barre rapide inversé** : c'est désormais Triangle+L1 (suivante) / Triangle+R1 (précédente), inversé par rapport à avant, suite au retour des testeurs — pas encore confirmé en conditions réelles après l'inversion.
 - **Nouveau mode d'apprentissage des commandes** : tenez Triangle (ou R3, ou aucun des deux) et appuyez sur n'importe quel bouton pour entendre ce qu'il fait, sans qu'il s'exécute réellement — façon aide à la saisie d'un lecteur d'écran, en complément du mode nommage des boutons existant. Pas encore confirmé en conditions réelles.
 - **Nouveau raccourci pour cycler les profils d'équipement** : fiche perso/inventaire ouvert (pas en station), Triangle+D-pad droite/gauche bascule vers le profil d'équipement suivant/précédent parmi les 3. Pas encore confirmé en conditions réelles.
+- **Détails de case (Triangle+Haut) enrichis** : annonce désormais toutes les couches présentes sur la case pointée (plafond, mur, câble électrique, objet posé, sol/dalle), au lieu d'une seule à la fois — utile pour les cases où plusieurs éléments se superposent (câble sous une machine, dalle posée sur un objet…). Pas encore confirmé en conditions réelles.
+- **Prospection minerai (Triangle+gauche) étendue aux gisements à foreuse** : en plus du filon enfoui, elle repère maintenant aussi le gisement minable le plus proche (les deux peuvent être annoncés dans la même salve s'ils sont trouvés en même temps). Pas encore confirmé en conditions réelles.
 
 ## Bugs connus
 

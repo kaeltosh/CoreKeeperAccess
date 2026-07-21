@@ -513,7 +513,10 @@ namespace CoreKeeperAccess.Gameplay
 
         // "Plus de details" sur la case sous le curseur (commande Triangle + haut). Donne ce
         // que le survol normal NE dit PAS a la voix : surtout le MATERIAU du mur (le survol
-        // ne joue qu'un son). Trou/eau -> leur libelle ; objet -> son nom ; sinon le sol.
+        // ne joue qu'un son). Empile TOUTES les couches presentes sur la case (demande
+        // testeur 21 juillet 2026 : plafond/cable/dalle ne doivent plus se masquer entre eux)
+        // au lieu du choix exclusif d'origine (mur OU objet OU sol). Ordre : plafond, mur,
+        // cable, objet pose, sol/dalle, position.
         internal static void AnnounceCursorDetails()
         {
             // Detecteur d'obscurite (cf. core-keeper-darkness-gate.md) : la sonification
@@ -526,26 +529,65 @@ namespace CoreKeeperAccess.Gameplay
                 return;
             }
 
-            string text;
+            var snap = TileQuery.Snapshot();
+            string text = null;
+
+            // Plafond : toujours annonce (intact ou troue), c'est une couche a part entiere.
+            text = Stack(text, Strings.L(TileQuery.RoofHole ? "cursor.roofhole" : "cursor.roofed"));
+
+            // Mur.
             if (TileQuery.HasWall)
             {
-                if (TileQuery.WallType == TileType.pit) text = Strings.L("cursor.pit");
-                else if (TileQuery.WallType == TileType.water) text = Strings.L("cursor.water");
-                else text = ResolveWallName();
+                string wallText;
+                if (TileQuery.WallType == TileType.pit) wallText = Strings.L("cursor.pit");
+                else if (TileQuery.WallType == TileType.water) wallText = Strings.L("cursor.water");
+                else wallText = ResolveWallName();
                 // Mur scelle : l'immunite d'abord (l'info qui change tout), puis le materiau.
                 if (TileQuery.IsImmune)
-                    text = string.IsNullOrEmpty(text)
+                    wallText = string.IsNullOrEmpty(wallText)
                         ? Strings.L("cursor.immune")
-                        : Strings.L("cursor.immune") + ", " + text;
+                        : Strings.L("cursor.immune") + ", " + wallText;
+                text = Stack(text, wallText);
             }
-            else if (TileQuery.ObjectId != ObjectID.None)
+
+            // Cable / objet pose / sol : un mur occupe la case entiere, rien de tout ca n'est
+            // visible dessous (meme exclusion que le comportement d'origine).
+            if (!TileQuery.HasWall)
             {
-                var snap = TileQuery.Snapshot();
-                string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
-                text = AppendToggle(AppendIndustry(AppendPlant(objName, in snap), in snap, true), in snap);
+                // Cable : la case a-t-elle un cable, et est-il MASQUE par un autre objet
+                // gagnant (foreuse/machine posee dessus) ? Si le cable EST l'objet affiche
+                // ci-dessous, sa tension sort deja via ce chemin (AppendIndustry) - pas de
+                // doublon ici.
+                bool wireOnCase = TileQuery.WireObjectId != ObjectID.None;
+                bool wireMasked = wireOnCase && TileQuery.WireObjectId != TileQuery.ObjectId;
+                if (wireMasked)
+                {
+                    // Coupe la fuite de tension vers le nom de l'objet masquant (AppendIndustry,
+                    // branche WirePower) : la clause dediee ci-dessous porte deja cette info,
+                    // eviter de la dire deux fois sous deux formulations differentes.
+                    snap.WirePower = PowerState.None;
+                }
+
+                // Objet pose.
+                if (TileQuery.ObjectId != ObjectID.None)
+                {
+                    string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+                    string objText = AppendToggle(AppendIndustry(AppendPlant(objName, in snap), in snap, true), in snap);
+                    text = Stack(text, objText);
+                }
+
+                if (wireMasked)
+                {
+                    string wireName = InGameTtsCore.ResolveObjectName(TileQuery.WireObjectId);
+                    if (string.IsNullOrEmpty(wireName)) wireName = Strings.L("cursor.wire");
+                    string tension = Strings.L(TileQuery.WirePower == PowerState.On ? "cursor.powered" : "cursor.unpowered");
+                    text = Stack(text, wireName + ", " + tension);
+                }
+
+                // Sol / dalle (couche de revetement, ex. dalle a peindre/pont/rail) : annonce
+                // TOUJOURS, meme si un objet occupe la case (ne doit plus etre masque).
+                text = Stack(text, GroundLabel(TileQuery.Ground, TileQuery.GroundTileset));
             }
-            else
-                text = GroundLabel(TileQuery.Ground, TileQuery.GroundTileset);
 
             // Coordonnees monde de la case pointee, en queue de l'annonce (demande
             // utilisateur : repere absolu pour noter/retrouver un endroit).
@@ -731,6 +773,13 @@ namespace CoreKeeperAccess.Gameplay
 
         private static string Join(string a, string b)
             => string.IsNullOrEmpty(a) ? b : a + ", " + b;
+
+        // Empile une clause de plus dans l'annonce details (Triangle+haut) : chaque couche
+        // (plafond/mur/cable/objet/sol) est separee par ". " des autres, jamais fusionnee
+        // par une simple virgule (reservee aux details internes d'UNE clause, cf. Join).
+        // Clause vide -> ignoree silencieusement (ex. sol de base, sans libelle).
+        private static string Stack(string acc, string add)
+            => string.IsNullOrEmpty(add) ? acc : (string.IsNullOrEmpty(acc) ? add : acc + ". " + add);
 
         // Sens cardinal d'un vecteur case (convoyeur). Convoyeurs cardinaux purs : une
         // seule composante non nulle ; priorite a l'axe nord-sud si jamais les deux.
