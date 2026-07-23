@@ -327,8 +327,17 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             // Case franchissable. Priorite : objet/construction pose > sol notable.
+            // Exception : un cable SEUL sur la case (aucune machine gagnante, ObjectId est le
+            // cable lui-meme) cache sous une dalle/sol notable est invisible a l'oeil pendant
+            // un simple survol - on le traite comme une case vide avec sol notable, MAIS sa
+            // tension fuite sur l'annonce du sol (meme convention que AppendIndustry pour un
+            // objet non electrique pose sur un cable : "on devine sa presence par l'indication
+            // de courant, sans dire cable" - reserve aux details Triangle+Haut de le NOMMER).
+            bool hiddenByGround = info.WireObjectId != ObjectID.None
+                && info.WireObjectId == info.ObjectId
+                && info.Ground != TileType.ground;
             string text = null;
-            if (info.ObjectId != ObjectID.None)
+            if (info.ObjectId != ObjectID.None && !hiddenByGround)
             {
                 // Vrai interactible (coffre, machine...) -> son du materiau si present +
                 // marqueur interactible, qui REMPLACENT le tick de deplacement (comme le
@@ -355,7 +364,11 @@ namespace CoreKeeperAccess.Gameplay
                 // Sol : tick de position. Sol notable annonce (le sol de base reste muet).
                 PlayMoveTick(dx, dy);
                 if (speak && info.Ground != TileType.ground)
+                {
                     text = GroundLabel(info.Ground, info.GroundTileset);
+                    if (hiddenByGround)
+                        text = Join(text, Strings.L(info.WirePower == PowerState.On ? "cursor.powered" : "cursor.unpowered"));
+                }
             }
 
             if (speak && !string.IsNullOrEmpty(text)) TtsText.Say(text, true);
@@ -554,27 +567,47 @@ namespace CoreKeeperAccess.Gameplay
             // visible dessous (meme exclusion que le comportement d'origine).
             if (!TileQuery.HasWall)
             {
-                // Cable : la case a-t-elle un cable, et est-il MASQUE par un autre objet
-                // gagnant (foreuse/machine posee dessus) ? Si le cable EST l'objet affiche
-                // ci-dessous, sa tension sort deja via ce chemin (AppendIndustry) - pas de
-                // doublon ici.
+                // Sol notable calcule EN AMONT (dalle a peindre/pont/rail... ; sol de base =
+                // muet ici comme ailleurs, meme garde que BuildModeNavigator.Announce) : sert
+                // aussi a detecter si un cable SEUL sur la case (aucune machine gagnante cote
+                // ObjectIndex) est en fait cache visuellement sous une dalle posee dessus.
+                bool groundNotable = TileQuery.Ground != TileType.ground;
+                string groundText = groundNotable ? GroundLabel(TileQuery.Ground, TileQuery.GroundTileset) : null;
+
+                // Cable : la case a-t-elle un cable, et est-il MASQUE - par un autre objet
+                // gagnant (foreuse/machine posee dessus), OU par une dalle/sol notable posee
+                // par-dessus (le cable est alors le SEUL "objet" cote ObjectIndex, mais
+                // visuellement invisible sous la dalle - pont, dalle de pierre, dalle a
+                // peindre... - meme si rien ne l'occupe cote entites) ? Si le cable EST
+                // l'objet affiche ET que rien ne le recouvre, sa tension sort deja via ce
+                // chemin (AppendIndustry) - pas de doublon ici.
                 bool wireOnCase = TileQuery.WireObjectId != ObjectID.None;
-                bool wireMasked = wireOnCase && TileQuery.WireObjectId != TileQuery.ObjectId;
+                bool hiddenByGround = wireOnCase && TileQuery.WireObjectId == TileQuery.ObjectId && groundNotable;
+                bool wireMasked = wireOnCase && (TileQuery.WireObjectId != TileQuery.ObjectId || hiddenByGround);
                 if (wireMasked)
                 {
                     // Coupe la fuite de tension vers le nom de l'objet masquant (AppendIndustry,
-                    // branche WirePower) : la clause dediee ci-dessous porte deja cette info,
-                    // eviter de la dire deux fois sous deux formulations differentes.
+                    // branche Power/WirePower) : la clause dediee ci-dessous porte deja cette
+                    // info, eviter de la dire deux fois sous deux formulations differentes.
                     snap.WirePower = PowerState.None;
+                    if (hiddenByGround) snap.Power = PowerState.None;
                 }
 
-                // Objet pose.
-                if (TileQuery.ObjectId != ObjectID.None)
+                // Objet pose : tu si le cable lui-meme est la seule entree ET qu'une dalle le
+                // recouvre (rien d'autre a dire ici, la dalle parle pour la case ci-dessous).
+                if (TileQuery.ObjectId != ObjectID.None && !hiddenByGround)
                 {
                     string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
                     string objText = AppendToggle(AppendIndustry(AppendPlant(objName, in snap), in snap, true), in snap);
                     text = Stack(text, objText);
                 }
+
+                // Sol / dalle (couche de revetement, ex. dalle a peindre/pont/rail) : annonce
+                // toujours quand NOTABLE, meme si un objet occupe la case (ne doit plus etre
+                // masque) - sol de base reste muet (evite le "Ground" brut sur chaque case nue).
+                // AVANT le cable : ce qui est VISIBLE (objet, dalle) prime dans l'ordre,
+                // l'info cachee (cable masque) vient en dernier, jamais en tete.
+                text = Stack(text, groundText);
 
                 if (wireMasked)
                 {
@@ -583,10 +616,6 @@ namespace CoreKeeperAccess.Gameplay
                     string tension = Strings.L(TileQuery.WirePower == PowerState.On ? "cursor.powered" : "cursor.unpowered");
                     text = Stack(text, wireName + ", " + tension);
                 }
-
-                // Sol / dalle (couche de revetement, ex. dalle a peindre/pont/rail) : annonce
-                // TOUJOURS, meme si un objet occupe la case (ne doit plus etre masque).
-                text = Stack(text, GroundLabel(TileQuery.Ground, TileQuery.GroundTileset));
             }
 
             // Coordonnees monde de la case pointee, en queue de l'annonce (demande

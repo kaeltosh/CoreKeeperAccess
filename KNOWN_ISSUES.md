@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.13 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.14 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
@@ -15,8 +15,8 @@ Current as of 1.0.13 beta. Please check this list before opening an issue — an
 - **Hotbar switching controls have been swapped**: it's now Triangle+L1 (next) / Triangle+R1 (previous), reversed from before, based on tester feedback — not yet confirmed live after the swap.
 - **New command-learn mode**: hold Triangle (or R3, or press neither) and press any button to hear what it does, without it actually triggering — a screen-reader-style "input help" complementing the existing button-naming mode. Not yet confirmed live.
 - **New shortcut to cycle equipment presets**: with the character/inventory window open (not at a station), Triangle+D-pad right/left switches to the next/previous of your 3 equipment presets. Not yet confirmed live.
-- **Tile details (Triangle+Up) enriched**: now announces every layer present on the targeted tile (ceiling, wall, electrical wire, placed object, floor covering) instead of just one at a time — useful for tiles where several things overlap (a wire under a machine, flooring placed over an object…). Not yet confirmed live.
 - **Ore prospecting (Triangle+Left) extended to drill-mined deposits**: besides a buried vein, it now also finds the nearest mineable deposit (both can be announced in the same sweep if found at the same time). Not yet confirmed live.
+- **Jumping to hotbar slot 1 (Triangle+O) no longer crashes the mod if used while playing a musical instrument.** It now stops the instrument and closes any open UI before switching, and every other Triangle combo is suppressed (button handed back to the game) while an instrument is playing, so it can't interfere with notes/chords. Not yet confirmed live.
 
 ## Known bugs
 

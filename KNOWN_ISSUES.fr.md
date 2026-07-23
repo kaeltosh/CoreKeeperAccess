@@ -2,7 +2,7 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à la 1.0.13 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0.14 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
 
 > **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
 
@@ -15,8 +15,8 @@
 - **Changement de barre rapide inversé** : c'est désormais Triangle+L1 (suivante) / Triangle+R1 (précédente), inversé par rapport à avant, suite au retour des testeurs — pas encore confirmé en conditions réelles après l'inversion.
 - **Nouveau mode d'apprentissage des commandes** : tenez Triangle (ou R3, ou aucun des deux) et appuyez sur n'importe quel bouton pour entendre ce qu'il fait, sans qu'il s'exécute réellement — façon aide à la saisie d'un lecteur d'écran, en complément du mode nommage des boutons existant. Pas encore confirmé en conditions réelles.
 - **Nouveau raccourci pour cycler les profils d'équipement** : fiche perso/inventaire ouvert (pas en station), Triangle+D-pad droite/gauche bascule vers le profil d'équipement suivant/précédent parmi les 3. Pas encore confirmé en conditions réelles.
-- **Détails de case (Triangle+Haut) enrichis** : annonce désormais toutes les couches présentes sur la case pointée (plafond, mur, câble électrique, objet posé, sol/dalle), au lieu d'une seule à la fois — utile pour les cases où plusieurs éléments se superposent (câble sous une machine, dalle posée sur un objet…). Pas encore confirmé en conditions réelles.
 - **Prospection minerai (Triangle+gauche) étendue aux gisements à foreuse** : en plus du filon enfoui, elle repère maintenant aussi le gisement minable le plus proche (les deux peuvent être annoncés dans la même salve s'ils sont trouvés en même temps). Pas encore confirmé en conditions réelles.
+- **Le saut direct à la barre 1/slot 1 (Triangle+Rond) ne plante plus le mod s'il est utilisé en jouant d'un instrument de musique.** Il arrête désormais proprement l'instrument et ferme les fenêtres ouvertes avant de basculer, et tous les autres combos Triangle sont suspendus (bouton rendu au jeu) tant qu'un instrument est joué, pour ne plus parasiter les notes/accords. Pas encore confirmé en conditions réelles.
 
 ## Bugs connus
 

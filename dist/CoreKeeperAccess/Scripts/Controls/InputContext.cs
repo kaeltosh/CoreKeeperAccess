@@ -42,6 +42,10 @@ namespace CoreKeeperAccess.Controls
         public static bool CommandLearnActive { get; private set; } // mode decouverte des commandes
         public static bool SoundGuideOpen { get; private set; }      // menu d'apprentissage des sons
         public static bool OnboardingHintActive { get; private set; } // popup d'accueil (comment rouvrir l'aide)
+        // Joueur en train de jouer un instrument (etat natif PlayInstrumentHandler, PAS une
+        // fenetre suivie ailleurs) : les combos autres que Triangle+Rond doivent se taire et
+        // rendre leurs boutons au jeu, sinon ils parasitent les notes/accords natifs.
+        public static bool PlayingInstrument { get; private set; }
 
         // Composites des anciennes gardes.
         public static bool UiBusy { get; private set; }     // nav inventaire OU menu : combos gameplay muets
@@ -77,6 +81,8 @@ namespace CoreKeeperAccess.Controls
             CommandLearnActive = CommandLearn.Active;
             SoundGuideOpen = SoundGuide.Active;
             OnboardingHintActive = OnboardingHint.Active;
+            PlayingInstrument = InWorld && Manager.main.player.instrumentHandler != null
+                && Manager.main.player.instrumentHandler.IsPlayingInstrument;
 
             // Modaux a11y (panneau de reglages, menu contextuel / menu d'aide) : on les
             // compte dans UiBusy ET on retire InGameFree -> laser, curseur, sentinelle,

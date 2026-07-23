@@ -79,7 +79,15 @@ namespace CoreKeeperAccess.Controls
             ModifierHeld = GetButtonById(joy, tri);
             if (ModifierHeld)
             {
-                if (GetButtonDownById(joy, DpadUp))
+                if (InputContext.PlayingInstrument)
+                {
+                    // Instrument en cours de lecture : seul Triangle+Rond reste une commande
+                    // (echappatoire pour fermer/sauter de slot). Tous les autres boutons sont
+                    // rendus au jeu tels quels (notes/accords natifs), on ne les lit meme pas
+                    // ici pour eviter tout parasitage.
+                    if (GetButtonDownById(joy, CircleButton)) ComboO = true;
+                }
+                else if (GetButtonDownById(joy, DpadUp))
                 {
                     // Double-tap du D-pad haut = menu d'aide. Le 1er tap reste "details"
                     // (commande frequente -> aucune latence) ; un 2e tap rapide leve plutot

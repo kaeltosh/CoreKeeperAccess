@@ -2,6 +2,18 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.14 beta — July 2026
+
+Field-confirmed: the layered tile-details command introduced untested in 1.0.13, plus a fix for how it (and normal cursor movement) handle an electrical wire hidden under a floor tile.
+
+### Additions
+
+- **Tile details (Triangle+Up) now list every layer present on the targeted tile** (ceiling, wall, electrical wire, placed object, floor covering) instead of just one at a time — useful for tiles where several things overlap. Introduced untested in 1.0.13, now confirmed working in the field.
+
+### Fixes
+
+- **A bare electrical wire hidden under a floor tile (stone tile, bridge, paintable floor…) no longer takes priority over the floor tile it's actually hidden beneath.** During normal cursor movement, only the floor tile is announced now, with its power state folded in ("stone tile, powered/unpowered") instead of the wire being named directly — you couldn't see it was there either. In the Triangle+Up details, the floor tile is now announced before the wire, matching what's actually visible.
+
 ## 1.0.12 beta — July 2026
 
 Field confirmations for content introduced untested in 1.0.10/1.0.11, plus one control remap.

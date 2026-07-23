@@ -140,7 +140,16 @@ namespace CoreKeeperAccess.Controls
 
             // Triangle + Rond = saut direct a la barre 1, slot 1. Le bouton est bloque cote
             // natif quelle que soit son action (TriangleModifier.CircleActionIds +
-            // NativeInputSuppressionPatch), donc pas de double-declenchement a craindre.
+            // NativeInputSuppressionPatch) SAUF pendant l'instrument (cf. Blocks), donc pas
+            // de double-declenchement a craindre hors instrument.
+            // PIEGE ORIGINAL (crash mode instrument) : lance en pleine lecture d'instrument,
+            // le saut de slot changeait l'objet visuellement equipe SANS que le jeu ait
+            // proprement quitte l'etat PlayingInstrument -> plantage. Fix : on reproduit ce
+            // que fait le bouton Fermer natif (CloseButton.OnLeftClicked) AVANT le saut -
+            // fermer inventaire/artisanat, fermer la carte, et si un instrument est en cours,
+            // poser stopPlayingInstrument (le jeu s'occupe de la sortie propre la frame
+            // suivante). Filet de securite meme si UiBusy/InGameFree bloquent deja les autres
+            // cas UI ouverte.
             // PIEGE (casse la barre en boucle si oublie) : hotbarStartIndex ET
             // equippedSlotIndex doivent rester coherents a chaque instant - EquipSlot lit
             // equippedSlotIndex - hotbarStartIndex des sa 1re ligne (IsAnySlotEquipped) AVANT
@@ -151,6 +160,10 @@ namespace CoreKeeperAccess.Controls
                 () => !UiBusy() && InputContext.InGameFree && Player() != null, () =>
                 {
                     var p = Player();
+                    Manager.ui.HideAllInventoryAndCraftingUI(true);
+                    Manager.ui.HideMap();
+                    if (p.instrumentHandler != null && p.instrumentHandler.IsPlayingInstrument)
+                        p.stopPlayingInstrument = true;
                     p.hotbarStartIndex = 0;
                     p.hotbarEndIndex = 10;
                     p.equippedSlotIndex = 0;

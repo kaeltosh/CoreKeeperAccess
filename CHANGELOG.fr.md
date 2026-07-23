@@ -2,6 +2,18 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.14 bêta — juillet 2026
+
+Confirmé sur le terrain : la commande de détails de case empilés, introduite non testée en 1.0.13, plus un correctif sur la façon dont elle (et le survol normal du curseur) gèrent un câble électrique caché sous une dalle.
+
+### Ajouts
+
+- **Les détails de case (Triangle+Haut) annoncent désormais toutes les couches présentes sur la case pointée** (plafond, mur, câble électrique, objet posé, sol/dalle), au lieu d'une seule à la fois — utile pour les cases où plusieurs éléments se superposent. Introduit non testé en 1.0.13, confirmé fonctionnel sur le terrain.
+
+### Corrections
+
+- **Un câble électrique nu caché sous une dalle (dalle de pierre, pont, dalle à peindre…) n'a plus la priorité sur la dalle qui le recouvre réellement.** Au survol normal du curseur, seule la dalle est désormais annoncée, avec sa tension intégrée ("dalle de pierre, sous tension/hors tension") au lieu de nommer le câble directement — de toute façon invisible à l'œil. Dans les détails Triangle+Haut, la dalle est maintenant annoncée avant le câble, conforme à ce qui est réellement visible.
+
 ## 1.0.12 bêta — juillet 2026
 
 Confirmations terrain pour du contenu introduit non testé en 1.0.10/1.0.11, plus un remap de touche.

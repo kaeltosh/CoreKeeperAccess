@@ -56,17 +56,23 @@ namespace CoreKeeperAccess.Patches
             // Curseur detache : on vole Croix pour que l'interaction passe par la case
             // visee, pas l'objet adjacent natif (sinon impossible d'agir pres d'un coffre).
             if (BuildModeNavigator.StealsCross && t == PlayerInput.InputType.INTERACT_WITH_OBJECT) return true;
-            // Triangle tenu : L1 = ping sonar -> son action native (slot precedent)
-            // ne doit pas partir en meme temps. RB n'est pas vole (pas de combo dessus).
-            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.PREVIOUS_SLOT) return true;
-            // Triangle tenu : R1 = pivoter / changer taille -> ne pas changer de slot.
-            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.NEXT_SLOT) return true;
-            // Triangle tenu : L3 = bascule direction assistee -> ne pas changer de torche.
-            if (InfoKey.ModifierHeld && t == PlayerInput.InputType.QUICK_SWAP_TORCH) return true;
-            // Triangle tenu : Rond (id physique 7) = saut direct barre 1/slot 1 -> bloque
-            // TOUT ce qui est natif sur ce bouton, quelle que soit l'action liee (capturee
-            // dynamiquement par TriangleModifier, pas de nom code en dur).
-            if (InfoKey.ModifierHeld && TriangleModifier.CircleActionIds.Contains((int)t)) return true;
+            // Instrument en cours de lecture : on rend TOUS ces boutons au jeu (notes/accords
+            // natifs) - seul Triangle+Rond reste une commande a nous, et son binding natif
+            // (juste en dessous) reste lui aussi envoye au jeu pendant l'instrument.
+            if (!InputContext.PlayingInstrument)
+            {
+                // Triangle tenu : L1 = ping sonar -> son action native (slot precedent)
+                // ne doit pas partir en meme temps. RB n'est pas vole (pas de combo dessus).
+                if (InfoKey.ModifierHeld && t == PlayerInput.InputType.PREVIOUS_SLOT) return true;
+                // Triangle tenu : R1 = pivoter / changer taille -> ne pas changer de slot.
+                if (InfoKey.ModifierHeld && t == PlayerInput.InputType.NEXT_SLOT) return true;
+                // Triangle tenu : L3 = bascule direction assistee -> ne pas changer de torche.
+                if (InfoKey.ModifierHeld && t == PlayerInput.InputType.QUICK_SWAP_TORCH) return true;
+                // Triangle tenu : Rond (id physique 7) = saut direct barre 1/slot 1 -> bloque
+                // TOUT ce qui est natif sur ce bouton, quelle que soit l'action liee (capturee
+                // dynamiquement par TriangleModifier, pas de nom code en dur).
+                if (InfoKey.ModifierHeld && TriangleModifier.CircleActionIds.Contains((int)t)) return true;
+            }
             // R3 tenu (scanner de proximite) : ne pas courir pendant qu'on navigue au D-pad.
             if (ScannerModifier.Held && t == PlayerInput.InputType.MOVE_FASTER) return true;
             return false;
