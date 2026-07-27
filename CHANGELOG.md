@@ -2,6 +2,28 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.15 beta — July 2026
+
+A release driven by tester feedback: field confirmations for everything pending since 1.0.12/1.0.13, plus a wave of fixes reported by testers (see also the known issues — that wave hasn't been played yet).
+
+### Additions
+
+- **Ore prospecting (Triangle+Left) also finds drill-mined deposits.** Introduced untested in 1.0.13, now confirmed in the field — it turned up a scarlet deposit that would otherwise have been missed. It now announces **every** deposit in range, nearest first, instead of only the closest one: two deposits side by side no longer hide each other.
+- **Command-learn mode**: hold Triangle (or R3, or press neither) and press any button to hear what it does, without it actually triggering — the equivalent of a screen reader's input help, complementing the mode that names the buttons.
+- **Equipment preset shortcut**: with the character or inventory window open (not at a station), Triangle+D-pad right/left switches to the next/previous of your three equipment presets.
+- **Cooked meals are announced by their full name on the hotbar.** Two different soups no longer both read as "Soup": the ingredients are spoken, as they are in the inventory.
+- **The dresser tells you whether your gear is hidden or shown.** On an empty vanity slot you now hear "gear hidden" or "gear shown", and the toggle is re-announced when you flip it — both states used to read as "empty".
+- **Tile details (Triangle+Up) announce standard floors again** (dirt, stone…) on top of tiles and special floors. Handy for farming in particular.
+- **Boating**: a boat can be found with the detached cursor like any placed object, the laser cane marks the shore with a dedicated sound instead of treating water as an obstacle, and both the sonar and the collision detector stop blaring while you're out on the water. The help menu also reminds you how to leave the boat, as long as you're sailing.
+
+### Fixes
+
+- **Jumping to hotbar 1 / slot 1 (Triangle+O) no longer crashes the mod while playing a musical instrument.** Confirmed in the field: it exits instrument mode cleanly and equips the slot.
+- **Hotbar switching is reversed** based on tester feedback: Triangle+L1 goes to the next bar, Triangle+R1 to the previous one.
+- **Ancient relays in the ruins are no longer mistaken for ore deposits** by ore prospecting.
+- **The kelp turtle is no longer classed as an enemy** by the laser cane: it's livestock, and it's now treated as such — by the cane and by the sentinel that watches for attackers.
+- **In the livestock window, the breeding button's label no longer repeats** at the end of the animal's status line.
+
 ## 1.0.14 beta — July 2026
 
 Field-confirmed: the layered tile-details command introduced untested in 1.0.13, plus a fix for how it (and normal cursor movement) handle an electrical wire hidden under a floor tile.

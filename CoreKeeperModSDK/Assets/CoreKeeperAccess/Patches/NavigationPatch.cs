@@ -93,7 +93,10 @@ namespace CoreKeeperAccess.Patches
                 }
                 else
                 {
-                    string name = InGameTtsCore.ResolveObjectName(held.objectID);
+                    // Nom resolu depuis l'objet COMPLET (variation incluse) : sans ca, tous
+                    // les plats cuisines sortaient sous leur nom generique ("Soupe") sur la
+                    // barre rapide, alors que l'inventaire donne le detail.
+                    string name = InGameTtsCore.ResolveObjectName(held);
                     if (string.IsNullOrEmpty(name)) return;
                     // Seau / arrosoir : annoncer vide/plein plutot que l'amount (= niveau,
                     // pas une quantite empilee).

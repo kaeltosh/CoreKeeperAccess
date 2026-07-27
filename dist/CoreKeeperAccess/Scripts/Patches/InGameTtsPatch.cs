@@ -668,6 +668,49 @@ namespace CoreKeeperAccess.Patches
         // decoupe pour le TTS ("IndestructibleAncientWire" -> "Indestructible Ancient
         // Wire"). Pas localise, mais identifiable - des libelles i18n cibles pourront
         // s'ajouter au cas par cas.
+        // Slots d'APPARENCE (commode / meuble de charpentier : casque, torse, jambes).
+        // Un slot vanity VIDE porte quand meme un etat que le jeu ne montre qu'a l'image
+        // (une icone barree) : amount == -1 = la piece d'equipement reelle est MASQUEE sur
+        // le personnage, amount >= 0 = elle reste visible. C'est cette bascule (Croix sur le
+        // slot vide, ToggleVisibilityOfVanitySlot cote jeu) que le testeur ne pouvait pas
+        // suivre - "on ne sait pas si telle ou telle option est activee ou non" (24 juillet
+        // 2026). Un slot vanity REMPLI n'a pas d'etat a dire : l'objet pose parle pour lui.
+        public static string VanityVisibilityLabel(UIelement element)
+        {
+            var slot = element as InventorySlotUI;
+            if (slot == null) return null;
+            if (slot.slotType != ItemSlotsUIType.HelmVanitySlot
+                && slot.slotType != ItemSlotsUIType.BreastVanitySlot
+                && slot.slotType != ItemSlotsUIType.PantsVanitySlot) return null;
+            try
+            {
+                var od = slot.GetObjectData();
+                if (od.objectID != ObjectID.None) return null;
+                return Strings.L(od.amount < 0 ? "vanity.hidden" : "vanity.shown");
+            }
+            catch { return null; }
+        }
+
+        // Variante qui part de l'objet REEL (avec sa variation) et pas du seul ObjectID.
+        // Indispensable pour tout ce dont le nom depend de la variation : plats cuisines
+        // (l'ObjectID seul donne "Soupe", la variation encode les deux ingredients et
+        // GetObjectName compose "Soupe de X et Y"), objets renommes (NameCD), rarete.
+        // Retour testeur du 25 juillet 2026 : "quand on navigue sur la barre rapide ca dit
+        // juste soupe ou filet, il n'y a aucune distinction entre les soupes".
+        public static string ResolveObjectName(ObjectDataCD objectData)
+        {
+            ObjectID id = objectData.objectID;
+            if (id == ObjectID.None) return null;
+            var contained = new ContainedObjectsBuffer { objectData = objectData };
+            if (Strings.TryL("obj." + id, out string custom)) return custom;
+            string plant = ResolvePlantName(id);
+            if (plant != null) return plant;
+            string name = TtsText.ResolveTextAndFormatFields(
+                PlayerController.GetObjectName(contained, false));
+            if (!string.IsNullOrEmpty(name)) return name;
+            return SplitEnumName(id.ToString());
+        }
+
         public static string ResolveObjectName(ObjectID objectID)
         {
             if (objectID == ObjectID.None) return null;

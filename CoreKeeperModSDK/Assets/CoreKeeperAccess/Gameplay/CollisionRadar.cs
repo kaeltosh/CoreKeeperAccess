@@ -64,6 +64,7 @@ namespace CoreKeeperAccess.Gameplay
                                                  Mathf.RoundToInt(player.WorldPosition.z));
                 CollisionScan.Direction = dir;
                 CollisionScan.MaxRange = range;
+                CollisionScan.OnWater = PlayerRide.OnBoat(player);
                 CollisionScan.Requested = true;
             }
 

@@ -2,6 +2,28 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.15 bêta — juillet 2026
+
+Version issue des retours de la session de test : confirmations de terrain pour ce qui était en attente depuis 1.0.12/1.0.13, plus une vague de corrections signalées par les testeurs (voir aussi les problèmes connus, cette vague-là n'a pas encore été jouée).
+
+### Ajouts
+
+- **La prospection minerai (Triangle+gauche) repère aussi les gisements à foreuse.** Introduite non testée en 1.0.13, confirmée sur le terrain — un gisement d'écarlate trouvé grâce à elle, qui serait passé inaperçu autrement. Elle annonce maintenant **tous** les gisements à portée, du plus proche au plus lointain, et non plus seulement le plus proche : deux gisements côte à côte ne se masquent plus.
+- **Mode d'apprentissage des commandes** : tiens Triangle (ou R3, ou aucun des deux) et appuie sur n'importe quel bouton pour entendre ce qu'il fait, sans qu'il s'exécute — l'équivalent de l'aide à la saisie d'un lecteur d'écran, en complément du mode qui nomme les boutons.
+- **Raccourci de profils d'équipement** : fiche perso ou inventaire ouvert (pas en station), Triangle+croix directionnelle droite/gauche passe au profil d'équipement suivant/précédent parmi les trois.
+- **Le nom complet des plats cuisinés est annoncé sur la barre rapide.** Deux soupes différentes ne se lisent plus toutes les deux « Soupe » : les ingrédients sont dits, comme dans l'inventaire.
+- **La commode dit si l'apparence est masquée ou visible.** Sur un emplacement d'apparence vide, on entend désormais « équipement masqué » ou « équipement visible », et la bascule est réannoncée quand tu l'actionnes — avant, les deux états se lisaient « vide ».
+- **Les détails de case (Triangle+Haut) annoncent de nouveau les sols standards** (terre, pierre…), en plus des dalles et sols spéciaux. Utile notamment pour les cultures.
+- **Navigation en bateau** : le bateau est repérable au curseur détaché comme n'importe quel objet posé, la canne laser signale le rivage par un son dédié au lieu de traiter l'eau comme un obstacle, et le sonar comme le détecteur de collision cessent de sonner en permanence en pleine eau. Le menu d'aide rappelle aussi comment sortir du bateau, tant que tu navigues.
+
+### Corrections
+
+- **Le saut à la barre 1 / emplacement 1 (Triangle+Rond) ne plante plus le mod pendant qu'on joue d'un instrument de musique.** Confirmé sur le terrain : il sort proprement du mode instrument et équipe l'emplacement.
+- **Le changement de barre rapide est inversé** suite au retour des testeurs : Triangle+L1 passe à la suivante, Triangle+R1 à la précédente.
+- **Les relais anciens des ruines ne sont plus pris pour des gisements** par la prospection minerai.
+- **Le Varechortue n'est plus classé comme ennemi** par la canne laser : c'est du bétail, et il est désormais traité comme tel — aussi bien au laser que par la sentinelle qui surveille les attaquants.
+- **Dans la fenêtre du bétail, le libellé du bouton de reproduction ne se répète plus** à la fin de la ligne d'état de l'animal.
+
 ## 1.0.14 bêta — juillet 2026
 
 Confirmé sur le terrain : la commande de détails de case empilés, introduite non testée en 1.0.13, plus un correctif sur la façon dont elle (et le survol normal du curseur) gèrent un câble électrique caché sous une dalle.

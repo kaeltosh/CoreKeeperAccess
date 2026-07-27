@@ -246,6 +246,15 @@ namespace CoreKeeperAccess.Gameplay
             => id == ObjectID.SlimeBlob
             || id == ObjectID.SlipperySlimeBlob
             || id == ObjectID.PoisonSlimeBlob;
+
+        // Betail : JAMAIS un ennemi, quelle que soit sa faction native. Retour testeur du
+        // 25 juillet 2026 - la tortue (Varechortue) sortait "Ennemi" a la canne laser :
+        // les betes du biome marin portent FactionID.SeaCreature, hostile par defaut cote
+        // filtre, alors que la mecanique "Cattle" du jeu en fait un animal d'elevage
+        // (laisse, reproduction, nourrissage). L'ObjectID prime donc sur la faction, comme
+        // le fait deja le scanner de proximite (categorie Betail testee en premier) et la
+        // sonde du curseur detache. Cf. core-keeper-cattle-a11y.
+        public static bool IsCattle(ObjectID id) => ProximityScanner.CattleIds.Contains(id);
     }
 
     // Enumere les mobs hostiles EN COMBAT visibles a l'ecran, via le flag natif
@@ -309,6 +318,14 @@ namespace CoreKeeperAccess.Gameplay
                     if (!EntityUtility.HasComponentData<FactionCD>(e, World)
                         || !HostileFilter.IsHostile(EntityUtility.GetComponentData<FactionCD>(e, World).faction)) continue;
 
+                    // Betail : l'ObjectID prime sur la faction (tortue = FactionID.SeaCreature,
+                    // hostile pour le filtre generique). Tape par le joueur, il allumerait
+                    // IsInCombatCD et sonnerait comme un monstre a l'attaque.
+                    ObjectID obj = EntityUtility.HasComponentData<ObjectDataCD>(e, World)
+                        ? EntityUtility.GetComponentData<ObjectDataCD>(e, World).objectID
+                        : ObjectID.None;
+                    if (HostileFilter.IsCattle(obj)) continue;
+
                     // Mort : l'etat Death n'est pas replique au client, mais la VIE l'est.
                     // Sans ce filtre, l'hysteresis de 3 s ferait biper le cadavre.
                     if (EntityUtility.HasComponentData<HealthCD>(e, World)
@@ -325,9 +342,6 @@ namespace CoreKeeperAccess.Gameplay
                     float2 d = p - AggroScan.PlayerPos;
                     if (!isBoss && (math.abs(d.x) > AggroScan.CamHalf.x || math.abs(d.y) > AggroScan.CamHalf.y)) continue;
 
-                    ObjectID obj = EntityUtility.HasComponentData<ObjectDataCD>(e, World)
-                        ? EntityUtility.GetComponentData<ObjectDataCD>(e, World).objectID
-                        : ObjectID.None;
                     AggroScan.Chasers[n++] = new AggroScan.Chaser
                     {
                         Key = EntityKey.Of(e),

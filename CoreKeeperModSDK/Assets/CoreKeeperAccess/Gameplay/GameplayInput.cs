@@ -334,7 +334,7 @@ namespace CoreKeeperAccess.Gameplay
             if (!_prospectPending || !OreScan.ResultValid) return;
             _prospectPending = false;
 
-            if (!OreScan.Found && !OreScan.DepositFound)
+            if (!OreScan.Found && OreScan.DepositCount == 0)
             {
                 TtsText.Say(Strings.L("prospect.none") + ", "
                     + Strings.L("prospect.radius") + " " + _prospectRadius, true);
@@ -356,12 +356,17 @@ namespace CoreKeeperAccess.Gameplay
                     : Cardinal(d) + ", " + dist + " " + Strings.L("teleport.tiles"));
             }
 
-            if (OreScan.DepositFound)
+            // TOUS les gisements a portee (plafonnes a OreScan.MaxDeposits), du plus proche
+            // au plus lointain : ils sont peu nombreux et durables, contrairement aux veines
+            // dont chaque case compterait. Demande testeur du 25 juillet 2026 - "il y a un
+            // autre gisement juste a cote, et ca ne me dit que le plus proche".
+            for (int i = 0; i < OreScan.DepositCount; i++)
             {
-                float2 d = new float2(OreScan.DepositTile.x, OreScan.DepositTile.y) - p;
+                int2 tile = OreScan.DepositTiles[i];
+                float2 d = new float2(tile.x, tile.y) - p;
                 float pitch = Mathf.Clamp(Mathf.Pow(2f, d.y / 12f), 0.5f, 2f);
                 GameplayAudio.PlayTableSpatialNoPitchDev(SfxTableID.oreHit,
-                    new Vector3(OreScan.DepositTile.x, 0f, OreScan.DepositTile.y), ProspectDingVolume, pitch);
+                    new Vector3(tile.x, 0f, tile.y), ProspectDingVolume, pitch);
                 int dist = Mathf.RoundToInt(math.length(d));
                 string depositText = Strings.L("prospect.deposit") + ", " + (dist < 1
                     ? Strings.L("prospect.here")

@@ -76,6 +76,7 @@ namespace CoreKeeperAccess.Gameplay
                 _nextScan = Time.unscaledTime + ScanInterval;
                 SonarScan.Center = new int2(Mathf.RoundToInt(player.WorldPosition.x),
                                             Mathf.RoundToInt(player.WorldPosition.z));
+                SonarScan.OnWater = PlayerRide.OnBoat(player);
                 SonarScan.Requested = true;
             }
             // Case franchie (le pas) : declenche le ding des objets a chaque nouvelle case.

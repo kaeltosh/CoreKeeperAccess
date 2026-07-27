@@ -304,16 +304,24 @@ namespace CoreKeeperAccess.Gameplay
                 // categorie "mur" : sinon PlayWallMaterialSfx jouait le son de roche et on
                 // croyait taper un mur impossible a miner/franchir (piege vecu en jeu). Son
                 // DEDIE + TTS, spatialise comme le reste (pan + pitch vertical).
-                if (info.WallType == TileType.pit)
+                if (info.WallType == TileType.pit || info.WallType == TileType.water)
                 {
-                    PlaySpecialSurface(dx, dy, SfxID.ui_plop_1_01);
-                    if (speak) TtsText.Say(Strings.L("cursor.pit"), true);
-                    return;
-                }
-                if (info.WallType == TileType.water)
-                {
-                    PlaySpecialSurface(dx, dy, SfxID.fish_splash_1_02);
-                    if (speak) TtsText.Say(Strings.L("cursor.water"), true);
+                    bool isWater = info.WallType == TileType.water;
+                    PlaySpecialSurface(dx, dy, isWater ? SfxID.fish_splash_1_02 : SfxID.ui_plop_1_01);
+                    if (speak)
+                    {
+                        // Un objet POSE sur l'eau (bateau...) ou au-dessus d'un trou ne doit
+                        // pas etre masque par la surface : sans ca, le bateau amarre etait
+                        // introuvable au curseur detache (retour testeur 24 juillet 2026, "on
+                        // ne peut le detecter qu'au message d'interaction"). Le son de surface
+                        // est conserve (il porte deja "eau/trou"), le TTS nomme l'objet puis
+                        // la surface, comme un voyant voit le bateau ET l'eau autour.
+                        string surface = Strings.L(isWater ? "cursor.water" : "cursor.pit");
+                        string objName = info.ObjectId != ObjectID.None && !IsSilentDecor(info.ObjectId)
+                            ? InGameTtsCore.ResolveObjectName(info.ObjectId)
+                            : null;
+                        TtsText.Say(string.IsNullOrEmpty(objName) ? surface : Join(objName, surface), true);
+                    }
                     return;
                 }
                 // Mur SCELLE (couche immune : Grande Muraille...) : invulnerable, donc
@@ -397,6 +405,15 @@ namespace CoreKeeperAccess.Gameplay
 
         // Surface speciale au curseur (trou / eau) : un son DEDIE (pas le son de roche d'un
         // mur), spatialise gauche-droite + pitch vertical (haut = aigu), comme le tick.
+        // Rivage vu du bateau : la terre ferme, la ou la navigation s'arrete. Meme langage
+        // spatial que les autres surfaces (pan + pitch vertical + trim distance). Timbre
+        // PLACEHOLDER (pas de sable choisi a l'oreille) - a auditionner, cf.
+        // core-keeper-sound-audition.md.
+        internal static void PlayShore(int dx, int dy)
+            => PlaySpecialSurface(dx, dy, SfxID.Footstep_Sand);
+
+        public static void PreviewShore() => PlayShore(0, 0);
+
         private static void PlaySpecialSurface(int dx, int dy, SfxID id)
         {
             float pan = GameplayAudio.PanFromTiles(dx);
@@ -560,6 +577,17 @@ namespace CoreKeeperAccess.Gameplay
                     wallText = string.IsNullOrEmpty(wallText)
                         ? Strings.L("cursor.immune")
                         : Strings.L("cursor.immune") + ", " + wallText;
+                // Eau / trou : une surface, pas un bloc plein - ce qui est POSE dessus (bateau
+                // amarre, structure au-dessus d'un trou) reste visible et doit etre annonce,
+                // en tete puisqu'il prime a l'oeil sur la surface. Un vrai mur, lui, occupe
+                // toute la case et masque tout (comportement inchange).
+                if (TileQuery.WallType == TileType.pit || TileQuery.WallType == TileType.water)
+                {
+                    string overName = TileQuery.ObjectId != ObjectID.None && !IsSilentDecor(TileQuery.ObjectId)
+                        ? InGameTtsCore.ResolveObjectName(TileQuery.ObjectId)
+                        : null;
+                    if (!string.IsNullOrEmpty(overName)) text = Stack(text, overName);
+                }
                 text = Stack(text, wallText);
             }
 
@@ -567,12 +595,18 @@ namespace CoreKeeperAccess.Gameplay
             // visible dessous (meme exclusion que le comportement d'origine).
             if (!TileQuery.HasWall)
             {
-                // Sol notable calcule EN AMONT (dalle a peindre/pont/rail... ; sol de base =
-                // muet ici comme ailleurs, meme garde que BuildModeNavigator.Announce) : sert
-                // aussi a detecter si un cable SEUL sur la case (aucune machine gagnante cote
+                // Sol calcule EN AMONT. "Notable" (dalle a peindre/pont/rail...) sert a
+                // detecter si un cable SEUL sur la case (aucune machine gagnante cote
                 // ObjectIndex) est en fait cache visuellement sous une dalle posee dessus.
+                // Le LIBELLE, lui, couvre aussi le sol de BASE depuis le 27 juillet 2026
+                // (retour testeurs : "quand on fait triangle plus haut on ne voit plus les
+                // sols standards, autant tout voir dans ce mode, le sol est utile notamment
+                // pour les cultures") - regression de la reecriture en empilage du 21 juillet.
+                // Le survol normal, lui, reste muet sur le sol de base (inchange).
+                // rawFallback:false sur le sol de base -> si la resolution echoue on se tait
+                // plutot que d'annoncer le nom d'enum brut "Ground" sur chaque case nue.
                 bool groundNotable = TileQuery.Ground != TileType.ground;
-                string groundText = groundNotable ? GroundLabel(TileQuery.Ground, TileQuery.GroundTileset) : null;
+                string groundText = GroundLabel(TileQuery.Ground, TileQuery.GroundTileset, groundNotable);
 
                 // Cable : la case a-t-elle un cable, et est-il MASQUE - par un autre objet
                 // gagnant (foreuse/machine posee dessus), OU par une dalle/sol notable posee
@@ -632,6 +666,13 @@ namespace CoreKeeperAccess.Gameplay
             // Silencieux pour les testeurs.
             if (CoreKeeperAccessMod.DevMode)
             {
+                // Sol de base : trace la resolution du nom (27 juillet 2026). Si le TTS reste
+                // muet sur "sol de terre"/"sol de pierre", ce log dit si TryGetTileItemInfo
+                // rend un ObjectID exploitable pour TileType.ground selon le tileset, ou s'il
+                // faut passer par une table i18n maison indexee sur le tileset.
+                Diag.Log("A11yGroundDiag", "ground=" + TileQuery.Ground
+                    + " tileset=" + TileQuery.GroundTileset
+                    + " label=" + (GroundLabel(TileQuery.Ground, TileQuery.GroundTileset, false) ?? "<null>"));
                 AutomationDiag.Tile = _cursor;
                 AutomationDiag.Requested = true;
             }
@@ -698,9 +739,12 @@ namespace CoreKeeperAccess.Gameplay
         private static bool IsSilentDecor(ObjectID id)
             => id == ObjectID.Stalagmite || id == ObjectID.OasisStalagmite;
 
-        // Libelle d'un sol notable. Priorites : cles cursor.* JSON > TryGetTileItemInfo
-        // (revele le contenu reel du sol, varie par biome/tileset, ex. chrysalis) > nom brut.
-        private static string GroundLabel(TileType g, int tileset = 0)
+        // Libelle d'un sol. Priorites : cles cursor.* JSON > TryGetTileItemInfo (revele le
+        // contenu reel du sol, varie par biome/tileset, ex. chrysalis) > nom brut.
+        // rawFallback:false = pas de filet "nom d'enum brut" (appele sur le sol de BASE dans
+        // les details Triangle+haut : soit on sait le nommer proprement, soit on se tait -
+        // annoncer "Ground" sur chaque case nue serait pire que le silence).
+        private static string GroundLabel(TileType g, int tileset = 0, bool rawFallback = true)
         {
             if (g == TileType.dugUpGround) return Strings.L("cursor.tilled");
             if (g == TileType.wateredGround) return Strings.L("cursor.watered");
@@ -715,7 +759,7 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
             catch { }
-            return g.ToString();
+            return rawFallback ? g.ToString() : null;
         }
 
         // Ajoute l'etat d'une plante au libelle de l'objet survole : "en croissance" /

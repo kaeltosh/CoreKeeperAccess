@@ -57,6 +57,7 @@ namespace CoreKeeperAccess.Controls
                 Leaf("sound.wall", "sound.desc.wall", One(BuildModeNavigator.PreviewWall)),
                 Leaf("sound.water", "sound.desc.water", One(BuildModeNavigator.PreviewWater)),
                 Leaf("sound.pit", "sound.desc.pit", One(BuildModeNavigator.PreviewPit)),
+                Leaf("sound.shore", "sound.desc.shore", One(BuildModeNavigator.PreviewShore)),
                 Leaf("sound.interactable", "sound.desc.interactable", One(BuildModeNavigator.PreviewInteractable)),
                 Leaf("sound.ore", "sound.desc.ore", One(BuildModeNavigator.PreviewOre)),
                 Leaf("sound.sonarfront", "sound.desc.sonarfront", () => StartSonar(0)),

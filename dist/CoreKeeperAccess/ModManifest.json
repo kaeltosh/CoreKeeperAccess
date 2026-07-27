@@ -185,6 +185,10 @@
                       "guid":  "0135bc140932ce943a6288d45060cdfa"
                   },
                   {
+                      "path":  "Scripts/Gameplay/PlayerRide.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Gameplay/ProximityScanner.cs",
                       "guid":  ""
                   },

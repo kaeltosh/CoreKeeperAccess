@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.14 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.15 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
@@ -10,17 +10,12 @@ Current as of 1.0.14 beta. Please check this list before opening an issue — an
 
 - **Some sound cues are still placeholders** (proximity sonar, peaceful creatures and objects on the laser cane, the invalid-placement sound, beacon guidance): they work, but the final sounds aren't picked yet — they may change.
 - **Not yet validated in the field**: the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
-- **Proximity scanner: excluding your own character and companion from the "creatures" category hasn't been checked in multiplayer** — a teammate should still show up; not yet confirmed live.
-- **Boss summon statues and scepter summons are now translated** — not yet confirmed live.
-- **Hotbar switching controls have been swapped**: it's now Triangle+L1 (next) / Triangle+R1 (previous), reversed from before, based on tester feedback — not yet confirmed live after the swap.
-- **New command-learn mode**: hold Triangle (or R3, or press neither) and press any button to hear what it does, without it actually triggering — a screen-reader-style "input help" complementing the existing button-naming mode. Not yet confirmed live.
-- **New shortcut to cycle equipment presets**: with the character/inventory window open (not at a station), Triangle+D-pad right/left switches to the next/previous of your 3 equipment presets. Not yet confirmed live.
-- **Ore prospecting (Triangle+Left) extended to drill-mined deposits**: besides a buried vein, it now also finds the nearest mineable deposit (both can be announced in the same sweep if found at the same time). Not yet confirmed live.
-- **Jumping to hotbar slot 1 (Triangle+O) no longer crashes the mod if used while playing a musical instrument.** It now stops the instrument and closes any open UI before switching, and every other Triangle combo is suppressed (button handed back to the game) while an instrument is playing, so it can't interfere with notes/chords. Not yet confirmed live.
+- **Proximity scanner: excluding your own character and companion from the "creatures" category hasn't been checked in multiplayer** — a teammate should still show up; not yet confirmed live. More broadly, the mod's multiplayer behaviour hasn't been played with several people yet.
+- **The whole 1.0.15 fix wave is coded but hasn't been played yet**: standard floors back in tile details, ancient relays excluded from ore prospecting, the kelp turtle returned to livestock, every deposit in range enumerated, full meal names on the hotbar, the dresser's hidden/shown state, and the entire boating side (cursor detection, shore sound on the laser cane, sonar and collision detector staying quiet on water, the leave-the-boat reminder in the help menu). If any of these misbehaves, that's a useful report.
+- **The shore sound** (laser cane, while boating) **is a placeholder**: the timbre was picked by ear from the game's own sound bank and may still change. You can listen to it in the sound-learning menu, exploration category.
+- **On a standard floor, tile details may stay silent** if the game has no name for that floor: the mod would rather say nothing than read out an internal English name. Worth reporting with the location — those get fixed case by case.
 
 ## Known bugs
-
-- **In the livestock window, the breeding toggle's label sometimes repeats at the end of the animal's status line.** A fix has been coded but not yet confirmed live.
 - **Familiar talent tree resets on world reload.** When you leave and re-enter a world, the familiar's in-memory talent data resets to its base state (a game-engine limitation). The familiar still works, but its talents are temporarily invisible to the mod. **Workaround**: pick up the familiar and place it again — this forces the game to regenerate its data correctly.
 - **A generator placed on top of an ancient wire is silent to the tile cursor.** The indestructible wire network found in the Core ruins masks the object placed on it (two passive objects, the wire's collider wins). The generator works fine; the cursor just won't name it.
 - **Notable floor tiles are sometimes announced in raw English** (internal tile name), whatever the game language. Rare: standard ground is silent by design, only special floors are affected.

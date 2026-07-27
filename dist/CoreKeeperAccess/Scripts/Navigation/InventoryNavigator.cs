@@ -683,6 +683,10 @@ namespace CoreKeeperAccess.Navigation
                 if (string.IsNullOrEmpty(content) && SlotSections.IsResetButton(slot))
                     content = Strings.L("talent.reset.label");
                 if (string.IsNullOrEmpty(content)) content = Strings.L("ingame.slot.empty");
+                // Slot d'apparence (commode) : etat masque/visible de la piece reelle, que
+                // rien n'annoncait - le slot vide se lisait juste "vide" dans les deux cas.
+                string vanity = InGameTtsCore.VanityVisibilityLabel(slot);
+                if (!string.IsNullOrEmpty(vanity)) content = content + ", " + vanity;
                 body = string.IsNullOrEmpty(role) ? content : role + ", " + content;
 
                 // Dans la fiche de stats, on prefixe le titre de section au changement

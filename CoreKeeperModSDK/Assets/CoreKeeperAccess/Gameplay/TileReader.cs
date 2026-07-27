@@ -132,11 +132,15 @@ namespace CoreKeeperAccess.Gameplay
         public static bool Found;
         public static int2 Tile;        // veine de minerai la plus proche (couche tuile)
 
-        // Gisement a foreuse le plus proche (objet pose, ObjectIndex.Entry.Resource) -
-        // resultat SEPARE de la veine ci-dessus : les deux peuvent etre trouves en meme
-        // temps, l'un ne doit pas ecraser l'annonce de l'autre.
-        public static bool DepositFound;
-        public static int2 DepositTile;
+        // Gisements a foreuse (objets poses, ObjectIndex.Entry.Resource) - resultat SEPARE
+        // de la veine ci-dessus : les deux peuvent etre trouves en meme temps, l'un ne doit
+        // pas ecraser l'annonce de l'autre. Depuis le 27 juillet 2026 on en publie
+        // PLUSIEURS, du plus proche au plus lointain (demande testeur : deux gisements cote
+        // a cote, un seul etait annonce). Dedoublonnes par ENTITE dans ScanOre - un gisement
+        // occupe 2x2 cases dans l'index, sans ca il sortirait quatre fois.
+        public const int MaxDeposits = 4;
+        public static int DepositCount;
+        public static readonly int2[] DepositTiles = new int2[MaxDeposits];
     }
 
     // Pont recalcul local du reseau de navigation (tranche C, "mise a jour du reseau"). Le
@@ -294,6 +298,9 @@ namespace CoreKeeperAccess.Gameplay
     {
         public static bool Requested;
         public static int2 Center;
+        // Joueur en bateau : l'eau cesse d'etre un obstacle (c'est la surface sur laquelle
+        // on avance). Pose par le mod avec la demande, cf. PlayerRide.
+        public static bool OnWater;
         public static bool ResultValid;
         public static readonly int[] Tex = new int[4];
         public static readonly int[] Dist = new int[4];
@@ -313,6 +320,9 @@ namespace CoreKeeperAccess.Gameplay
         public static int2 Center;
         public static float2 Direction;
         public static float MaxRange;
+        // Joueur en bateau : l'eau n'alerte plus (sinon la nappe reste au maximum en
+        // permanence en navigation - retour testeur 27 juillet 2026). Cf. PlayerRide.
+        public static bool OnWater;
 
         public static bool ResultValid;
         public static bool Found;
@@ -632,7 +642,7 @@ namespace CoreKeeperAccess.Gameplay
                 catch (System.Exception ex)
                 {
                     OreScan.Found = false;
-                    OreScan.DepositFound = false;
+                    OreScan.DepositCount = 0;
                     OreScan.ResultValid = true;
                     Diag.Error("A11yOreDiag", ex);
                 }
@@ -885,9 +895,16 @@ namespace CoreKeeperAccess.Gameplay
                     // (convoyeur, bras, foreuse, gisement minable, stockage) et ABSENT des
                     // cables (ElectricalWire) -> c'est le discriminant machine vs cable.
                     bool hasAuto = EntityUtility.HasComponentData<PugAutomationCD>(e, World);
+                    // Gisement a foreuse : AutomationType.Mineable ne suffit PAS comme
+                    // discriminant (retour testeur 21 juillet 2026 : "l'ancien relais est
+                    // considere comme un gisement" - l'infrastructure des ruines du Core porte
+                    // le meme flag). RequiresDrillCD (tag ECS) est la vraie signature du
+                    // gisement qu'on ne peut miner qu'a la foreuse, ce que la prospection
+                    // Triangle+gauche cherche a annoncer.
                     bool isMineable = hasAuto
                         && (EntityUtility.GetComponentData<PugAutomationCD>(e, World).type
-                            & AutomationType.Mineable) != 0;
+                            & AutomationType.Mineable) != 0
+                        && EntityUtility.HasComponentData<RequiresDrillCD>(e, World);
 
                     // Orientation VISIBLE de l'objet, lue sur la donnee REELLE (jamais devinee
                     // depuis la variation : un gisement var=0 n'a PAS d'orientation, et le
@@ -1141,25 +1158,60 @@ namespace CoreKeeperAccess.Gameplay
             // l'autre. Meme regle que les veines : ni mur ni eclairage ne filtrent (demande
             // explicite utilisateur, "je m'en fous qu'il soit eclaire ou non"). Borne reelle
             // = IndexRadius (24) de l'index, pas le rayon de prospection si celui-ci le depasse.
-            bool depositFound = false;
-            int bestDeposit = int.MaxValue;
-            int2 bestDepositTile = default;
+            // Liste triee des N plus proches, une entree par ENTITE (un gisement occupe
+            // 2x2 cases dans l'index : sans dedoublonnage il sortirait quatre fois, et
+            // saturerait a lui seul la liste). Insertion directe, N vaut 4 -> pas de tri.
+            int depositCount = 0;
+            var depTiles = new int2[OreScan.MaxDeposits];
+            var depDist = new int[OreScan.MaxDeposits];
+            var depEnt = new Entity[OreScan.MaxDeposits];
             foreach (var kv in ObjectIndex.Map)
             {
                 if (!kv.Value.Resource) continue;
                 int2 t = new int2((int)(kv.Key >> 32), (int)(uint)kv.Key);
                 int2 dd = t - c;
                 int d2 = dd.x * dd.x + dd.y * dd.y;
-                if (d2 > r2 || d2 >= bestDeposit) continue;
-                depositFound = true;
-                bestDeposit = d2;
-                bestDepositTile = t;
+                if (d2 > r2) continue;
+
+                // Meme gisement deja retenu : on ne garde que sa case la plus proche.
+                Entity ent = kv.Value.Ent;
+                int existing = -1;
+                for (int i = 0; i < depositCount; i++)
+                    if (depEnt[i] == ent) { existing = i; break; }
+                if (existing >= 0)
+                {
+                    if (d2 >= depDist[existing]) continue;
+                    // Retire l'ancienne position, la reinsertion ci-dessous la reclasse.
+                    for (int i = existing; i < depositCount - 1; i++)
+                    {
+                        depTiles[i] = depTiles[i + 1];
+                        depDist[i] = depDist[i + 1];
+                        depEnt[i] = depEnt[i + 1];
+                    }
+                    depositCount--;
+                }
+                else if (depositCount == OreScan.MaxDeposits && d2 >= depDist[depositCount - 1])
+                    continue; // liste pleine et candidat plus loin que le dernier retenu
+
+                int pos = depositCount;
+                while (pos > 0 && depDist[pos - 1] > d2) pos--;
+                if (pos >= OreScan.MaxDeposits) continue;
+                for (int i = math.min(depositCount, OreScan.MaxDeposits - 1); i > pos; i--)
+                {
+                    depTiles[i] = depTiles[i - 1];
+                    depDist[i] = depDist[i - 1];
+                    depEnt[i] = depEnt[i - 1];
+                }
+                depTiles[pos] = t;
+                depDist[pos] = d2;
+                depEnt[pos] = ent;
+                if (depositCount < OreScan.MaxDeposits) depositCount++;
             }
 
             OreScan.Found = found;
             OreScan.Tile = bestTile;
-            OreScan.DepositFound = depositFound;
-            OreScan.DepositTile = bestDepositTile;
+            OreScan.DepositCount = depositCount;
+            for (int i = 0; i < depositCount; i++) OreScan.DepositTiles[i] = depTiles[i];
             OreScan.ResultValid = true;
         }
 
@@ -1187,6 +1239,9 @@ namespace CoreKeeperAccess.Gameplay
                     if (!LightIndex.IsLit(ref ta, t)) continue;
                     if (ta.TryGetBlockingTile(t, out TileCD wall, true))
                     {
+                        // En bateau, l'eau est la route : ni clapotis ni arret de la sonde
+                        // (on continue de chercher un vrai obstacle plus loin).
+                        if (SonarScan.OnWater && wall.tileType == TileType.water) continue;
                         tex = (wall.tileType == TileType.pit || wall.tileType == TileType.water) ? 2 : 1;
                         dist = step;
                         break;   // un mur stoppe la perception au-dela
@@ -1234,8 +1289,11 @@ namespace CoreKeeperAccess.Gameplay
                 // rester sondee normalement).
                 if (!LightIndex.IsLit(ref ta, t)) continue;
 
-                if (ta.TryGetBlockingTile(t, out _, true))
+                if (ta.TryGetBlockingTile(t, out TileCD block, true))
                 {
+                    // En bateau, l'eau n'est plus un infranchissable : sans ca la nappe
+                    // d'alerte hurlait en permanence en pleine mer (retour testeur).
+                    if (CollisionScan.OnWater && block.tileType == TileType.water) continue;
                     found = true;
                     dist = dd;
                     break;

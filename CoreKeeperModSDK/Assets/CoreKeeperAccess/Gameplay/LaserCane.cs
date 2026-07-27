@@ -96,6 +96,8 @@ namespace CoreKeeperAccess.Gameplay
             float2 dir = math.normalize(new float2(aim.x, aim.y));
 
             Active = true;
+            // Navigation en cours : l'eau cesse d'etre un bord, le rivage en devient un.
+            LaserScan.OnWater = PlayerRide.OnBoat(player);
             LaserScan.AimDir = dir;
             LaserScan.PlayerTile = new int2(
                 (int)math.round(player.WorldPosition.x),
@@ -115,7 +117,13 @@ namespace CoreKeeperAccess.Gameplay
                     _lastSpecial = LaserScan.SpecialTile;
                     int sx = LaserScan.SpecialTile.x - LaserScan.PlayerTile.x;
                     int sy = LaserScan.SpecialTile.y - LaserScan.PlayerTile.y;
-                    BuildModeNavigator.SonifyTile(LaserScan.SpecialTile, in LaserScan.Special, sx, sy, false);
+                    // En bateau, le bord signale est le RIVAGE (sol libre) et non l'eau : son
+                    // dedie plutot que la sonification normale de la case, qui jouerait le
+                    // simple tick d'une case vide et ne dirait pas "ici la navigation s'arrete".
+                    if (LaserScan.SpecialIsShore)
+                        BuildModeNavigator.PlayShore(sx, sy);
+                    else
+                        BuildModeNavigator.SonifyTile(LaserScan.SpecialTile, in LaserScan.Special, sx, sy, false);
                 }
             }
             else
@@ -389,6 +397,13 @@ namespace CoreKeeperAccess.Gameplay
         public static bool HasSpecial;
         public static int2 SpecialTile;
         public static TileInfo Special;
+        // Joueur EN BATEAU : l'eau devient la route (plus un bord a signaler), et c'est la
+        // TERRE FERME qui devient la limite utile - le premier sol libre rencontre prend la
+        // place du bord d'eau et sort avec son propre son (demande utilisateur, 27 juillet
+        // 2026 : "la canne laser ignore l'eau et emet un son pour la terre ferme, pas besoin
+        // en cas de mur mais utile en cas de sol libre"). Un mur garde son point d'impact.
+        public static bool OnWater;
+        public static bool SpecialIsShore;
         public static bool HasEnemy;     // un ennemi est sur le trajet (avant le mur)
         public static float2 EnemyPos;   // position monde (xz) de l'ennemi le plus proche
         public static long EnemyKey;     // cle d'entite index+version (NOUVELLE cible)
@@ -461,6 +476,7 @@ namespace CoreKeeperAccess.Gameplay
                 bool foundSpecial = false;
                 int2 specialTile = default;
                 TileInfo specialInfo = default;
+                bool specialIsShore = false;
                 bool impactIsDark = false;
 
                 for (float dd = 1f; dd <= MaxRange + 0.001f; dd += Step)
@@ -496,15 +512,29 @@ namespace CoreKeeperAccess.Gameplay
                     // actif sur ces cases (ennemis nageurs legitimes, ils sont visibles).
                     if (ta.TryGetBlockingTile(c, out TileCD blocking, true))
                     {
-                        bool seeThrough = blocking.tileType == TileType.pit
-                                       || blocking.tileType == TileType.water;
+                        bool isWater = blocking.tileType == TileType.water;
+                        bool seeThrough = blocking.tileType == TileType.pit || isWater;
                         if (!seeThrough) { impact = c; break; }
-                        if (!foundSpecial)
+                        // En bateau, l'eau n'est plus un bord a signaler : c'est la surface
+                        // sur laquelle on avance. Le trou (pit) reste un bord dans tous les cas.
+                        if (!foundSpecial && !(LaserScan.OnWater && isWater))
                         {
                             foundSpecial = true;
                             specialTile = c;
                             specialInfo = TileScan.Read(ref ta, c, World);
+                            specialIsShore = false;
                         }
+                    }
+                    else if (LaserScan.OnWater && !foundSpecial)
+                    {
+                        // Case libre alors qu'on navigue = RIVAGE : la ou le bateau bute, donc
+                        // exactement l'info qui manquait en mer. Meme traitement que le bord
+                        // d'eau a pied (on note, on sonifie cote mod, le rayon CONTINUE et ira
+                        // chercher son mur d'impact plus loin).
+                        foundSpecial = true;
+                        specialTile = c;
+                        specialInfo = TileScan.Read(ref ta, c, World);
+                        specialIsShore = true;
                     }
                     impact = c; // derniere case atteinte (libre, ou surface survolable)
 
@@ -564,6 +594,7 @@ namespace CoreKeeperAccess.Gameplay
                 LaserScan.HasSpecial = foundSpecial;
                 LaserScan.SpecialTile = specialTile;
                 LaserScan.Special = specialInfo;
+                LaserScan.SpecialIsShore = specialIsShore;
                 LaserScan.HasEnemy = foundEnemy;
                 LaserScan.EnemyPos = enemyPos;
                 LaserScan.EnemyKey = enemyKey;
@@ -624,7 +655,11 @@ namespace CoreKeeperAccess.Gameplay
                     FactionID faction = hasFaction
                         ? EntityUtility.GetComponentData<FactionCD>(h.Entity, world).faction
                         : FactionID.None;
-                    bool hostile = !critter && hasFaction && IsEnemy(faction) && !IsDormantSlime(oid);
+                    // Betail exclu des hostiles par son ObjectID, faction ignoree (la tortue
+                    // de la mer engloutie est FactionID.SeaCreature) -> retombe cote paisible
+                    // comme les chevres/vaches. Retour testeur 25 juillet 2026.
+                    bool hostile = !critter && hasFaction && IsEnemy(faction)
+                        && !IsDormantSlime(oid) && !HostileFilter.IsCattle(oid);
                     bool companion = !hostile && hasFaction && faction == FactionID.PlayerMinion;
 
                     if (hostile && !foundEnemy)
