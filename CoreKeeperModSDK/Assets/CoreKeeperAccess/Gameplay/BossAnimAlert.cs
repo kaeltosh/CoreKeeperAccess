@@ -14,43 +14,20 @@ namespace CoreKeeperAccess.Gameplay
     //
     // - Tir acide : AE_AnticipationSound() est appellée par le système d'animation
     //   Unity juste avant le tir → TTS + son spatial + scan des œufs actifs.
-    // - Enrage    : poll de EnrageStateCD.isEnraged dans Tick() (premier passage à true).
     //
-    // Architecture : patch Harmony (tir) + Tick poll (enrage) + BossEggScanSystem ECS
-    // (query précompilée pour les œufs, déclenchée à la demande).
+    // L'ENRAGE n'est plus traité ici (5 août 2026) : EnrageStateCD est commun à la moitié
+    // des boss du jeu, il est annoncé par le socle générique (BossAnnounce) — plus de
+    // recherche du MonoBehaviour à chaque frame non plus.
+    //
+    // Architecture : patch Harmony (tir) + BossEggScanSystem ECS (query précompilée pour
+    // les œufs, déclenchée à la demande).
     internal static class BossAnimAlert
     {
-        private static LarvaHiveBoss _boss;
-        private static bool _wasEnraged;
         private static bool _eggResultPending;
 
         public static void Tick()
         {
-            if (!InputContext.InGameFree) { _boss = null; _wasEnraged = false; return; }
-
-            // Trouve la Hive Mother si absente du cache
-            if (_boss == null)
-            {
-                var arr = Object.FindObjectsByType<LarvaHiveBoss>(
-                    FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-                if (arr == null || arr.Length == 0) { _wasEnraged = false; return; }
-                _boss = arr[0];
-                _wasEnraged = false;
-            }
-
-            try
-            {
-                // Poll enrage
-                bool enraged = EntityUtility.GetComponentData<EnrageStateCD>(
-                    _boss.entity, _boss.world).isEnraged;
-                if (enraged && !_wasEnraged)
-                {
-                    _wasEnraged = true;
-                    TtsText.Say(Strings.L("boss.hive.enrage"), true);
-                    PlayBossSound(_boss);
-                }
-            }
-            catch { _boss = null; }
+            if (!InputContext.InGameFree) { _eggResultPending = false; return; }
 
             // Consomme le scan d'œufs déclenché par AE_AnticipationSound
             if (_eggResultPending && BossEggScan.ResultReady)
@@ -67,7 +44,9 @@ namespace CoreKeeperAccess.Gameplay
             var player = Manager.main != null ? Manager.main.player : null;
             if (player == null) return;
 
-            TtsText.Say(Strings.L("boss.hive.acid"), true);
+            // Télégraphe = urgent : passe par le goulot commun en priorité danger (donc
+            // sans attendre le créneau), le son spatial part lui immédiatement.
+            BossAnnounce.Enqueue(Strings.L("boss.hive.acid"), BossAnnounce.PrioDanger);
             PlayBossSound(boss);
 
             // Déclenche le scan des œufs (résultat disponible la frame suivante)
@@ -83,7 +62,7 @@ namespace CoreKeeperAccess.Gameplay
             int n = BossEggScan.Count;
             if (n == 0) return;
             string key = n == 1 ? "boss.hive.egg_one" : "boss.hive.eggs_n";
-            TtsText.Say(Strings.L(key).Replace("{0}", n.ToString()), false);
+            BossAnnounce.Enqueue(Strings.L(key).Replace("{0}", n.ToString()), BossAnnounce.PrioState);
             float2 pp = BossEggScan.PlayerPos;
             for (int i = 0; i < n; i++)
             {

@@ -129,7 +129,15 @@
                       "guid":  ""
                   },
                   {
+                      "path":  "Scripts/Gameplay/BossAnnounce.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Gameplay/BossHealthAnnounce.cs",
+                      "guid":  ""
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/BossTelegraph.cs",
                       "guid":  ""
                   },
                   {
@@ -373,75 +381,75 @@
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/azeos_more_east.wav",
+                      "path":  "Sounds/voice/en/hp_10.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/azeos_more_north.wav",
+                      "path":  "Sounds/voice/en/hp_20.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/azeos_more_south.wav",
+                      "path":  "Sounds/voice/en/hp_30.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/azeos_more_west.wav",
+                      "path":  "Sounds/voice/en/hp_40.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_10.wav",
+                      "path":  "Sounds/voice/en/hp_50.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_20.wav",
+                      "path":  "Sounds/voice/en/hp_60.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_30.wav",
+                      "path":  "Sounds/voice/en/hp_70.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_40.wav",
+                      "path":  "Sounds/voice/en/hp_80.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_50.wav",
+                      "path":  "Sounds/voice/en/hp_90.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_60.wav",
+                      "path":  "Sounds/voice/fr/hp_10.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_70.wav",
+                      "path":  "Sounds/voice/fr/hp_20.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_80.wav",
+                      "path":  "Sounds/voice/fr/hp_30.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/hp_90.wav",
+                      "path":  "Sounds/voice/fr/hp_40.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/shape_aleatoire.wav",
+                      "path":  "Sounds/voice/fr/hp_50.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/shape_anneau.wav",
+                      "path":  "Sounds/voice/fr/hp_60.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/shape_colonne.wav",
+                      "path":  "Sounds/voice/fr/hp_70.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/shape_ligne_bas.wav",
+                      "path":  "Sounds/voice/fr/hp_80.wav",
                       "guid":  ""
                   },
                   {
-                      "path":  "Sounds/shape_ligne_haut.wav",
+                      "path":  "Sounds/voice/fr/hp_90.wav",
                       "guid":  ""
                   },
                   {

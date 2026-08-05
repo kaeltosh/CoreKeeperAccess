@@ -50,7 +50,7 @@ public class CoreKeeperAccessMod : IMod
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
     private const string ReleaseTag = "1.0.16 beta";
-    private const string BuildTag = "build 1";
+    private const string BuildTag = "build 2";
 
     public void Init()
     {
@@ -193,9 +193,10 @@ public class CoreKeeperAccessMod : IMod
         CoreKeeperAccess.Gameplay.SummonBeacon.Tick();     // guide sonore vers le sigil d'invocation du boss
         CoreKeeperAccess.Gameplay.RelayBeacon.Tick();      // drone battement vers le relais non active le plus proche
         CoreKeeperAccess.Gameplay.FireProximity.Tick();    // alerte de proximite des zones de feu
-        CoreKeeperAccess.Gameplay.BossAnimAlert.Tick();   // actions du boss de la ruche (tir acide, enrage, oeufs)
+        CoreKeeperAccess.Gameplay.BossAnimAlert.Tick();   // actions du boss de la ruche (tir acide, oeufs)
         CoreKeeperAccess.Gameplay.AzeosBoss.Tick();       // combat d'Azeos (piliers/rangees/cristaux/etats)
-        CoreKeeperAccess.Gameplay.BossHealthAnnounce.Tick(); // annonce vie boss tous les 10% (generique, PROVISOIRE)
+        CoreKeeperAccess.Gameplay.BossAnnounce.Tick();    // socle generique (enrage/phase/invulnerable/mort) + goulot des annonces boss ; APRES les modules qui alimentent sa file
+        CoreKeeperAccess.Gameplay.BossHealthAnnounce.Tick(); // annonce vie boss tous les 10% (canal audio dedie, generique)
         // Apres le tick de tous les modules : les gardes de contexte lisent des etats
         // frais (curseur detache, nav inventaire...) au moment de router les combos.
         ComboDispatcher.Tick();

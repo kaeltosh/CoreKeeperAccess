@@ -386,16 +386,33 @@ namespace CoreKeeperAccess.Gameplay
             }
 
             Diag.Log("A11yAzeosWave", "vague de " + beams.Count + " pilier(s) -> forme " + shape);
-            GameplayAudio.PlayAzeosShapeCallout(calloutChannel);
+            AnnounceShape(calloutChannel);
+        }
+
+        // Forme de la vague : PARLEE (5 aout 2026). Remplace le WAV de voix pre-rendu, qui
+        // n'existait qu'en francais. Priorite danger -> passe sans attendre de creneau,
+        // c'est ce qui conditionne l'esquive.
+        private static void AnnounceShape(AzeosBeamChannel ch)
+        {
+            string key = ch switch
+            {
+                AzeosBeamChannel.ColonneV => "boss.azeos.shape.colonne",
+                AzeosBeamChannel.LigneHaut => "boss.azeos.shape.ligne_haut",
+                AzeosBeamChannel.LigneBas => "boss.azeos.shape.ligne_bas",
+                AzeosBeamChannel.None => "boss.azeos.shape.anneau",
+                _ => "boss.azeos.shape.aleatoire",
+            };
+            BossAnnounce.Enqueue(Strings.L(key), BossAnnounce.PrioDanger);
         }
 
         // Egalite (rare, meme decompte des deux cotes) : aucun indice fiable, on se tait
-        // plutot que d'annoncer un cote au hasard. Voix pre-rendue (meme canal que
-        // PlayAzeosShapeCallout), PAS TtsText.Say/Tolk (mauvais canal, corrige le 3 juillet).
+        // plutot que d'annoncer un cote au hasard. Priorite volontairement SOUS la forme :
+        // les deux tombent au meme instant, le cote doit passer APRES sans la couper.
         private static void AnnounceMajoritySide(int countA, int countB, string sideIfAMore, string sideIfBMore)
         {
             if (countA == countB) return;
-            GameplayAudio.PlayAzeosMajorityCallout(countA > countB ? sideIfAMore : sideIfBMore);
+            string side = countA > countB ? sideIfAMore : sideIfBMore;
+            BossAnnounce.Enqueue(Strings.L("boss.azeos.more." + side), BossAnnounce.PrioState);
         }
     }
 }

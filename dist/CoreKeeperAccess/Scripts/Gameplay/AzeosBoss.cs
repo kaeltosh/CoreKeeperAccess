@@ -28,7 +28,6 @@ namespace CoreKeeperAccess.Gameplay
 
         private static bool _everSeenBoss;
         private static bool _wasAppeared;
-        private static bool _wasEnraged;
         private static bool _cristalAnnounced;
 
         public static void Tick()
@@ -57,30 +56,28 @@ namespace CoreKeeperAccess.Gameplay
             _cristalAnnounced = false;
         }
 
-        // Atterrissage / teleportation / enrage : lus directement sur les composants natifs
-        // (BirdBossHasAppearedCD, EnrageStateCD), tous deux confirmes repliques au client -
-        // pas de contournement necessaire ici, contrairement aux piliers.
+        // Atterrissage / teleportation : lus directement sur BirdBossHasAppearedCD, confirme
+        // replique au client - pas de contournement necessaire ici, contrairement aux
+        // piliers. L'ENRAGE n'est plus traite ici : EnrageStateCD est commun a la moitie des
+        // boss du jeu, il est annonce par le socle generique (BossAnnounce).
         private static void TickBossState()
         {
             if (!AzeosBossScan.Found) { _everSeenBoss = false; return; }
 
             bool appeared = AzeosBossScan.HasAppeared;
-            bool enraged = AzeosBossScan.Enraged;
 
             if (!_everSeenBoss)
             {
                 _everSeenBoss = true;
                 _wasAppeared = appeared;
-                _wasEnraged = enraged;
                 return; // pas d'annonce a la toute premiere lecture (evite un faux "atterrit" en arrivant dans l'arene)
             }
 
-            if (appeared && !_wasAppeared) TtsText.Say(Strings.L("boss.azeos.land"), true);
-            else if (!appeared && _wasAppeared) TtsText.Say(Strings.L("boss.azeos.teleport"), true);
+            if (appeared && !_wasAppeared)
+                BossAnnounce.Enqueue(Strings.L("boss.azeos.land"), BossAnnounce.PrioInfo);
+            else if (!appeared && _wasAppeared)
+                BossAnnounce.Enqueue(Strings.L("boss.azeos.teleport"), BossAnnounce.PrioInfo);
             _wasAppeared = appeared;
-
-            if (enraged && !_wasEnraged) TtsText.Say(Strings.L("boss.azeos.enrage"), true);
-            _wasEnraged = enraged;
         }
 
         // Colonne (rangee V, pan est-ouest) + lignes du dessus/dessous (rangee H, volume par
@@ -171,7 +168,9 @@ namespace CoreKeeperAccess.Gameplay
             if (dist < 1.5f && !_cristalAnnounced)
             {
                 _cristalAnnounced = true;
-                TtsText.Say(Strings.L(urgent ? "boss.azeos.crystal_contact_urgent" : "boss.azeos.crystal_contact"), true);
+                BossAnnounce.Enqueue(
+                    Strings.L(urgent ? "boss.azeos.crystal_contact_urgent" : "boss.azeos.crystal_contact"),
+                    urgent ? BossAnnounce.PrioDanger : BossAnnounce.PrioState);
             }
             if (dist >= 3f) _cristalAnnounced = false;
 

@@ -41,6 +41,11 @@ namespace CoreKeeperAccess.Localization
             _loadedLanguageCode = null;
         }
 
+        // Langue effectivement chargee (code I2 : "fr", "en"...). Sert aux ressources
+        // rangees par langue hors JSON, ex. les WAV de voix pre-rendue
+        // (Sounds/voice/<langue>/) charges par GameplayAudio.
+        public static string LanguageCode => _loadedLanguageCode ?? FallbackLanguageCode;
+
         public static string L(string key)
         {
             if (string.IsNullOrEmpty(key)) return string.Empty;

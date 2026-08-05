@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
+using CoreKeeperAccess.Localization;
+using CoreKeeperAccess.Patches;
 using PugMod;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -481,21 +483,6 @@ namespace CoreKeeperAccess.Gameplay
             for (int i = 0; i < data.Length; i++) data[i] *= g;
         }
 
-        // Normalisation par ENERGIE (RMS) suivie d'un ecretage dur au plafond : contrairement a
-        // NormalizePeak (qui cale la CRETE, donc laisse une voix "molle" avec ses silences/consonnes
-        // breves tres en dessous du plafond), ici on cale le NIVEAU MOYEN sur targetRms - ce qui pousse
-        // le corps du signal bien plus fort - puis on ecrete les quelques pics qui depassent ceiling.
-        // Distortion assumee sur les pics (voix TTS, pas de la musique) : priorite = audible fort.
-        private static void NormalizeLoudness(float[] data, float targetRms, float ceiling)
-        {
-            double sumSq = 0;
-            for (int i = 0; i < data.Length; i++) sumSq += (double)data[i] * data[i];
-            float rms = (float)System.Math.Sqrt(sumSq / data.Length);
-            if (rms < 1e-9f) return;
-            float g = targetRms / rms;
-            for (int i = 0; i < data.Length; i++) data[i] = Mathf.Clamp(data[i] * g, -ceiling, ceiling);
-        }
-
         private static AudioClip MonoClip(string name, float[] data)
         {
             var clip = AudioClip.Create(name, data.Length, 1, 44100, false);
@@ -904,105 +891,59 @@ namespace CoreKeeperAccess.Gameplay
             src.volume = volume * A11ySettings.MasterVolume;
         }
 
-        // PROVISOIRE (detecteur de forme, 1er juillet 2026) : annonce parlee (TTS Windows
-        // pre-rendu en WAV, debit rapide) de la forme detectee pour CHAQUE vague classee -
-        // sert a verifier a l'oreille si le detecteur (AzeosScanSystem.ClassifyWave) retrouve
-        // bien le motif reellement tire par le jeu, avant d'aller plus loin sur le design.
-        // Source non spatialisee dediee (pas de conflit avec le reste), PlayOneShot (peut se
-        // chevaucher si deux vagues tombent tres pres l'une de l'autre, assume pour un test).
-        private static AudioSource _shapeSource;
-        private static readonly Dictionary<AzeosBeamChannel, AudioClip> _shapeClips = new Dictionary<AzeosBeamChannel, AudioClip>();
-        private static readonly Dictionary<AzeosBeamChannel, bool> _shapeLoadAttempted = new Dictionary<AzeosBeamChannel, bool>();
-
-        private static string ShapeRelPath(AzeosBeamChannel ch) => ch switch
-        {
-            AzeosBeamChannel.ColonneV => "Sounds/shape_colonne.wav",
-            AzeosBeamChannel.LigneHaut => "Sounds/shape_ligne_haut.wav",
-            AzeosBeamChannel.LigneBas => "Sounds/shape_ligne_bas.wav",
-            AzeosBeamChannel.None => "Sounds/shape_anneau.wav",
-            _ => "Sounds/shape_aleatoire.wav",
-        };
-
-        public static void PlayAzeosShapeCallout(AzeosBeamChannel channel)
-        {
-            EnsureInit();
-            if (_shapeSource == null) return;
-            if (!_shapeLoadAttempted.TryGetValue(channel, out var attempted) || !attempted)
-            {
-                _shapeLoadAttempted[channel] = true;
-                var bytes = ReadModFile(ShapeRelPath(channel));
-                if (bytes == null) { Diag.Log("A11yWav", ShapeRelPath(channel) + " introuvable"); return; }
-                if (!WavLoader.TryParse(bytes, ShapeRelPath(channel), out var r)) return;
-                // Voix TTS = crete peak trop molle (consonnes bréves, silences) : on cale l'ENERGIE
-                // moyenne tres haut (RMS 0.35 ~ -9 dBFS) avec ecretage dur a 0.98, pas juste la crete.
-                NormalizeLoudness(r.Samples, 0.35f, 0.98f);
-                var clip = AudioClip.Create(ShapeRelPath(channel), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
-                clip.SetData(r.Samples, 0);
-                _shapeClips[channel] = clip;
-            }
-            if (_shapeClips.TryGetValue(channel, out var c) && c != null)
-                _shapeSource.PlayOneShot(c, A11ySettings.MasterVolume); // deja au plafond numerique via NormalizeLoudness
-        }
-
-        // Annonce de vie du boss tous les 10% (3 juillet 2026, VALIDEE en combat reel) :
-        // meme principe que PlayAzeosShapeCallout - TTS Windows pre-rendu en WAV, un fichier
-        // par palier de 10%. Generique (n'importe quel boss marque BossCD, cf.
-        // BossHealthAnnounce), pas specifique a Azeos.
+        // Annonce de vie du boss tous les 10% (3 juillet 2026, VALIDEE en combat reel) : WAV
+        // de voix pre-rendu, un fichier par palier. Canal AUDIO dedie (volume propre, hors
+        // file NVDA) - seule annonce assez frequente pour le meriter, tout le reste des
+        // annonces de boss est parle (cf. BossAnnounce). Generique : n'importe quel boss
+        // marque BossCD, cf. BossHealthAnnounce.
+        //
+        // MULTILINGUE depuis le 5 aout 2026 : Sounds/voice/<langue>/hp_<palier>.wav, repli
+        // sur l'anglais, puis - si aucun fichier n'existe pour cette langue - sur la parole
+        // normale. Une langue ajoutee au mod parle donc immediatement ; fr et en gardent le
+        // canal dedie. Generateur des fichiers : tools/gen-voice-sounds.ps1.
         private static AudioSource _bossHealthSource;
-        private static readonly Dictionary<int, AudioClip> _bossHealthClips = new Dictionary<int, AudioClip>();
-        private static readonly Dictionary<int, bool> _bossHealthLoadAttempted = new Dictionary<int, bool>();
-
-        private static string BossHealthRelPath(int percent) => "Sounds/hp_" + percent + ".wav";
+        private static readonly Dictionary<string, AudioClip> _voiceClips = new Dictionary<string, AudioClip>();
 
         public static void PlayBossHealthCallout(int percent)
         {
             EnsureInit();
-            if (_bossHealthSource == null) return;
-            if (!_bossHealthLoadAttempted.TryGetValue(percent, out var attempted) || !attempted)
+            var clip = _bossHealthSource == null ? null : LoadVoiceClip("hp_" + percent);
+            if (clip == null)
             {
-                _bossHealthLoadAttempted[percent] = true;
-                var bytes = ReadModFile(BossHealthRelPath(percent));
-                if (bytes == null) { Diag.Log("A11yWav", BossHealthRelPath(percent) + " introuvable"); return; }
-                if (!WavLoader.TryParse(bytes, BossHealthRelPath(percent), out var r)) return;
-                // Gain PUR (pas d'ecretage) : cale la CRETE a 0,9, zero distorsion possible.
-                // Volume final regle par le parametre de PlayOneShot ci-dessous (independant,
-                // ajustable sans re-traiter le sample ni toucher aux autres sons du mod).
-                NormalizePeak(r.Samples, 0.9f);
-                var clip = AudioClip.Create(BossHealthRelPath(percent), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
-                clip.SetData(r.Samples, 0);
-                _bossHealthClips[percent] = clip;
+                TtsText.Say(Strings.L("voice.hp." + percent), false);
+                return;
             }
-            if (_bossHealthClips.TryGetValue(percent, out var c) && c != null)
-                _bossHealthSource.PlayOneShot(c, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
+            _bossHealthSource.PlayOneShot(clip, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
         }
 
-        // Indice du cote majoritaire d'une vague rangee (3 juillet 2026) : meme voix
-        // pre-rendue que PlayAzeosShapeCallout/PlayBossHealthCallout - PAS du TTS Tolk/NVDA
-        // (canal different, mauvais choix initial corrige ici). Gain pur (NormalizePeak),
-        // pas d'ecretage. "side" in {"north","south","east","west"}.
-        private static AudioSource _azeosMajoritySource;
-        private static readonly Dictionary<string, AudioClip> _azeosMajorityClips = new Dictionary<string, AudioClip>();
-        private static readonly Dictionary<string, bool> _azeosMajorityLoadAttempted = new Dictionary<string, bool>();
-
-        private static string AzeosMajorityRelPath(string side) => "Sounds/azeos_more_" + side + ".wav";
-
-        public static void PlayAzeosMajorityCallout(string side)
+        // Langue courante, puis anglais. L'absence est memoisee elle aussi -> un fichier
+        // manquant n'est pas retente a chaque palier.
+        private static AudioClip LoadVoiceClip(string baseName)
         {
-            EnsureInit();
-            if (_azeosMajoritySource == null) return;
-            if (!_azeosMajorityLoadAttempted.TryGetValue(side, out var attempted) || !attempted)
-            {
-                _azeosMajorityLoadAttempted[side] = true;
-                var bytes = ReadModFile(AzeosMajorityRelPath(side));
-                if (bytes == null) { Diag.Log("A11yWav", AzeosMajorityRelPath(side) + " introuvable"); return; }
-                if (!WavLoader.TryParse(bytes, AzeosMajorityRelPath(side), out var r)) return;
-                NormalizePeak(r.Samples, 0.9f);
-                var clip = AudioClip.Create(AzeosMajorityRelPath(side), r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
-                clip.SetData(r.Samples, 0);
-                _azeosMajorityClips[side] = clip;
-            }
-            if (_azeosMajorityClips.TryGetValue(side, out var c) && c != null)
-                _azeosMajoritySource.PlayOneShot(c, A11ySettings.BossHealthVolume * A11ySettings.MasterVolume);
+            string lang = Strings.LanguageCode;
+            var clip = LoadVoiceClipAt("Sounds/voice/" + lang + "/" + baseName + ".wav");
+            if (clip == null && lang != "en")
+                clip = LoadVoiceClipAt("Sounds/voice/en/" + baseName + ".wav");
+            return clip;
+        }
+
+        private static AudioClip LoadVoiceClipAt(string relPath)
+        {
+            if (_voiceClips.TryGetValue(relPath, out var cached)) return cached;
+            _voiceClips[relPath] = null;
+
+            var bytes = ReadModFile(relPath);
+            if (bytes == null) { Diag.Log("A11yWav", relPath + " introuvable"); return null; }
+            if (!WavLoader.TryParse(bytes, relPath, out var r)) return null;
+
+            // Gain PUR (pas d'ecretage) : cale la CRETE a 0,9, zero distorsion possible.
+            // Volume final regle a l'appel (independant, ajustable sans re-traiter le sample
+            // ni toucher aux autres sons du mod).
+            NormalizePeak(r.Samples, 0.9f);
+            var clip = AudioClip.Create(relPath, r.Samples.Length / r.Channels, r.Channels, r.SampleRate, false);
+            clip.SetData(r.Samples, 0);
+            _voiceClips[relPath] = clip;
+            return clip;
         }
 
         // Balise de guidage vers le cristal (BirdBossStone) le plus pertinent : GENEREE (pas
@@ -1164,17 +1105,9 @@ namespace CoreKeeperAccess.Gameplay
             _darkSource = go.AddComponent<AudioSource>();
             ConfigureSource(_darkSource);
 
-            // Source dediee du detecteur de forme Azeos (PROVISOIRE, cf. PlayAzeosShapeCallout).
-            _shapeSource = go.AddComponent<AudioSource>();
-            ConfigureSource(_shapeSource);
-
             // Source dediee de l'annonce de vie boss (VALIDEE en combat, cf. PlayBossHealthCallout).
             _bossHealthSource = go.AddComponent<AudioSource>();
             ConfigureSource(_bossHealthSource);
-
-            // Source dediee de l'indice de cote majoritaire Azeos (cf. PlayAzeosMajorityCallout).
-            _azeosMajoritySource = go.AddComponent<AudioSource>();
-            ConfigureSource(_azeosMajoritySource);
 
             // Repere de centre : deux sources hard-pannees jouant en boucle un sinus
             // doux ; pan par balance de leurs volumes, pitch par l'axe nord-sud.
