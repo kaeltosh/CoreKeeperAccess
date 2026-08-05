@@ -4,7 +4,9 @@ using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Physics;
+using Unity.Transforms;
 using UnityEngine;
 
 namespace CoreKeeperAccess.Gameplay
@@ -60,6 +62,8 @@ namespace CoreKeeperAccess.Gameplay
         private static float _nextEnemyBeep;
         private static long _lastPassiveKey;
         private static float _nextPassiveBeep;
+        private static long _lastPlayerKey;
+        private static float _nextPlayerBeep;
 
         public static void Tick()
         {
@@ -173,10 +177,30 @@ namespace CoreKeeperAccess.Gameplay
                 }
                 _lastEnemyKey = LaserScan.EnemyKey;
                 _lastPassiveKey = 0;
+                _lastPlayerKey = 0;
+            }
+            else if (LaserScan.HasPlayer)
+            {
+                // AUTRE JOUEUR (multi) : piste propre, PRIORITAIRE sur les passifs et les objets
+                // (savoir ou est son coequipier compte plus qu'un champignon) mais ecrasee par un
+                // hostile, comme tout le reste. Il bouge -> rappel a la cadence des creatures.
+                // Nom = son pseudo, sur NOUVELLE cible seulement (le clic porte la position).
+                _lastEnemyKey = 0;
+                _lastPassiveKey = 0;
+                bool isNew = LaserScan.PlayerKey != _lastPlayerKey;
+                if (isNew || Time.unscaledTime >= _nextPlayerBeep)
+                {
+                    PlayPlayer(LaserScan.PlayerPos);
+                    _nextPlayerBeep = Time.unscaledTime + PassiveBeepInterval;
+                }
+                if (isNew && !string.IsNullOrEmpty(LaserScan.PlayerName))
+                    TtsText.Say(LaserScan.PlayerName, true);
+                _lastPlayerKey = LaserScan.PlayerKey;
             }
             else
             {
                 _lastEnemyKey = 0;
+                _lastPlayerKey = 0;
 
                 // Cible passive (creature paisible ou objet pose) : meme grammaire que
                 // l'ennemi - son a l'accroche, TTS du nom sur NOUVELLE cible seulement.
@@ -310,6 +334,7 @@ namespace CoreKeeperAccess.Gameplay
             _lastSpecial = NoImpact;
             _lastEnemyKey = 0;
             _lastPassiveKey = 0;
+            _lastPlayerKey = 0;
             if (tomeContextValid)
                 UpdateTomeFocus(null, false); // canne relachee -> le tome (si equipe) retombe sur le joueur
             else
@@ -365,6 +390,21 @@ namespace CoreKeeperAccess.Gameplay
                 GameplayAudio.PlaySpatial(SfxID.charge_bar_ui_1, pan, 1f, 0.1f * A11ySettings.NavigationVolume * trim);
         }
 
+        // Clic sec du JOUEUR (timbre choisi a l'oreille par l'utilisateur le 30 juillet 2026,
+        // partage avec le scanner : ProximityScanner.PlayerSfx). Meme grammaire positionnelle
+        // que tout le reste du mod : pan est/ouest, hauteur nord/sud, volume par distance.
+        private static void PlayPlayer(float2 worldPos)
+        {
+            var p = Manager.main != null ? Manager.main.player : null;
+            if (p == null) return;
+            float2 d = worldPos - new float2(p.WorldPosition.x, p.WorldPosition.z);
+            float pan = GameplayAudio.PanFromTiles(d.x);
+            float pitch = Mathf.Pow(2f, d.y / 12f);
+            float trim = GameplayAudio.DistanceTrim(math.length(d));
+            GameplayAudio.PlaySpatial(ProximityScanner.PlayerSfx, pan, pitch,
+                PassiveVolume * A11ySettings.NavigationVolume * trim);
+        }
+
         // Demi-largeur visible en cases (range pour normaliser le pan -1..+1), comme le curseur.
         private static float HalfWidthTiles()
         {
@@ -418,6 +458,16 @@ namespace CoreKeeperAccess.Gameplay
         public static ObjectID PassiveObjectId; // pour le TTS du nom
         public static bool PassiveIsCreature;   // creature (timbre + rappel) vs objet (un bip)
         public static bool PassiveInteractable; // objet interactible -> marqueur du curseur
+
+        // AUTRE JOUEUR (multi) sur le trajet - piste DEDIEE, entre l'hostile et le passif :
+        // savoir ou est son coequipier vaut mieux qu'un champignon, mais ne doit jamais masquer
+        // une menace (retour testeur 29 juillet 2026 : "on ne se voit pas"). Detecte par POSITION
+        // (query PlayerGhost), pas par la physique : rien ne garantit qu'un joueur porte un
+        // collider capte par l'OverlapSphere des creatures.
+        public static bool HasPlayer;
+        public static float2 PlayerPos;
+        public static long PlayerKey;      // cle d'entite index+version (NOUVELLE cible)
+        public static string PlayerName;   // pseudo (PlayerCustomizationCD), pour le TTS
     }
 
     // Avance le faisceau case par case (DDA) dans la direction de visee jusqu'au premier mur
@@ -478,6 +528,14 @@ namespace CoreKeeperAccess.Gameplay
                 TileInfo specialInfo = default;
                 bool specialIsShore = false;
                 bool impactIsDark = false;
+                // Autres joueurs : releve de leurs cases AVANT la marche du rayon (une seule
+                // requete par scan), puis simple comparaison de case dans la boucle. Leur
+                // presence est ainsi independante de la physique.
+                bool foundPlayer = false;
+                float2 playerPos = default;
+                long playerKey = 0;
+                string playerName = null;
+                int otherPlayers = CollectOtherPlayers();
 
                 for (float dd = 1f; dd <= MaxRange + 0.001f; dd += Step)
                 {
@@ -541,6 +599,22 @@ namespace CoreKeeperAccess.Gameplay
                     // Premiere creature rencontree de chaque bord (hostile / paisible) =
                     // la plus proche (cases parcourues proche->loin). Les deux pistes sont
                     // independantes : un champignon proche ne masque pas l'ennemi derriere.
+                    // Autre joueur sur cette case (le plus proche gagne, cases parcourues
+                    // proche -> loin). Teste apres l'obscurite et le mur : meme occlusion que
+                    // tout le reste, un joueur derriere une paroi n'est pas revele.
+                    if (!foundPlayer && otherPlayers > 0)
+                    {
+                        for (int i = 0; i < otherPlayers; i++)
+                        {
+                            if (!_otherPlayerTiles[i].Equals(c)) continue;
+                            foundPlayer = true;
+                            playerPos = new float2(c.x, c.y);
+                            playerKey = _otherPlayerKeys[i];
+                            playerName = _otherPlayerNames[i];
+                            break;
+                        }
+                    }
+
                     if (!foundEnemy || !foundPassive)
                     {
                         ScanCreatures(c, World,
@@ -605,9 +679,55 @@ namespace CoreKeeperAccess.Gameplay
                 LaserScan.PassiveObjectId = passiveObj;
                 LaserScan.PassiveIsCreature = passiveCreature;
                 LaserScan.PassiveInteractable = passiveInteractable;
+                LaserScan.HasPlayer = foundPlayer;
+                LaserScan.PlayerPos = playerPos;
+                LaserScan.PlayerKey = playerKey;
+                LaserScan.PlayerName = playerName;
                 LaserScan.ResultValid = true;
             }
             catch (System.Exception ex) { Diag.Error("A11yLaserDiag", ex); }
+        }
+
+        // Releve des AUTRES joueurs (multi) : case, cle d'entite et pseudo, une fois par scan.
+        // Le joueur local est ecarte par GhostOwnerIsLocal (tag qui ne matche que l'entite
+        // possedee par CETTE connexion, cf. exclusion deja utilisee par le scanner). Retourne
+        // le nombre d'entrees remplies dans les trois tableaux ci-dessous.
+        private const int MaxOtherPlayers = 8;
+        private static readonly int2[] _otherPlayerTiles = new int2[MaxOtherPlayers];
+        private static readonly long[] _otherPlayerKeys = new long[MaxOtherPlayers];
+        private static readonly string[] _otherPlayerNames = new string[MaxOtherPlayers];
+        private EntityQuery _playerQuery;
+
+        private int CollectOtherPlayers()
+        {
+            if (_playerQuery == default)
+                _playerQuery = GetEntityQuery(ComponentType.ReadOnly<PlayerGhost>());
+
+            int n = 0;
+            var ents = _playerQuery.ToEntityArray(Allocator.Temp);
+            foreach (var e in ents)
+            {
+                if (n >= MaxOtherPlayers) break;
+                if (EntityManager.HasComponent<GhostOwnerIsLocal>(e)) continue;
+
+                float3 pos;
+                if (EntityManager.HasComponent<LocalToWorld>(e))
+                    pos = EntityManager.GetComponentData<LocalToWorld>(e).Position;
+                else if (EntityManager.HasComponent<LocalTransform>(e))
+                    pos = EntityManager.GetComponentData<LocalTransform>(e).Position;
+                else continue;
+
+                string name = null;
+                if (EntityManager.HasComponent<PlayerCustomizationCD>(e))
+                    name = EntityManager.GetComponentData<PlayerCustomizationCD>(e).customization.name.Value;
+
+                _otherPlayerTiles[n] = new int2((int)math.round(pos.x), (int)math.round(pos.z));
+                _otherPlayerKeys[n] = EntityKey.Of(e);
+                _otherPlayerNames[n] = name;
+                n++;
+            }
+            ents.Dispose();
+            return n;
         }
 
         // Creatures sur la case, classees en TROIS bords. HOSTILE : entite a FactionCD non

@@ -39,6 +39,7 @@ namespace CoreKeeperAccess.Controls
             Add(e, () => InputContext.InGameFree, () => Glyphs.Name(Btn.FaceDown), "help.mine");
             Add(e, () => InputContext.InGameFree, () => Glyphs.Name(Btn.L2), "help.place");
             Add(e, () => InputContext.InGameFree, () => Glyphs.Combo(Btn.FaceUp, Btn.StickLeft), "help.statswheel");
+            Add(e, () => InputContext.InGameFree, () => Glyphs.Combo(Btn.R3, Btn.StickLeft), "help.playerping");
             // En bateau seulement : la sortie n'est PAS un binding a part (le jeu attend la
             // poussee vers le rivage ET la validation en meme temps), donc invisible dans les
             // commandes vanilla lues sur le mapping Rewired - d'ou ce rappel descriptif.

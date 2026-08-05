@@ -49,7 +49,7 @@ public class CoreKeeperAccessMod : IMod
     // Version annoncee au boot et a citer dans tout rapport de test :
     // ReleaseTag = la release publiee aux testeurs (ne bouge qu'a la publication),
     // BuildTag = le compteur fin de deploiement (incremente a chaque build).
-    private const string ReleaseTag = "1.0.15 beta";
+    private const string ReleaseTag = "1.0.16 beta";
     private const string BuildTag = "build 1";
 
     public void Init()
@@ -118,6 +118,7 @@ public class CoreKeeperAccessMod : IMod
     // config (support testeurs : chercher driverCaps != Stereo dans Player.log) et
     // on documente "desactiver l'audio spatial Windows" cote utilisateur.
     private bool _audioCfgLogged;
+    private bool _paintNamesLogged;
 
     private void LogAudioConfigOnce()
     {
@@ -130,9 +131,34 @@ public class CoreKeeperAccessMod : IMod
                 ? " (audio spatial Windows probablement ACTIF : pan degrade)" : ""));
     }
 
+    // Dev seulement : dumpe une fois les noms LOCALISES des 14 pinceaux du jeu. Sert a aligner
+    // nos libelles de couleur maison (cles paint.*, utilisees pour les murs, sols ET meubles
+    // peints) sur la nomenclature officielle du jeu - retour testeur 29 juillet 2026 : le
+    // pinceau "vert d'eau" du jeu produisait une annonce "turquoise" de notre cote. Aucune
+    // table du jeu ne nomme les couleurs elles-memes ; le seul nom officiel est celui de
+    // l'outil. On lit donc les noms reels dans le log, puis on corrige les JSON une fois pour
+    // toutes - jamais retoucher un libelle au hasard.
+    private void LogPaintNamesOnce()
+    {
+        if (_paintNamesLogged || !DevMode) return;
+        if (Manager.main == null || Manager.main.player == null) return; // attendre la base de donnees d'objets
+        _paintNamesLogged = true;
+        var brushes = new[]
+        {
+            ObjectID.PaintBrushYellow, ObjectID.PaintBrushGreen, ObjectID.PaintBrushRed,
+            ObjectID.PaintBrushPurple, ObjectID.PaintBrushBlue, ObjectID.PaintBrushBrown,
+            ObjectID.PaintBrushWhite, ObjectID.PaintBrushBlack, ObjectID.PaintBrushOrange,
+            ObjectID.PaintBrushCyan, ObjectID.PaintBrushPink, ObjectID.PaintBrushGrey,
+            ObjectID.PaintBrushPeach, ObjectID.PaintBrushTeal,
+        };
+        foreach (var id in brushes)
+            Diag.Log("A11yPaintDiag", id + " = " + (CoreKeeperAccess.Patches.InGameTtsCore.ResolveObjectName(id) ?? "<null>"));
+    }
+
     public void Update()
     {
         TryAutoLoad();
+        LogPaintNamesOnce();
         TryDevGodMode();
         TryDevInvincible();
         TryDevBeaconGraphDiag();
@@ -146,6 +172,7 @@ public class CoreKeeperAccessMod : IMod
         InfoKey.Tick();
         ScannerModifier.Tick(); // second modificateur (R3) : scanner de proximite
         InputContext.Refresh(); // etats d'UI figes pour la frame, avant tout consommateur
+        CoreKeeperAccess.Controls.InstrumentExit.Tick(); // sortie Start/Echap du mode instrument (le jeu bloque la pause)
         CoreKeeperAccess.Controls.TextEntry.Tick(); // saisie clavier maison (avale le clavier si active)
         CoreKeeperAccess.Settings.SettingsMenu.Tick(); // panneau de reglages a11y (modal, lit la manette en direct)
         CoreKeeperAccess.Controls.ActionMenu.Tick(); // menu contextuel carte (modal, lit la manette en direct)

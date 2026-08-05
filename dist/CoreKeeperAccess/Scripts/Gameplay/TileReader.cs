@@ -53,6 +53,7 @@ namespace CoreKeeperAccess.Gameplay
         public ToggleState Toggle;     // etat ouvert/ferme (porte, portail) ou active/desactive (levier), None sinon
         public bool Lit;               // detecteur d'obscurite : case eclairee (roofHole ou source ponctuelle), cf. LightIndex
         public bool RoofHole;          // plafond troue (couche roofHole) : case a l'air libre / ciel ouvert
+        public PaintableColor Paint;   // teinte du pinceau appliquee a l'OBJET pose (Unpainted si aucune)
     }
 
     // Pont mod <-> systeme ECS. Le TileAccessor ne se construit que depuis un
@@ -88,6 +89,7 @@ namespace CoreKeeperAccess.Gameplay
         public static ToggleState Toggle;
         public static bool Lit;
         public static bool RoofHole;
+        public static PaintableColor Paint;
 
         // Vue figee de la case courante, pour la passer a la sonification partagee.
         public static TileInfo Snapshot() => new TileInfo
@@ -113,6 +115,7 @@ namespace CoreKeeperAccess.Gameplay
             Toggle = Toggle,
             Lit = Lit,
             RoofHole = RoofHole,
+            Paint = Paint,
         };
     }
 
@@ -278,6 +281,9 @@ namespace CoreKeeperAccess.Gameplay
             public float2 Pos;
             public ObjectID Obj;
             public ProximityScanner.Category Cat;
+            // Nom PROPRE de la cible quand elle en a un (autre joueur en multi : son pseudo).
+            // Vide sinon -> l'annonce retombe sur le nom d'objet localise, comme avant.
+            public string Name;
         }
 
         public const int MaxTargets = 32;
@@ -361,6 +367,7 @@ namespace CoreKeeperAccess.Gameplay
             public bool Infra;       // cable / conducteur electrique pur : cede la case a toute machine
             public bool Resource;    // gisement minable (PugAutomationCD.type Mineable) : priorite haute
             public ToggleState Toggle; // porte/portail/levier a bascule : etat ouvert/ferme ou active/desactive
+            public PaintableColor Paint; // teinte du pinceau sur l'objet (PaintableObjectCD, Unpainted si nu)
             public Entity Ent;       // entite source (pour le diagnostic automation dev)
         }
 
@@ -450,6 +457,7 @@ namespace CoreKeeperAccess.Gameplay
                 info.HasStorage = pe.HasStorage;
                 info.StorageCount = pe.StorageCount;
                 info.Toggle = pe.Toggle;
+                info.Paint = pe.Paint;
             }
             else
             {
@@ -778,6 +786,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.Toggle = info.Toggle;
                 TileQuery.Lit = info.Lit;
                 TileQuery.RoofHole = info.RoofHole;
+                TileQuery.Paint = info.Paint;
                 TileQuery.ResultTile = t;
                 TileQuery.ResultValid = true;
             }
@@ -1005,6 +1014,16 @@ namespace CoreKeeperAccess.Gameplay
                         wirePower = PowerState.None;
                     }
 
+                    // Couleur de peinture de l'OBJET (retour testeur 29 juillet 2026 : une table
+                    // ou un tabouret peint ne disait pas sa couleur, ni au curseur ni en details).
+                    // Peindre un MEUBLE n'ecrit pas un tileset (c'est le mecanisme des murs/sols,
+                    // cf. BuildModeNavigator.PaintColorLabel) mais PaintableObjectCD.color sur
+                    // l'entite - composant REPLIQUE reseau (serialiseur ghost genere cote jeu),
+                    // donc lisible aussi en client distant / invite multijoueur.
+                    PaintableColor paint = PaintableColor.Unpainted;
+                    if (EntityUtility.HasComponentData<PaintableObjectCD>(e, World))
+                        paint = EntityUtility.GetComponentData<PaintableObjectCD>(e, World).color;
+
                     var entry = new ObjectIndex.Entry
                     {
                         Id = od.objectID,
@@ -1019,6 +1038,7 @@ namespace CoreKeeperAccess.Gameplay
                         Infra = infra,
                         Resource = isMineable,
                         Toggle = toggle,
+                        Paint = paint,
                         Ent = e,
                     };
                     // Priorite de la case : interactible (3) > gisement/ressource (2) >
@@ -1393,7 +1413,24 @@ namespace CoreKeeperAccess.Gameplay
                 // sans etre une creature : exiger EnemyCD/CritterCD, sauf PNJ marchand qui est
                 // volontairement FactionCD seul (ni EnemyCD ni CritterCD, cf. requete ci-dessus).
                 ProximityScanner.Category cat;
-                if (ProximityScanner.CattleIds.Contains(oid))
+                string name = null;
+                // AUTRE JOUEUR en multi (retour testeur 29 juillet 2026 : "on ne se voit pas").
+                // Teste EN PREMIER : l'entite d'un joueur porte un FactionCD (donc elle passe
+                // deja la requete) mais ni EnemyCD ni CritterCD -> elle tombait dans le "continue"
+                // final, aucune categorie ne pouvait la recevoir. Le joueur LOCAL est deja exclu
+                // plus haut (GhostOwnerIsLocal). Nom = son pseudo, pas un nom d'objet generique.
+                if (EntityManager.HasComponent<PlayerGhost>(e))
+                {
+                    cat = ProximityScanner.Category.Player;
+                    if (EntityManager.HasComponent<PlayerCustomizationCD>(e))
+                    {
+                        var custom = EntityManager.GetComponentData<PlayerCustomizationCD>(e).customization;
+                        name = custom.name.Value;
+                    }
+                    // Pseudo vide (pas encore replique) : le scanner retombe sur le libelle de
+                    // categorie, il gere ce cas (cf. ProximityScanner.NameOf).
+                }
+                else if (ProximityScanner.CattleIds.Contains(oid))
                     cat = ProximityScanner.Category.Cattle;
                 else if (!critter && !enemyCd && hasFaction && faction == FactionID.Merchant)
                     cat = ProximityScanner.Category.Merchant;
@@ -1410,6 +1447,7 @@ namespace CoreKeeperAccess.Gameplay
                     Pos = p,
                     Obj = oid,
                     Cat = cat,
+                    Name = name,
                 };
             }
             ents.Dispose();

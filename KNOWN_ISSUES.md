@@ -2,7 +2,7 @@
 
 *Cette page existe aussi en français : [KNOWN_ISSUES.fr.md](KNOWN_ISSUES.fr.md).*
 
-Current as of 1.0.15 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
+Current as of 1.0.16 beta. Please check this list before opening an issue — and if you hit one of these, no need to report it unless you have new details.
 
 > **Setup tip — turn off Windows spatial sound** (Dolby Atmos / Windows Sonic for Headphones): it re-mixes the stereo field and blurs every directional cue (panning, left/right, the sonar). Plain stereo gives accurate positional audio.
 
@@ -12,6 +12,7 @@ Current as of 1.0.15 beta. Please check this list before opening an issue — an
 - **Not yet validated in the field**: the stun alert, and reading advanced automation machines (industry) at the cursor. They're built but not confirmed live.
 - **Proximity scanner: excluding your own character and companion from the "creatures" category hasn't been checked in multiplayer** — a teammate should still show up; not yet confirmed live. More broadly, the mod's multiplayer behaviour hasn't been played with several people yet.
 - **The whole 1.0.15 fix wave is coded but hasn't been played yet**: standard floors back in tile details, ancient relays excluded from ore prospecting, the kelp turtle returned to livestock, every deposit in range enumerated, full meal names on the hotbar, the dresser's hidden/shown state, and the entire boating side (cursor detection, shore sound on the laser cane, sonar and collision detector staying quiet on water, the leave-the-boat reminder in the help menu). If any of these misbehaves, that's a useful report.
+- **The whole 1.0.16 wave is coded but hasn't been played yet, multiplayer-heavy**: spotting other players (a dedicated "Players" category in the proximity scanner, their name announced by the detached cursor and the laser cane when one is on a targeted tile or in the beam), a player-tracking ping (hold R3 + left stick to pick a connected player to follow by ear, off-screen included), a fix for musical instrument mode trapping you (Start or Escape now exit it — previously only Triangle+O did), painted furniture (table, stool…) announcing its color like walls and floors already do, and the "manage players" screen's ban/invite lists saying "no player here" instead of staying silent when empty. Since this needs a second player to exercise most of it, reports are especially useful here.
 - **The shore sound** (laser cane, while boating) **is a placeholder**: the timbre was picked by ear from the game's own sound bank and may still change. You can listen to it in the sound-learning menu, exploration category.
 - **On a standard floor, tile details may stay silent** if the game has no name for that floor: the mod would rather say nothing than read out an internal English name. Worth reporting with the location — those get fixed case by case.
 

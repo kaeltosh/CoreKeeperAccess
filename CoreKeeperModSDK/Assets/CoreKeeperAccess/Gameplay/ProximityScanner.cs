@@ -27,12 +27,14 @@ namespace CoreKeeperAccess.Gameplay
     // (pont ECS dedie, cf. TileReader.cs).
     internal static class ProximityScanner
     {
-        internal enum Category { Enemy, Passive, Cattle, Merchant, Plant, Resource, Chest }
+        internal enum Category { Enemy, Passive, Cattle, Merchant, Plant, Resource, Chest, Player }
 
         // Ordre de cyclage FIXE (comme les positions de roue) : previsible au D-pad haut/bas.
+        // Joueurs juste apres les ennemis : ce qu'on cherche le plus vite en multi (retour
+        // testeur 29 juillet 2026 : "on ne se voit pas").
         private static readonly Category[] CatOrder =
         {
-            Category.Enemy, Category.Passive, Category.Cattle, Category.Merchant,
+            Category.Enemy, Category.Player, Category.Passive, Category.Cattle, Category.Merchant,
             Category.Plant, Category.Resource, Category.Chest,
         };
 
@@ -55,6 +57,7 @@ namespace CoreKeeperAccess.Gameplay
             public float2 Pos;
             public ObjectID Id;
             public Category Cat;
+            public string Name;  // nom propre s'il y en a un (pseudo d'un autre joueur), sinon vide
         }
 
         // Ressources sauvages reconnues (liste a etoffer au fil des decouvertes, meme convention
@@ -73,6 +76,10 @@ namespace CoreKeeperAccess.Gameplay
         private const SfxID PlantSfx = SfxID.inventory_ding;
         private const SfxID ResourceSfx = SfxID.inventory_ding;
         private const SfxID ChestSfx = SfxID.chestopen;
+        // Joueur : clic sec, CHOISI a l'oreille par l'utilisateur (audition du 30 juillet 2026,
+        // 6 candidats) - c'est le timbre "un joueur", partout ou on croise un joueur (scanner,
+        // canne laser, curseur de tuile), pas un son propre au scanner.
+        internal const SfxID PlayerSfx = SfxID.remote_clicker_2_01;
 
         private const float RebuildInterval = 0.25f; // meme cadence que l'ObjectIndex
         private static float _nextRebuild;
@@ -161,7 +168,7 @@ namespace CoreKeeperAccess.Gameplay
             for (int i = 0; i < VisibilityScan.Count; i++)
             {
                 var t = VisibilityScan.Targets[i];
-                _byCat[(int)t.Cat].Add(new Entry { Key = t.Key, Pos = t.Pos, Id = t.Obj, Cat = t.Cat });
+                _byCat[(int)t.Cat].Add(new Entry { Key = t.Key, Pos = t.Pos, Id = t.Obj, Cat = t.Cat, Name = t.Name });
             }
 
             for (int i = 0; i < _byCat.Length; i++)
@@ -196,7 +203,7 @@ namespace CoreKeeperAccess.Gameplay
                     var e = list[0];
                     _curKey = e.Key;
                     PlayEarcon(playerPos, e);
-                    BeaconGuide.StartDirect(ToTile(e.Pos), InGameTtsCore.ResolveObjectName(e.Id)); // annonce "Guidage vers X"
+                    BeaconGuide.StartDirect(ToTile(e.Pos), NameOf(e)); // annonce "Guidage vers X"
                 }
                 else
                 {
@@ -333,7 +340,7 @@ namespace CoreKeeperAccess.Gameplay
             var e = list[_entIndex];
             _curKey = e.Key;
             _emptyAnnounced = false; // une vraie entree existe : reamorce le futur "categorie vide"
-            string name = InGameTtsCore.ResolveObjectName(e.Id);
+            string name = NameOf(e);
             string text = announceCategory ? Strings.L(CategoryKey(e.Cat)) + ". " + name : name;
             TtsText.Say(text, interrupt);
             PlayEarcon(playerPos, e);
@@ -355,7 +362,7 @@ namespace CoreKeeperAccess.Gameplay
             if (_entIndex < 0 || _entIndex >= list.Count) { TtsText.Say(Strings.L("scanner.none"), true); return; }
             var e = list[_entIndex];
             _beaconArmed = true;
-            BeaconGuide.StartDirect(ToTile(e.Pos), InGameTtsCore.ResolveObjectName(e.Id));
+            BeaconGuide.StartDirect(ToTile(e.Pos), NameOf(e));
         }
 
         private static void PlayEarcon(float2 playerPos, Entry e)
@@ -378,6 +385,7 @@ namespace CoreKeeperAccess.Gameplay
                 case Category.Plant: return PlantSfx;
                 case Category.Resource: return ResourceSfx;
                 case Category.Chest: return ChestSfx;
+                case Category.Player: return PlayerSfx;
                 default: return PassiveSfx;
             }
         }
@@ -393,8 +401,20 @@ namespace CoreKeeperAccess.Gameplay
                 case Category.Plant: return "scanner.cat.plant";
                 case Category.Resource: return "scanner.cat.resource";
                 case Category.Chest: return "scanner.cat.chest";
+                case Category.Player: return "scanner.cat.player";
                 default: return "";
             }
+        }
+
+        // Nom a annoncer pour une entree : le nom PROPRE s'il existe (pseudo d'un autre joueur),
+        // sinon le nom d'objet localise (tout le reste). Filet pour un joueur dont le pseudo
+        // n'est pas encore replique : le libelle de categorie plutot que du silence.
+        private static string NameOf(Entry e)
+        {
+            if (!string.IsNullOrEmpty(e.Name)) return e.Name;
+            string n = InGameTtsCore.ResolveObjectName(e.Id);
+            if (!string.IsNullOrEmpty(n)) return n;
+            return e.Cat == Category.Player ? Strings.L("scanner.cat.player") : n;
         }
 
         private static int2 ToTile(float2 p) => new int2(Mathf.RoundToInt(p.x), Mathf.RoundToInt(p.y));

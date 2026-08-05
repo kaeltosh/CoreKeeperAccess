@@ -61,6 +61,10 @@
                       "guid":  "a6b68f69676cc5b4795e859177f72513"
                   },
                   {
+                      "path":  "Scripts/Controls/InstrumentExit.cs",
+                      "guid":  ""
+                  },
+                  {
                       "path":  "Scripts/Controls/OnboardingHint.cs",
                       "guid":  ""
                   },
@@ -183,6 +187,10 @@
                   {
                       "path":  "Scripts/Gameplay/PlacementReader.cs",
                       "guid":  "0135bc140932ce943a6288d45060cdfa"
+                  },
+                  {
+                      "path":  "Scripts/Gameplay/PlayerPing.cs",
+                      "guid":  ""
                   },
                   {
                       "path":  "Scripts/Gameplay/PlayerRide.cs",

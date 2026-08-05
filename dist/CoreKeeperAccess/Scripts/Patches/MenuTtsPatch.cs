@@ -87,6 +87,21 @@ namespace CoreKeeperAccess.Patches
                 return parts.Count > 0 ? string.Join(", ", parts) : null;
             }
 
+            // Sections de l'ecran "gerer les joueurs" (administrateurs / exclus / invitations) :
+            // ce sont elles-memes des RadicalMenuOption, donc leur titre passe deja par la voie
+            // normale. MAIS une section VIDE n'a aucun bouton par joueur a survoler (les
+            // annonces de PlayerListEntryButton ne peuvent pas se declencher) et le jeu se
+            // contente d'y afficher un texte statique, jamais lu -> silence total, impossible
+            // de distinguer "personne n'est banni" d'un ecran casse. Retour testeur 29 juillet
+            // 2026 (l'hote ne trouvait pas la liste des joueurs exclus pour debannir).
+            if (option is ListConnectedPlayers plist)
+            {
+                AddPart(ResolvePugText(plist.labelText));
+                if (plist.players == null || plist.players.Count == 0)
+                    AddPart(Strings.L("manageplayers.empty"));
+                return parts.Count > 0 ? string.Join(", ", parts) : null;
+            }
+
             var parentSlot = option.GetComponentInParent<WorldSlot>();
             if (parentSlot != null && parentSlot.number != null)
             {
@@ -585,6 +600,8 @@ namespace CoreKeeperAccess.Patches
             // joueurs" : la premiere liste survolee reannonce sa section.
             ManagePlayersState.LastListInstanceId = 0;
 
+            PatchGuard.Run("A11yPauseMenuDiag", () => DumpPauseMenuOptions(__instance));
+
             PatchGuard.Run("A11yMenuActivate", () =>
             {
                 var title = MenuTtsCore.FindMenuTitle(__instance);
@@ -604,6 +621,29 @@ namespace CoreKeeperAccess.Patches
                 if (option != null) MenuTtsState.LastInstanceId = option.GetInstanceID();
                 TtsText.Say(announcement, true);
             });
+        }
+
+        // Dev seulement : a l'ouverture du MENU PAUSE, dumpe ses options et leur etat actif.
+        // But precis (retour testeur 29 juillet 2026) : savoir si l'option "gerer les joueurs"
+        // (celle qui mene aux listes admins / EXCLUS / invitations, donc au debannissement) est
+        // presente et selectionnable, et sous quel libelle. Son etat vient de valeurs de prefab
+        // ILLISIBLES dans la decompilation - seule une lecture en jeu peut trancher. A comparer
+        // entre une partie solo et une partie hebergee en multi.
+        private static void DumpPauseMenuOptions(RadicalMenu menu)
+        {
+            if (!CoreKeeperAccessMod.DevMode || menu == null) return;
+            if (Manager.menu == null || !ReferenceEquals(menu, Manager.menu.pauseMenu)) return;
+
+            var options = menu.GetComponentsInChildren<RadicalMenuOption>(true);
+            foreach (var o in options)
+            {
+                if (o == null) continue;
+                string label = o.labelText != null ? TtsText.ResolvePugText(o.labelText) : null;
+                Diag.Log("A11yPauseMenuDiag", o.GetType().Name
+                    + " state=" + o.GetActiveStateInCurrentScene()
+                    + " activeInHierarchy=" + o.gameObject.activeInHierarchy
+                    + " label=" + (label ?? "<null>"));
+            }
         }
     }
 

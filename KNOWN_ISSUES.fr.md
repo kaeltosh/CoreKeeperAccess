@@ -2,7 +2,7 @@
 
 *This page is also available in English: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-À jour à la 1.0.15 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
+À jour à la 1.0.16 beta. Merci de consulter cette liste avant d'ouvrir une issue — si vous rencontrez un de ces points, inutile de le signaler sauf élément nouveau.
 
 > **Conseil d'installation — désactivez le son spatial Windows** (Dolby Atmos / Windows Sonic pour casque) : il re-mixe la stéréo et brouille tous les repères directionnels (panoramique, gauche/droite, le sonar). La stéréo simple donne un positionnement audio juste.
 
@@ -12,6 +12,7 @@
 - **Pas encore validé sur le terrain** : l'alerte d'étourdissement, et la lecture des machines d'automation avancée (industrie) au curseur. C'est codé mais pas confirmé en conditions réelles.
 - **Scanner de proximité : l'exclusion de votre propre personnage et de votre compagnon de la catégorie "créatures" n'a pas été vérifiée en multijoueur** — un coéquipier doit rester visible ; pas encore confirmé en conditions réelles. Plus largement, les fonctionnalités multijoueur du mod n'ont pas encore été jouées à plusieurs.
 - **Toute la vague de corrections de la 1.0.15 est codée mais n'a pas encore été jouée** : sols standards de retour dans les détails de case, relais anciens exclus de la prospection minerai, Varechortue rendu au bétail, énumération de tous les gisements à portée, nom complet des plats sur la barre rapide, état masqué/visible de la commode, et tout le volet bateau (repérage au curseur, son de rivage à la canne laser, sonar et détecteur de collision silencieux sur l'eau, rappel de la sortie du bateau dans le menu d'aide). Si l'un de ces points se comporte mal, c'est un signalement utile.
+- **Toute la vague 1.0.16 est codée mais n'a pas encore été jouée, à dominante multijoueur** : repérage des autres joueurs (catégorie dédiée "Joueurs" au scanner de proximité, pseudo annoncé au curseur détaché et à la canne laser quand un joueur occupe la case visée ou le faisceau), ping de repérage joueur (R3 tenu + stick gauche pour choisir un joueur connecté à suivre à l'oreille, y compris hors écran), fix du blocage en mode instrument de musique (Start ou Échap en sortent désormais — seul Triangle+Rond le faisait avant), les meubles peints (table, tabouret…) annoncent leur couleur comme le font déjà les murs et sols, et les listes de bannis/invitations de l'écran "gérer les joueurs" disent "aucun joueur ici" au lieu de rester muettes quand elles sont vides. Comme la majorité de cette vague demande un second joueur pour être exercée, les retours sont particulièrement utiles ici.
 - **Le son du rivage** (canne laser, en bateau) **est provisoire** : le timbre a été choisi à l'oreille dans la banque du jeu, il peut encore changer. Il s'écoute dans le menu d'apprentissage des sons, catégorie exploration.
 - **Sur un sol standard, les détails de case peuvent rester muets** si le jeu ne sait pas nommer ce sol : dans ce cas le mod préfère le silence à un nom technique en anglais. À signaler avec l'endroit, ça se corrige au cas par cas.
 

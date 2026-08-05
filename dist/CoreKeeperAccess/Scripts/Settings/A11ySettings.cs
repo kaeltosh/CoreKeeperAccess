@@ -130,6 +130,11 @@ namespace CoreKeeperAccess.Gameplay
             // les choses visibles a l'ecran. Feature PERMANENTE (comme la roue de stats ou la
             // roue d'actions) : pas de coupe-circuit, juste un volume.
             public float scannerVolume = 1f; // 0..2, volume de l'earcon de navigation (pas le beacon, qui reutilise GuideVolume)
+            // Ping de reperage d'un autre joueur en multi (R3 + stick gauche, cf. PlayerPing).
+            // Niveau FIXE (la distance pilote la cadence, et le volume seulement HORS ecran) :
+            // 0..2, defaut 1. Comme le guidage, pas de coupe-circuit - le ping ne sonne que si
+            // une cible est armee, "desactive" est une position de la roue.
+            public float playerPingVolume = 1f;
             // Detecteur d'obscurite (design fige 16 juillet 2026, cf. core-keeper-darkness-gate.md) :
             // bride curseur/canne/scanner/sonar/collision par-case si non eclaire, parite voyant.
             // Toggle present EN PHASE DE TEST (a retirer ou garder selon retour d'experience une
@@ -188,6 +193,7 @@ namespace CoreKeeperAccess.Gameplay
         public static float HotbarWheelHoldMs => _d.hotbarWheelHoldMs;
         public static bool MuteInteractInCursor => _d.muteInteractInCursor;
         public static float ScannerVolume => _d.scannerVolume;
+        public static float PlayerPingVolume => _d.playerPingVolume;
         public static bool DarknessGate => _d.darknessGate;
 
         // Mutateurs du panneau de reglages : clamp + sauvegarde immediate.
@@ -231,6 +237,7 @@ namespace CoreKeeperAccess.Gameplay
         public static void SetHotbarWheelHoldMs(float v) { _d.hotbarWheelHoldMs = Mathf.Clamp(Mathf.Round(v), 0f, 300f); Save(); }
         public static void SetMuteInteractInCursor(bool v) { _d.muteInteractInCursor = v; Save(); }
         public static void SetScannerVolume(float v) { _d.scannerVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
+        public static void SetPlayerPingVolume(float v) { _d.playerPingVolume = Mathf.Clamp(v, 0f, 2f); Save(); }
         public static void SetDarknessGate(bool v) { _d.darknessGate = v; Save(); }
 
         // Le fichier vit dans persistentDataPath (DONNEES UTILISATEUR), PAS dans le dossier

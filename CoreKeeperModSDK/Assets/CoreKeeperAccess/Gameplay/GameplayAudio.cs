@@ -96,6 +96,31 @@ namespace CoreKeeperAccess.Gameplay
             _beaconSource.Play();
         }
 
+        private static AudioSource _pingSource;
+
+        // Ping de reperage d'un autre joueur (cf. PlayerPing) : meme principe que PlayBeacon
+        // (Stop puis Play a chaque ping -> la cadence gouverne le rythme, la traine du clip
+        // ne deborde jamais), mais sur une source DEDIEE SEPAREE. Sinon le ping joueur et le
+        // guidage par balises se couperaient mutuellement : ce sont deux earcons repetes qui
+        // doivent pouvoir tourner EN MEME TEMPS (suivre un coequipier tout en suivant un
+        // itineraire). Un seul joueur suivi a la fois -> une source suffit.
+        public static void PlayPing(SfxID id, float pan, float pitch, float volume = 1f)
+        {
+            EnsureInit();
+            if (_pingSource == null || _fields == null) return;
+            int idx = (int)id;
+            if (idx < 0 || idx >= _fields.Length || _fields[idx] == null) return;
+            var clip = _fields[idx].GetNextAudioClip();
+            if (clip == null) return;
+            float gain = NormalizeGain(idx, ref clip);
+            _pingSource.Stop(); // coupe le ping precedent : la cadence decoupe le son
+            _pingSource.clip = clip;
+            _pingSource.panStereo = Mathf.Clamp(pan, -1f, 1f);
+            _pingSource.pitch = Mathf.Clamp(pitch, 0.05f, 4f);
+            _pingSource.volume = Mathf.Clamp01(volume * gain * A11ySettings.MasterVolume);
+            _pingSource.Play();
+        }
+
         // Pan commun a tous les sons positionnels du mod (12 juin, choix utilisateur) :
         // BAREME FIXE EN CASES, lineaire - 1/PanRangeTiles par case d'ecart, 100 %
         // (= extinction totale de l'oreille opposee, vrai hard pan Unity sur clip
@@ -1120,6 +1145,11 @@ namespace CoreKeeperAccess.Gameplay
             // Source dediee du beacon de navigation (coupee/relancee a chaque ping).
             _beaconSource = go.AddComponent<AudioSource>();
             ConfigureSource(_beaconSource);
+
+            // Source dediee du ping de reperage joueur (cf. PlayerPing) : separee du beacon
+            // pour que guidage et ping joueur puissent sonner en meme temps.
+            _pingSource = go.AddComponent<AudioSource>();
+            ConfigureSource(_pingSource);
 
             // Source dediee des earcons d'alerte d'etat (DoT / stun), non spatialises.
             _condSource = go.AddComponent<AudioSource>();

@@ -67,6 +67,9 @@ namespace CoreKeeperAccess.Gameplay
             // Les combos (prospection, double-tap carte) sont routes par ComboDispatcher
             // (cf. ComboBindings). Ici ne restent que les ticks.
             ProximityScanner.Tick(player);
+            // Apres le scanner : il publie VisibilityScan.CamHalf (fenetre camera), dont le
+            // ping joueur se sert pour normaliser sa cadence au bord de l'ecran.
+            PlayerPing.Tick(player);
             StepEngine.Tick(player);
             ProximitySonar.Tick(player);
             CollisionRadar.Tick(player);

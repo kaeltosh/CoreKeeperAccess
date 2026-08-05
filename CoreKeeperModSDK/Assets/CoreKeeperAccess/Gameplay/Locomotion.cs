@@ -154,8 +154,11 @@ namespace CoreKeeperAccess.Gameplay
         {
             // Aussi gele en mode R1 de la roue de saut barre rapide (stick gauche vole a
             // la roue, cf. HotbarJumpWheel) : meme geste que la touche access elle-meme.
+            // Idem sous R3 tenu : le stick gauche y pilote la roue du ping joueur
+            // (cf. PlayerPing.WheelActive) - marcher et choisir sa cible s'excluent.
             if (!CoreKeeperAccess.Controls.InfoKey.ModifierHeld
-                && !CoreKeeperAccess.Controls.InfoKey.HotbarWheelRight) return;
+                && !CoreKeeperAccess.Controls.InfoKey.HotbarWheelRight
+                && !PlayerPing.WheelActive) return;
             var entities = _query.ToEntityArray(Allocator.Temp);
             try
             {

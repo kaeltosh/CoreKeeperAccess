@@ -155,6 +155,16 @@ namespace CoreKeeperAccess.Controls
             _wasHeld = ModifierHeld;
         }
 
+        // Lecture brute d'un front montant de bouton PHYSIQUE, hors de tout modificateur :
+        // pour les consommateurs qui ont besoin d'un bouton que le jeu ignore de toute facon
+        // dans leur contexte (ex. Start pendant l'instrument, cf. InstrumentExit).
+        internal static bool PhysicalButtonDown(int id)
+        {
+            if (!ReInput.isReady) return false;
+            var joy = ReInput.controllers.GetLastActiveController<Joystick>();
+            return joy != null && GetButtonDownById(joy, id);
+        }
+
         private static bool GetButtonById(Joystick joy, int id)
         {
             for (int i = 0; i < joy.buttonCount; i++)

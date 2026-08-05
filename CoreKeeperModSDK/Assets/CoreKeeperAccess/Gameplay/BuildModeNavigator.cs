@@ -239,6 +239,21 @@ namespace CoreKeeperAccess.Gameplay
                 return;
             }
 
+            // AUTRE JOUEUR (multi) sur la case pointee : il prime sur le contenu de la case
+            // (retour testeur 29 juillet 2026, "on ne se voit pas" - un voyant voit d'abord le
+            // personnage, pas la dalle sous ses pieds). Positions lues dans le scan de
+            // visibilite deja publie en continu par TileReaderSystem (~4 Hz), aucune requete
+            // supplementaire. Clic sec = timbre "joueur" partage avec le scanner et la canne.
+            string other = OtherPlayerOn(_cursor);
+            if (other != null)
+            {
+                GameplayAudio.PlaySpatial(ProximityScanner.PlayerSfx,
+                    GameplayAudio.PanFromTiles(dx), Mathf.Pow(2f, dy / 12f),
+                    MoveTickVolume * A11ySettings.NavigationVolume * GameplayAudio.DistanceTrim(Dist(dx, dy)));
+                TtsText.Say(other, true);
+                return;
+            }
+
             var info = TileQuery.Snapshot();
             SonifyTile(_cursor, in info, dx, dy, true);
         }
@@ -318,7 +333,7 @@ namespace CoreKeeperAccess.Gameplay
                         // la surface, comme un voyant voit le bateau ET l'eau autour.
                         string surface = Strings.L(isWater ? "cursor.water" : "cursor.pit");
                         string objName = info.ObjectId != ObjectID.None && !IsSilentDecor(info.ObjectId)
-                            ? InGameTtsCore.ResolveObjectName(info.ObjectId)
+                            ? AppendObjectPaint(InGameTtsCore.ResolveObjectName(info.ObjectId), info.Paint)
                             : null;
                         TtsText.Say(string.IsNullOrEmpty(objName) ? surface : Join(objName, surface), true);
                     }
@@ -363,7 +378,7 @@ namespace CoreKeeperAccess.Gameplay
                     // SummonArea interactible = case injectee synthetiquement (vraie rune) -> annonce.
                     string objName = (info.ObjectId == ObjectID.SummonArea && !info.ObjectInteractable) || IsSilentDecor(info.ObjectId)
                         ? null
-                        : InGameTtsCore.ResolveObjectName(info.ObjectId);
+                        : AppendObjectPaint(InGameTtsCore.ResolveObjectName(info.ObjectId), info.Paint);
                     text = AppendToggle(AppendIndustry(AppendPlant(objName, in info), in info, false), in info);
                 }
             }
@@ -399,6 +414,22 @@ namespace CoreKeeperAccess.Gameplay
 
         // Distance joueur->case en cases, pour le trim de volume commun.
         private static float Dist(int dx, int dy) => Mathf.Sqrt(dx * dx + dy * dy);
+
+        // Un AUTRE joueur (multi) occupe-t-il cette case ? Rend son pseudo (ou le libelle de
+        // categorie si le pseudo n'est pas encore replique), null sinon. Source = le scan de
+        // visibilite publie en continu par TileReaderSystem, qui exclut deja le joueur local
+        // et le familier ; sa cadence (~4 Hz) suffit pour un survol au curseur.
+        internal static string OtherPlayerOn(int2 tile)
+        {
+            for (int i = 0; i < VisibilityScan.Count; i++)
+            {
+                var t = VisibilityScan.Targets[i];
+                if (t.Cat != ProximityScanner.Category.Player) continue;
+                if ((int)Mathf.Round(t.Pos.x) != tile.x || (int)Mathf.Round(t.Pos.y) != tile.y) continue;
+                return string.IsNullOrEmpty(t.Name) ? Strings.L("scanner.cat.player") : t.Name;
+            }
+            return null;
+        }
 
         // Volume des surfaces speciales (trou / eau) au curseur (a regler a l'oreille).
         private const float SpecialSurfaceVolume = 0.25f;
@@ -562,6 +593,11 @@ namespace CoreKeeperAccess.Gameplay
             var snap = TileQuery.Snapshot();
             string text = null;
 
+            // Autre joueur present : en TETE de l'empilage (c'est ce qu'un voyant remarque
+            // d'abord sur la case), les couches de la case suivent normalement.
+            string otherPlayer = OtherPlayerOn(_cursor);
+            if (otherPlayer != null) text = Stack(text, otherPlayer);
+
             // Plafond : toujours annonce (intact ou troue), c'est une couche a part entiere.
             text = Stack(text, Strings.L(TileQuery.RoofHole ? "cursor.roofhole" : "cursor.roofed"));
 
@@ -631,7 +667,9 @@ namespace CoreKeeperAccess.Gameplay
                 // recouvre (rien d'autre a dire ici, la dalle parle pour la case ci-dessous).
                 if (TileQuery.ObjectId != ObjectID.None && !hiddenByGround)
                 {
-                    string objName = IsSilentDecor(TileQuery.ObjectId) ? null : InGameTtsCore.ResolveObjectName(TileQuery.ObjectId);
+                    string objName = IsSilentDecor(TileQuery.ObjectId)
+                        ? null
+                        : AppendObjectPaint(InGameTtsCore.ResolveObjectName(TileQuery.ObjectId), snap.Paint);
                     string objText = AppendToggle(AppendIndustry(AppendPlant(objName, in snap), in snap, true), in snap);
                     text = Stack(text, objText);
                 }
@@ -706,6 +744,42 @@ namespace CoreKeeperAccess.Gameplay
             string color = PaintColorLabel(tileset);
             if (string.IsNullOrEmpty(color)) return name;
             return string.IsNullOrEmpty(name) ? color : name + " " + color;
+        }
+
+        // Couleur de peinture d'un OBJET pose (meuble : table, tabouret, coffre...). Mecanisme
+        // different des murs/sols ci-dessus : le pinceau ecrit ici PaintableObjectCD.color sur
+        // l'entite (enum PaintableColor), l'ObjectID et le tileset ne changent pas du tout.
+        // Meme rendu a l'oreille que pour un mur : suffixe adjectif ("Table jaune").
+        // Retour testeur 29 juillet 2026 (tables et tabourets peints muets sur leur couleur).
+        internal static string AppendObjectPaint(string name, PaintableColor paint)
+        {
+            string color = PaintColorName(paint);
+            if (string.IsNullOrEmpty(color)) return name;
+            return string.IsNullOrEmpty(name) ? color : name + " " + color;
+        }
+
+        // Memes libelles i18n que les murs/sols (paint.*) : une teinte du pinceau porte le meme
+        // nom qu'elle soit appliquee a un mur, un sol ou un meuble.
+        private static string PaintColorName(PaintableColor paint)
+        {
+            switch (paint)
+            {
+                case PaintableColor.Yellow: return Strings.L("paint.yellow");
+                case PaintableColor.Green: return Strings.L("paint.green");
+                case PaintableColor.Red: return Strings.L("paint.red");
+                case PaintableColor.Purple: return Strings.L("paint.purple");
+                case PaintableColor.Blue: return Strings.L("paint.blue");
+                case PaintableColor.Brown: return Strings.L("paint.brown");
+                case PaintableColor.White: return Strings.L("paint.white");
+                case PaintableColor.Black: return Strings.L("paint.black");
+                case PaintableColor.Orange: return Strings.L("paint.orange");
+                case PaintableColor.Cyan: return Strings.L("paint.cyan");
+                case PaintableColor.Pink: return Strings.L("paint.pink");
+                case PaintableColor.Gray: return Strings.L("paint.grey");
+                case PaintableColor.Peach: return Strings.L("paint.peach");
+                case PaintableColor.Teal: return Strings.L("paint.teal");
+                default: return null; // Unpainted / __max__ : rien a dire
+            }
         }
 
         private static string PaintColorLabel(int tileset)
