@@ -2,6 +2,14 @@
 
 *Cette page existe aussi en français : [CHANGELOG.fr.md](CHANGELOG.fr.md).*
 
+## 1.0.17 beta — August 2026
+
+One field-confirmed fix, alongside a wave of tester-reported fixes that hasn't been played yet (see the known issues).
+
+### Fixes
+
+- **Closing a cattle window with Circle no longer leaves navigation stuck.** The mod stayed attached to the animal after the window was closed: the D-pad kept being captured and the animal's status was re-announced for nothing. Confirmed fixed in the field.
+
 ## 1.0.15 beta — July 2026
 
 A release driven by tester feedback: field confirmations for everything pending since 1.0.12/1.0.13, plus a wave of fixes reported by testers (see also the known issues — that wave hasn't been played yet).

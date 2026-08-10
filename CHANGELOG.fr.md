@@ -2,6 +2,14 @@
 
 *This page is also available in English: [CHANGELOG.md](CHANGELOG.md).*
 
+## 1.0.17 bêta — août 2026
+
+Une correction confirmée sur le terrain, accompagnée d'une vague de corrections signalées par les testeurs qui n'a pas encore été jouée (voir les problèmes connus).
+
+### Corrections
+
+- **Fermer la fenêtre d'un animal avec Rond ne bloque plus la navigation.** Le mod restait accroché à l'animal une fois la fenêtre refermée : la croix directionnelle continuait d'être captée et l'état de la bête se réannonçait dans le vide. Confirmé corrigé sur le terrain.
+
 ## 1.0.15 bêta — juillet 2026
 
 Version issue des retours de la session de test : confirmations de terrain pour ce qui était en attente depuis 1.0.12/1.0.13, plus une vague de corrections signalées par les testeurs (voir aussi les problèmes connus, cette vague-là n'a pas encore été jouée).

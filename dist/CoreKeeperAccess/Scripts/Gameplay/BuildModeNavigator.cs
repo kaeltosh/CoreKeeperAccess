@@ -681,6 +681,14 @@ namespace CoreKeeperAccess.Gameplay
                 // l'info cachee (cable masque) vient en dernier, jamais en tete.
                 text = Stack(text, groundText);
 
+                // Decor de sol pose en ENTITE (carrelage caverneux, grand carreau de pierre) :
+                // depuis le 10 aout 2026 il cede la case a ce qu'on pose dessus (il masquait
+                // lampes et portes electriques), mais l'INSPECTION deliberee le nomme quand
+                // meme, a sa place logique : avec le sol, avant l'info cachee du cable. Si
+                // c'est lui l'objet de la case (rien dessus), il est deja sorti plus haut.
+                if (TileQuery.FloorObjectId != ObjectID.None && TileQuery.FloorObjectId != TileQuery.ObjectId)
+                    text = Stack(text, InGameTtsCore.ResolveObjectName(TileQuery.FloorObjectId));
+
                 if (wireMasked)
                 {
                     string wireName = InGameTtsCore.ResolveObjectName(TileQuery.WireObjectId);

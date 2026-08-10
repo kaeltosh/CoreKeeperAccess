@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using CoreKeeperAccess.Localization;
 using CoreKeeperAccess.Patches;
-using Unity.Collections;
 using Unity.Entities;
 
 namespace CoreKeeperAccess.Gameplay
@@ -24,11 +23,18 @@ namespace CoreKeeperAccess.Gameplay
                         + Strings.L(info.coreIsActivated ? "progress.core.on" : "progress.core.off"),
                     Strings.L("progress.bosses") + " " + info.bossesKilled,
                 };
-                // Cœur eveille mais pas encore active : les 3 statues de boss sont chargees
-                // (etat qu'un voyant percoit - le Cœur s'illumine a fond), il attend qu'on lui
-                // parle. C'est aussi ce que dit l'indice natif TalkToTheCore. On ne le signale
-                // PAS tant que les 3 ne sont pas la (pointer "il faut 3 statues" = spoiler).
-                if (!info.coreIsActivated && ActivatedStatues() >= 3)
+                // Les 3 cristaux sont poses mais le joueur n'a pas encore parle au Cœur : c'est
+                // l'etape qui manque, et rien a l'ecran ne la reclame clairement (retour testeur
+                // 10 aout 2026 : joueur COINCE, la Grande Muraille reste sourde). Deux donnees
+                // DISTINCTES cote jeu, la nuance est tout le probleme :
+                //  - WorldInfoCD.coreIsActivated = les 3 cristaux sont dans les statues, POINT
+                //    (UpdateWorldInfoSystem) - rien a voir avec "avoir parle au Cœur" ;
+                //  - SoulsInfoCD.hasUnlockedSouls = le dialogue du Cœur a bien eu lieu (pose par
+                //    PlayerController.UnlockSouls des la 1re replique), donnee du PERSONNAGE.
+                // PlayerController.UpdateGreatWall exige LES DEUX pour laisser toucher le mur ->
+                // c'est exactement ce couple qu'on annonce. (L'ancienne garde "pas active + 3
+                // statues" etait impossible : 3 statues => coreIsActivated, clause jamais dite.)
+                if (info.coreIsActivated && !HasUnlockedSouls(player))
                     parts.Add(Strings.L("progress.talktocore"));
                 // Le grand mur n'est mentionne qu'une fois abaisse (sinon ce serait pointer
                 // un objectif que le joueur n'a pas encore decouvert).
@@ -38,24 +44,19 @@ namespace CoreKeeperAccess.Gameplay
             catch { }
         }
 
-        // Nombre de statues de boss "chargees" (doneLoadingUp, GhostField repliqué au client),
-        // lues via une requete ECS directe - meme source que TheCore.UpdateStatueLoadState.
-        // Manager.ecs.GetClientEntityQuery est une API managee (PAS un systeme ECS SystemBase),
-        // donc fast-build suffit, pas de build Unity.
-        private static int ActivatedStatues()
+        // Le joueur a-t-il debloque les ames aupres du Cœur ? SoulsInfoCD.hasUnlockedSouls est
+        // porte par l'entite JOUEUR et marque [GhostField] (serialiseur ghost genere cote jeu)
+        // -> repliqué au client, donc lisible en invite multijoueur comme en solo. C'est la
+        // seule donnee qui distingue "cristaux poses" de "j'ai parle au Cœur" ; partagee avec
+        // la garde du journal de dialogues (CoreDialogueArchive).
+        internal static bool HasUnlockedSouls(PlayerController player)
         {
             try
             {
-                var q = Manager.ecs.GetClientEntityQuery(new ComponentType[] { typeof(BossStatueCD) });
-                using (var arr = q.ToComponentDataArray<BossStatueCD>(Allocator.Temp))
-                {
-                    int done = 0;
-                    for (int i = 0; i < arr.Length; i++)
-                        if (arr[i].doneLoadingUp) done++;
-                    return done;
-                }
+                if (player == null) return false;
+                return EntityUtility.GetComponentData<SoulsInfoCD>(player.entity, player.world).hasUnlockedSouls;
             }
-            catch { return 0; }
+            catch { return false; }
         }
     }
 }

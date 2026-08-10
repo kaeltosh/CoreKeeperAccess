@@ -65,10 +65,15 @@ namespace CoreKeeperAccess.Navigation
             if (InventoryNavState.ArmedInput.HasValue && --InventoryNavState.ArmedTtl <= 0)
                 InventoryNavState.ArmedInput = null;
 
+            // Bétail : on se fie a la visibilite REELLE du panneau (cattleUI.isShowing),
+            // pas a player.activeCattle. Fermer avec Rond cache le panneau SANS remettre
+            // activeCattle a null (seul un eloignement/mort de l'animal le fait, cf.
+            // Cattle.OnFree/OnDeath cote jeu) -> se fier au champ laissait notre nav
+            // accrochee indefiniment (combat de curseur en boucle + D-pad reste vole).
             bool open = Manager.main != null && Manager.main.player != null && Manager.ui != null
                         && (Manager.ui.isAnyInventoryShowing
                             || (Manager.ui.characterWindow != null && Manager.ui.characterWindow.isShowing)
-                            || Manager.main.player.activeCattle != null);
+                            || (Manager.ui.cattleUI != null && Manager.ui.cattleUI.isShowing));
 
             if (open && !_active) Enter();
             else if (!open && _active) Exit();

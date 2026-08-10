@@ -50,6 +50,7 @@ namespace CoreKeeperAccess.Gameplay
         public int StorageCount;       // nombre d'objets dedans (0 = vide), si HasStorage
         public PowerState WirePower;   // tension d'un cable present sur la case (sous un objet non electrique), None sinon
         public ObjectID WireObjectId;  // identite du cable dont WirePower rapporte la tension (None si aucun)
+        public ObjectID FloorObjectId; // decor de sol-ENTITE present sur la case (carrelage caverneux...), meme masque
         public ToggleState Toggle;     // etat ouvert/ferme (porte, portail) ou active/desactive (levier), None sinon
         public bool Lit;               // detecteur d'obscurite : case eclairee (roofHole ou source ponctuelle), cf. LightIndex
         public bool RoofHole;          // plafond troue (couche roofHole) : case a l'air libre / ciel ouvert
@@ -86,6 +87,7 @@ namespace CoreKeeperAccess.Gameplay
         public static int StorageCount;
         public static PowerState WirePower;
         public static ObjectID WireObjectId;
+        public static ObjectID FloorObjectId;
         public static ToggleState Toggle;
         public static bool Lit;
         public static bool RoofHole;
@@ -112,6 +114,7 @@ namespace CoreKeeperAccess.Gameplay
             StorageCount = StorageCount,
             WirePower = WirePower,
             WireObjectId = WireObjectId,
+            FloorObjectId = FloorObjectId,
             Toggle = Toggle,
             Lit = Lit,
             RoofHole = RoofHole,
@@ -365,6 +368,7 @@ namespace CoreKeeperAccess.Gameplay
             public bool HasStorage;  // automation : stockage (StorageCD)
             public int StorageCount; // nombre d'objets dans le stockage
             public bool Infra;       // cable / conducteur electrique pur : cede la case a toute machine
+            public bool FloorDecor;  // decor de SOL (carrelage caverneux...) : cede la case a TOUT, cable compris
             public bool Resource;    // gisement minable (PugAutomationCD.type Mineable) : priorite haute
             public ToggleState Toggle; // porte/portail/levier a bascule : etat ouvert/ferme ou active/desactive
             public PaintableColor Paint; // teinte du pinceau sur l'objet (PaintableObjectCD, Unpainted si nu)
@@ -381,9 +385,30 @@ namespace CoreKeeperAccess.Gameplay
             public ObjectID Id;
         }
 
+        // Decors de SOL qui ne sont PAS une couche de tuile mais une ENTITE posee (classes
+        // CavelingFloorTile / CavelingFloorTileDark / grands carreaux de pierre des ruines,
+        // confirme au decompil : EntityMonoBehaviour, pas un TileType). Sans traitement ils
+        // se battent a armes egales avec ce qu'on POSE dessus dans l'index -> retour testeur
+        // 10 aout 2026 : une lampe ou une porte electrique posee sur un carrelage caverneux
+        // disparaissait de l'annonce (la scie circulaire, elle, est interactible donc gagnait
+        // toujours). On leur donne le rang le plus bas : ils cedent a tout, cable compris
+        // (un cable pose sur un carrelage est visible par-dessus).
+        public static readonly HashSet<ObjectID> FloorDecorIds = new HashSet<ObjectID>
+        {
+            ObjectID.CavelingFloorTile,
+            ObjectID.CavelingFloorTileDark,
+            ObjectID.BigFloorTileCaveling,
+            ObjectID.BigFloorTileGemstone,
+            ObjectID.BigFloorTileScholar,
+        };
+
         public static float2 Center; // position joueur, publiee par le mod (GameplayInput)
         public static readonly Dictionary<long, Entry> Map = new Dictionary<long, Entry>();
         public static readonly Dictionary<long, WireEntry> WireMap = new Dictionary<long, WireEntry>();
+        // Decor de sol present sur la case, INDEPENDANT de l'objet gagnant (meme role que
+        // WireMap pour le cable) : il cede la case a ce qui est pose dessus, mais on garde
+        // son identite pour pouvoir le nommer quand meme dans les details Triangle+Haut.
+        public static readonly Dictionary<long, ObjectID> FloorMap = new Dictionary<long, ObjectID>();
 
         public static long Key(int2 t) => ((long)t.x << 32) ^ (uint)t.y;
 
@@ -473,6 +498,10 @@ namespace CoreKeeperAccess.Gameplay
                 info.WirePower = wp.Power;
                 info.WireObjectId = wp.Id;
             }
+            // Idem pour un decor de sol-entite (carrelage caverneux) : present sur la case
+            // meme quand un objet pose dessus lui prend l'occupation.
+            if (ObjectIndex.FloorMap.TryGetValue(ObjectIndex.Key(t), out var fid))
+                info.FloorObjectId = fid;
             info.Lit = LightIndex.IsLit(ref ta, t);
             info.RoofHole = ta.HasType(t, TileType.roofHole);
             return info;
@@ -497,8 +526,12 @@ namespace CoreKeeperAccess.Gameplay
             // une machine posee SUR le cable ancien (qui, lui, a un collider) etait
             // masquee par lui -> un INTERACTIBLE de l'index prime sur un
             // non-interactible rendu par la sonde.
+            // Un DECOR DE SOL rendu par la sonde (le carrelage caverneux a un collider) cede
+            // aussi a n'importe quelle entree d'index : sans ca, il continuait a masquer la
+            // lampe / la porte electrique posee dessus par le chemin de la sonde.
             if (ObjectIndex.TryGet(t, out var e)
-                && (id == ObjectID.None || (e.Interactable && !interactable)))
+                && (id == ObjectID.None || (e.Interactable && !interactable)
+                    || (ObjectIndex.FloorDecorIds.Contains(id) && !ObjectIndex.FloorDecorIds.Contains(e.Id))))
             {
                 interactable = e.Interactable;
                 id = e.Id;
@@ -512,6 +545,7 @@ namespace CoreKeeperAccess.Gameplay
             interactable = false;
             var hits = new NativeList<DistanceHit>(8, Allocator.Temp);
             ObjectID id = ObjectID.None;
+            ObjectID floorFallback = ObjectID.None; // decor de sol : retenu seulement faute de mieux
             if (cw.OverlapSphere(pos, radius, ref hits, AnyObjectFilter, QueryInteraction.Default))
             {
                 foreach (var h in hits)
@@ -533,6 +567,14 @@ namespace CoreKeeperAccess.Gameplay
                         var od = EntityUtility.GetComponentData<ObjectDataCD>(h.Entity, world);
                         if (od.objectID != ObjectID.None)
                         {
+                            // Decor de sol (carrelage caverneux...) : il porte un collider et
+                            // sortait donc en PREMIER de la sonde, masquant la lampe ou la porte
+                            // posee dessus. On le met de cote et on continue a chercher.
+                            if (ObjectIndex.FloorDecorIds.Contains(od.objectID))
+                            {
+                                if (floorFallback == ObjectID.None) floorFallback = od.objectID;
+                                continue;
+                            }
                             id = od.objectID;
                             interactable = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(h.Entity, world);
                             break;
@@ -541,6 +583,7 @@ namespace CoreKeeperAccess.Gameplay
                 }
             }
             hits.Dispose();
+            if (id == ObjectID.None) id = floorFallback; // rien d'autre sur la case : le sol parle
             return id;
         }
     }
@@ -783,6 +826,7 @@ namespace CoreKeeperAccess.Gameplay
                 TileQuery.StorageCount = info.StorageCount;
                 TileQuery.WirePower = info.WirePower;
                 TileQuery.WireObjectId = info.WireObjectId;
+                TileQuery.FloorObjectId = info.FloorObjectId;
                 TileQuery.Toggle = info.Toggle;
                 TileQuery.Lit = info.Lit;
                 TileQuery.RoofHole = info.RoofHole;
@@ -808,6 +852,7 @@ namespace CoreKeeperAccess.Gameplay
             {
                 ObjectIndex.Map.Clear();
                 ObjectIndex.WireMap.Clear();
+                ObjectIndex.FloorMap.Clear();
                 if (_dbQuery.IsEmptyIgnoreFilter) return;
                 var bank = _dbQuery.GetSingleton<PugDatabase.DatabaseBankCD>();
                 float2 center = ObjectIndex.Center;
@@ -948,6 +993,7 @@ namespace CoreKeeperAccess.Gameplay
                     // mais pour nous "courant present ici" signale le cable (et sa presence sous
                     // une structure non electrique, via WireMap).
                     PowerState power = PowerState.None; int sourceEnergy = 0; PowerState wirePower = PowerState.None;
+                    bool needsPower = false; // consommateur DECLARE (le jeu lui afficherait l'icone manque-de-courant)
                     bool hasElec = EntityUtility.HasComponentData<ElectricityCD>(e, World);
                     if (hasElec)
                     {
@@ -955,7 +1001,10 @@ namespace CoreKeeperAccess.Gameplay
                         sourceEnergy = el.sourceEnergy;
                         if (el.sourceEnergy > 0) power = PowerState.Source;
                         else if (el.ShouldDisplayedRequireElectricity())
+                        {
+                            needsPower = true;
                             power = el.hasEnoughElectricityToPowerStuff ? PowerState.On : PowerState.Off;
+                        }
                         else if (!hasAuto) // cable / conducteur pur
                         {
                             wirePower = el.hasEnoughElectricityToPowerStuff ? PowerState.On : PowerState.Off;
@@ -967,15 +1016,34 @@ namespace CoreKeeperAccess.Gameplay
                         ? (int)EntityUtility.GetComponentData<ElectricityConnectionCD>(e, World).direction
                         : 0;
 
-                    // Cable / conducteur pur : electrique, SANS fonction propre ni interaction,
-                    // non source. Il doit CEDER la case a toute machine posee dessus (sinon il
-                    // masquait foreuses/convoyeurs/bras dans l'index - "le cable annonce tout").
+                    // Etat ouvert/ferme (porte, portail) ou active/desactive (levier) : deux
+                    // familles distinctes cote jeu. Electrique (porte/portail elec) -> lu via
+                    // SwapColliderCD.swap (bool replique reseau, source fiable - c'est le champ
+                    // que le jeu lui-meme utilise pour animer l'ouverture). Bois (porte/portail
+                    // classique) + levier -> pas de composant d'etat dedie, encode dans la
+                    // VARIATION de l'ObjectDataCD ; parite confirmee par decompil (Gate : case
+                    // impaire = "Open" explicite dans le code jeu, Lever : 1 = allume) -> IMPAIR
+                    // = ouvert/actif, PAIR = ferme/inactif. Lu ICI (avant infra) : un objet a
+                    // bascule n'est jamais du cable, cf. ci-dessous.
+                    ToggleState toggle = ToggleLogic.Compute(e, World, od.objectID, od.variation);
+
                     // Cable / conducteur pur : electrique SANS PugAutomationCD (les cables
                     // ElectricalWire n'en portent pas, toutes les machines si) -> il CEDE la
                     // case a toute machine posee dessus (sinon il masquait le bras/convoyeur/
                     // foreuse cable par-dessous).
+                    // Deux exclusions ajoutees le 10 aout 2026 (meme retour testeur que le
+                    // carrelage caverneux) : le filtre attrapait aussi les APPAREILS terminaux,
+                    // qui ne sont ni machine d'automation ni interactibles - une porte
+                    // electrique, une lampe cablee - et les faisait ceder devant n'importe quel
+                    // meuble. Un objet a bascule connu (porte/portail/levier) ou un consommateur
+                    // qui declare avoir besoin de courant a une fonction propre : pas du cable.
                     bool interactable0 = EntityUtility.HasComponentData<InteractableObjectReferenceCD>(e, World);
-                    bool infra = (hasElec || hasConn) && !hasAuto && !interactable0 && sourceEnergy == 0;
+                    bool infra = (hasElec || hasConn) && !hasAuto && !interactable0 && sourceEnergy == 0
+                        && !needsPower && toggle == ToggleState.None;
+
+                    // Decor de sol pose en ENTITE (carrelage caverneux, grand carreau de pierre) :
+                    // rang le plus bas, il ne masque plus ce qui est pose dessus (cf. FloorDecorIds).
+                    bool floorDecor = ObjectIndex.FloorDecorIds.Contains(od.objectID);
 
                     // Stockage d'automation : remplissage. L'inventaire vit sur une entite
                     // separee (StorageCD.inventoryEntity) -> on compte ses slots occupes.
@@ -992,16 +1060,6 @@ namespace CoreKeeperAccess.Gameplay
                         }
                     }
 
-                    // Etat ouvert/ferme (porte, portail) ou active/desactive (levier) : deux
-                    // familles distinctes cote jeu. Electrique (porte/portail elec) -> lu via
-                    // SwapColliderCD.swap (bool replique reseau, source fiable - c'est le champ
-                    // que le jeu lui-meme utilise pour animer l'ouverture). Bois (porte/portail
-                    // classique) + levier -> pas de composant d'etat dedie, encode dans la
-                    // VARIATION de l'ObjectDataCD ; parite confirmee par decompil (Gate : case
-                    // impaire = "Open" explicite dans le code jeu, Lever : 1 = allume) -> IMPAIR
-                    // = ouvert/actif, PAIR = ferme/inactif. Mapping pas teste en jeu, a valider
-                    // a l'oreille (poser une porte/un portail, l'ouvrir/fermer, ecouter).
-                    ToggleState toggle = ToggleLogic.Compute(e, World, od.objectID, od.variation);
                     // Le levier porte un ElectricityCD avec sourceEnergy fixe (capacite nominale,
                     // constante en base) : sans ce garde-fou, "genere du courant" s'annoncait
                     // MEME desactive (le blocage reel passe par blocksElectricityWhenVariationIsZero,
@@ -1036,6 +1094,7 @@ namespace CoreKeeperAccess.Gameplay
                         HasStorage = hasStorage,
                         StorageCount = storageCount,
                         Infra = infra,
+                        FloorDecor = floorDecor,
                         Resource = isMineable,
                         Toggle = toggle,
                         Paint = paint,
@@ -1128,15 +1187,21 @@ namespace CoreKeeperAccess.Gameplay
             catch (System.Exception ex) { Diag.Error("A11yIndexDiag", ex); }
         }
 
-        // Priorite d'occupation d'une case : interactible > gisement/ressource > machine > cable.
+        // Priorite d'occupation d'une case : interactible > gisement/ressource > machine >
+        // cable > decor de sol. Le decor de sol est SOUS le cable : posee sur un carrelage,
+        // une ligne de cable reste visible a l'oeil, l'inverse n'est jamais vrai.
         private static int Prio(in ObjectIndex.Entry e)
-            => e.Interactable ? 3 : e.Resource ? 2 : e.Infra ? 0 : 1;
+            => e.Interactable ? 3 : e.Resource ? 2 : e.FloorDecor ? -1 : e.Infra ? 0 : 1;
 
         // Pose une entree sur une case en respectant la priorite (ne se fait pas ecraser par
         // moins prioritaire). A priorite egale, le dernier balaye gagne (comportement historique).
         private static void Place(int2 cell, in ObjectIndex.Entry entry, int newPrio)
         {
             long k = ObjectIndex.Key(cell);
+            // Decor de sol : on garde son identite sur la case MEME s'il perd l'occupation
+            // (meme role que WireMap pour le cable) -> les details Triangle+Haut le nomment
+            // quand meme, sous l'objet qui le recouvre.
+            if (entry.FloorDecor) ObjectIndex.FloorMap[k] = entry.Id;
             if (ObjectIndex.Map.TryGetValue(k, out var old) && Prio(in old) > newPrio) return;
             ObjectIndex.Map[k] = entry;
         }

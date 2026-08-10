@@ -112,6 +112,10 @@ namespace CoreKeeperAccess.Gameplay
             _nextCattleUiPoll = Time.unscaledTime + CattleUiPollInterval;
 
             Cattle active = player.activeCattle;
+            // Meme piege que la porte d'entree de InventoryNavigator : Rond cache le
+            // panneau sans jamais remettre activeCattle a null -> sans ce garde, le poll
+            // continuerait a annoncer la faim de l'animal apres fermeture.
+            if (active != null && (Manager.ui.cattleUI == null || !Manager.ui.cattleUI.isShowing)) active = null;
             string status = null;
             if (active != null)
             {

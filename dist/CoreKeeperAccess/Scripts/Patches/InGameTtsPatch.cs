@@ -1031,16 +1031,32 @@ namespace CoreKeeperAccess.Patches
     {
         public static bool ReconstructActivation()
         {
-            // Garde : ne reconstruire le dialogue d'eveil QUE si le Cœur de ce monde a reellement
-            // ete active (WorldInfoCD.coreIsActivated, flag du monde repliqué au client - meme
-            // source que WorldProgress/Triangle+bas). Sinon, sur une partie neuve, la sequence
-            // STATIQUE du prefab (presente des le spawn du Core) serait seedee a tort. On renvoie
-            // false tant que ce n'est pas active -> l'orchestrateur retente apres l'activation.
+            // Garde a DEUX verrous : on ne seede la sequence STATIQUE du prefab que si elle a
+            // vraiment ete jouee ici. Corrige un retour testeur du 10 aout 2026 (le journal
+            // affichait "Rends-toi en direction : ouest" des la 3e gemme, envoyant le joueur
+            // au mur alors qu'il n'avait pas parle au Cœur -> mur sourd, joueur coince) :
+            //  - WorldInfoCD.coreIsActivated ne vaut PAS "le Cœur a parle" : c'est uniquement
+            //    "les 3 cristaux sont dans les statues" (UpdateWorldInfoSystem) -> il tombe des
+            //    la 3e gemme, seul il laissait passer tout le dialogue d'activation trop tot ;
+            //  - SoulsInfoCD.hasUnlockedSouls (entite joueur, [GhostField] repliqué) = le
+            //    dialogue a bien eu lieu, pose des la 1re replique par PlayerController.
+            // Le couple est exactement ce que PlayerController.UpdateGreatWall exige pour
+            // laisser toucher la Grande Muraille. Il neutralise aussi le cas d'un perso
+            // veteran (ames deja debloquees ailleurs) debarquant dans un monde neuf.
+            // false = pas encore -> l'orchestrateur retentera.
             try
             {
                 var player = Manager.main != null ? Manager.main.player : null;
                 if (player == null || !player.querySystem.GetSingleton<WorldInfoCD>().coreIsActivated)
                     return false;
+                if (!Gameplay.WorldProgress.HasUnlockedSouls(player))
+                {
+                    // Rattrapage des journaux deja pollues par l'ancienne garde (le seed a pu
+                    // partir des la 3e gemme) : on retire la conversation d'activation archivee
+                    // a tort. Sans ca le fix ne repare que les nouvelles parties.
+                    Navigation.DialogueLog.DropActivation();
+                    return false;
+                }
             }
             catch { return false; }
 

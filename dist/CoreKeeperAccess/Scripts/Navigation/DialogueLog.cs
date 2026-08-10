@@ -121,6 +121,22 @@ namespace CoreKeeperAccess.Navigation
             if (changed) { Trim(); Save(); }
         }
 
+        // Retire la conversation d'ACTIVATION archivee. RATTRAPAGE des journaux deja ecrits :
+        // jusqu'au 10 aout 2026 le seed ne verifiait que "les 3 cristaux sont poses", pas "j'ai
+        // parle au Cœur" -> des journaux persistes portent tout le dialogue d'eveil, direction
+        // du Grand Mur comprise, dans des mondes ou le Cœur n'a jamais parle (joueur envoye au
+        // mur pour rien). Appele UNIQUEMENT dans ce cas, ou aucune replique legitime du Cœur ne
+        // peut exister - y compris pour un journal v1 migre (tout en conv 1 : le Cœur muet, il
+        // n'a rien pu y ecrire).
+        public static void DropActivation()
+        {
+            EnsureLoaded();
+            int removed = _entries.RemoveAll(e => e.section == "core" && e.conv == ActivationConv);
+            if (removed <= 0) return;
+            Diag.Log("A11yDialogueLog", "drop activation prematuree n=" + removed);
+            Save();
+        }
+
         // --- Lecture (onglet Journal) ---
 
         // Groupes pour la nav hierarchique : Coeur d'abord (un groupe par conversation, ordre
